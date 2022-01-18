@@ -43,19 +43,21 @@ while True:
     if ret is not True:
         break
 
-    frame_copy = cv2.blur(frame_copy, (27, 27))
-    img_new = frame_copy.reshape((-1, 3))
-    img_new = np.vstack(img_new)
+
+    # frame_copy = cv2.blur(frame_copy, (27, 27))
+    img_new = np.array_split(frame_copy, 77)
     np.random.shuffle(img_new)
-    img_new = img_new.reshape(frame_copy.shape)
+
+    img_new = np.vstack(img_new)
+
     face=cv2.bitwise_and(img_new,img_new,mask=mask)
     # Extract the face
     frame_copy = img_new
     face_extracted = cv2.bitwise_and(frame_copy, frame_copy, mask=mask)
 
 
-    backgroundmask=cv2.bitwise_not(mask)
-    background = cv2.bitwise_and(frame, frame, mask=backgroundmask)
+    backgroundm=cv2.bitwise_not(mask)
+    background = cv2.bitwise_and(frame, frame, mask=backgroundm)
 
     result = cv2.add(background, face_extracted)
 
