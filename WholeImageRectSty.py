@@ -1,42 +1,49 @@
      
  """
 # ==========================================================================================================================================================
-#                                                                       Just Run The Script. Scramble method == Square
+#                                                                       Whole Image Scrambler
+                                                                         Author: Enes Altun
+                                          Usage:go to the 49'th line and enter the name of the image and desired num. of squares.
 # ==========================================================================================================================================================
 """
-     
-
-
 import cv2
 import numpy as np
 
 #Create an Image Scrambler script
-def scramble(image, parts):
-    #Shuffle the parts of the image's randomly
-    h, w, c = image.shape
-    w1 = w//parts
-    h1 = h//parts
-    idx = list(range(parts*parts))
-    np.random.shuffle(idx)
-    for i in range(parts):
-        for j in range(parts):
-            x = idx[i*parts+j]%parts
-            y = idx[i*parts+j]//parts
-            roi = image[y*h1:(y+1)*h1, x*w1:(x+1)*w1]
-            image[y*h1:(y+1)*h1, x*w1:(x+1)*w1] = image[i*h1:(i+1)*h1, j*w1:(j+1)*w1]
-            image[i*h1:(i+1)*h1, j*w1:(j+1)*w1] = roi
-    return image
+def scramble_image_data(image, x_block=10, y_block=10):
+    #Create a list of x_block number of lists
+    x_length = image.shape[1]
+    y_length = image.shape[0]
+    x_list = []
+    for i in range(x_block):
+        x_list.append(image[0:y_length, int(x_length/x_block) * i:int(x_length/x_block) * (i+1)])
+    #Shuffle the lists
+    np.random.shuffle(x_list)
+    #Join the lists to each other
+    new_image = np.concatenate(x_list, axis=1)
+    #Create a list of y_block number of lists
+    x_list = []
+    for i in range(y_block):
+        x_list.append(new_image[int(y_length/y_block) * i:int(y_length/y_block) * (i+1), 0:x_length])
+    #Shuffle the lists
+    np.random.shuffle(x_list)
+    #Join the lists to each other
+    new_image = np.concatenate(x_list, axis=0)
+    #Return the new image
+    return new_image
 
-#Get the desired numbers of shuffle parts from the user
-parts = int(input("Enter the number of parts: "))
-
-#Load the image
-img = cv2.imread("Lena.png")
-
-#Call the function
-scrambled = scramble(img, parts)
-
-#Show the scrambled image
-cv2.imshow("Scrambled", scrambled)
-cv2.waitKey(0)
-cv2.destroyAllWindows()
+#Apply the full image to the new picture
+def scramble_image(image_path, x_block=10, y_block=10):
+    #Load the image
+    image = cv2.imread(image_path)
+    #Scramble the image
+    new_image = scramble_image_data(image, x_block, y_block)
+    #get the image name
+    image_name = image_path.split('/')[-1]
+    #get the image extension
+    image_name = image_name.split('.')[0]
+    print(image_name)
+    #Save the image
+    cv2.imwrite(f'{image_name}SCRAMBLED_'+f'{x_block,y_block}.png', new_image)
+#24 square on the X-axis, 24 square on the Y-axis
+scramble_image("Lena.png", 24, 24) 
