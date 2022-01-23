@@ -3,7 +3,7 @@
 # ==========================================================================================================================================================
 #                                                                       Whole Image Scrambler
                                                                          Author: Enes Altun
-                                          Usage:go to the 48'th line and enter the name of the image and desired num. of squares.
+                                          Usage:go to the 53'th line and enter the name of the image and desired num. of squares.
 # ==========================================================================================================================================================
 """
 
