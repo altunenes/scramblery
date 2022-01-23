@@ -3,13 +3,14 @@
 # ==========================================================================================================================================================
 #                                                                       Whole Image Scrambler
                                                                          Author: Enes Altun
-                                          Usage:go to the 49'th line and enter the name of the image and desired num. of squares.
+                                          Usage:go to the 48'th line and enter the name of the image and desired num. of squares.
 # ==========================================================================================================================================================
 """
+
+
 import cv2
 import numpy as np
 
-#Create an Image Scrambler script
 def scramble_image_data(image, x_block=10, y_block=10):
     #Create a list of x_block number of lists
     x_length = image.shape[1]
@@ -45,5 +46,8 @@ def scramble_image(image_path, x_block=10, y_block=10):
     print(image_name)
     #Save the image
     cv2.imwrite(f'{image_name}SCRAMBLED_'+f'{x_block,y_block}.png', new_image)
+
 #24 square on the X-axis, 24 square on the Y-axis
+
+#enter your image name
 scramble_image("Lena.png", 24, 24) 
