@@ -27,6 +27,14 @@ slider.oninput = function() {
 };
 document.body.appendChild(slider);
 
+var text = document.createElement('div');
+text.innerHTML = 'scramble ratio';
+text.style.position = 'absolute';
+text.style.left = '12%';
+text.style.top = '5%';
+text.style.transform = 'translate(-50%, -50%)';
+document.body.appendChild(text);
+
 var scrambleImageButton = document.createElement('button');
 scrambleImageButton.innerHTML = 'Scramble Image';
 scrambleImageButton.onclick = function() {
