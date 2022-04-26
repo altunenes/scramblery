@@ -76,3 +76,6 @@ clearButton.onclick = function() {
   image.src = '';
 };
 document.body.appendChild(clearButton);
+
+document.body.style.overflow = 'hidden';
+
