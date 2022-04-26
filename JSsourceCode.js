@@ -79,3 +79,14 @@ document.body.appendChild(clearButton);
 
 document.body.style.overflow = 'hidden';
 
+var buttons = document.querySelectorAll('button');
+for (var i = 0; i < buttons.length; i++) {
+  buttons[i].style.fontSize = '20px';
+  buttons[i].style.padding = '10px';
+  buttons[i].style.margin = '10px';
+  buttons[i].style.borderRadius = '10px';
+  buttons[i].style.border = 'none';
+  buttons[i].style.backgroundColor = '#eee';
+  buttons[i].style.cursor = 'pointer';
+}
+
