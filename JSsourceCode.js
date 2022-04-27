@@ -77,6 +77,14 @@ clearButton.onclick = function() {
 };
 document.body.appendChild(clearButton);
 
+
+
+document.body.style.overflow = 'hidden';
+
+clearButton.onclick = function() {
+  location.reload();
+};
+
 document.body.style.overflow = 'hidden';
 
 var buttons = document.querySelectorAll('button');
