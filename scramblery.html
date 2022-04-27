@@ -23,25 +23,20 @@ importImageButton.onclick = function() {
 };
 document.body.appendChild(importImageButton);
 
+
+
+
+
 var slider = document.createElement('input');
 slider.type = 'range';
-slider.min = 0;
+slider.min = 1;
 slider.max = 150;
-slider.value = 0;
+slider.value = 1;
 slider.oninput = function() {
   console.log(slider.value);
 };
 document.body.appendChild(slider);
 
-            
-var text = document.createElement('div');
-text.innerHTML = 'scramble ratio';
-text.style.position = 'absolute';
-text.style.left = '12%';
-text.style.top = '5%';
-text.style.transform = 'translate(-50%, -50%)';
-document.body.appendChild(text);            
-            
 var scrambleImageButton = document.createElement('button');
 scrambleImageButton.innerHTML = 'Scramble Image';
 scrambleImageButton.onclick = function() {
@@ -83,8 +78,29 @@ clearButton.onclick = function() {
   image.src = '';
 };
 document.body.appendChild(clearButton);
+
+
+
+document.body.style.overflow = 'hidden';
+
+
+
+
+var buttons = document.querySelectorAll('button');
+for (var i = 0; i < buttons.length; i++) {
+  buttons[i].style.fontSize = '20px';
+  buttons[i].style.padding = '10px';
+  buttons[i].style.margin = '10px';
+  buttons[i].style.borderRadius = '10px';
+  buttons[i].style.border = 'none';
+  buttons[i].style.backgroundColor = '#eee';
+  buttons[i].style.cursor = 'pointer';
+}
+
+
+
 });
         </script>
-
+    </head>
 
 </html>
