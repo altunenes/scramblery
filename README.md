@@ -1,7 +1,7 @@
 # scramblery
 Detects faces automatically and scrambles the face with given numbers.
 
-Online demo for js version (whole image): https://altunenes.github.io/scramblery/scramblery
+Online demo for js version (only whole image): https://altunenes.github.io/scramblery/scramblery (use the slider to adjust the scramble ratio before the scramble. In this version, you need to refresh the page for the next image. I will edit the code as soon as possible)
 
 ![scrambledImage](https://user-images.githubusercontent.com/54986652/150359859-845167f2-4f67-497b-87ff-4a3b627cac03.png)
 
