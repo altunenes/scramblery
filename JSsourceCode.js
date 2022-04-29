@@ -106,3 +106,6 @@ scrambleSliderText.style.position = 'absolute';
 scrambleSliderText.style.top = '50px';
 scrambleSliderText.style.left = '180px';
 
+scrambleSliderText.style.fontSize = '15px';
+scrambleSliderText.style.fontFamily = 'sans-serif';
+scrambleSliderText.style.color = '#666';
