@@ -120,3 +120,4 @@ twitterLink.style.fontSize = '15px';
 twitterLink.style.fontFamily = 'sans-serif';
 twitterLink.style.color = '#666';
 document.body.appendChild(twitterLink);
+document.body.style.overflow = 'auto';
