@@ -101,3 +101,8 @@ for (var i = 0; i < buttons.length; i++) {
 var scrambleSliderText = document.createElement('div');
 scrambleSliderText.innerHTML = 'Scramble ratio';
 document.body.appendChild(scrambleSliderText);
+
+scrambleSliderText.style.position = 'absolute';
+scrambleSliderText.style.top = '50px';
+scrambleSliderText.style.left = '180px';
+
