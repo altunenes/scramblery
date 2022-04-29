@@ -109,3 +109,14 @@ scrambleSliderText.style.left = '180px';
 scrambleSliderText.style.fontSize = '15px';
 scrambleSliderText.style.fontFamily = 'sans-serif';
 scrambleSliderText.style.color = '#666';
+
+var twitterLink = document.createElement('a');
+twitterLink.innerHTML = '@altunenes';
+twitterLink.href = 'https://github.com/altunenes';
+twitterLink.style.position = 'absolute';
+twitterLink.style.bottom = '10px';
+twitterLink.style.right = '10px';
+twitterLink.style.fontSize = '15px';
+twitterLink.style.fontFamily = 'sans-serif';
+twitterLink.style.color = '#666';
+document.body.appendChild(twitterLink);
