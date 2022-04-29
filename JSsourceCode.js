@@ -98,3 +98,6 @@ for (var i = 0; i < buttons.length; i++) {
   buttons[i].style.cursor = 'pointer';
 }
 
+var scrambleSliderText = document.createElement('div');
+scrambleSliderText.innerHTML = 'Scramble ratio';
+document.body.appendChild(scrambleSliderText);
