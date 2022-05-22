@@ -1,5 +1,7 @@
-var importImageButton = document.createElement('button');
-
+<html>
+    <head>
+        <script>
+        document.addEventListener("DOMContentLoaded", function() {
 
 var importImageButton = document.createElement('button');
 importImageButton.innerHTML = 'Import Image';
@@ -20,24 +22,41 @@ importImageButton.onclick = function() {
 };
 document.body.appendChild(importImageButton);
 
+
+
+
+
 var slider = document.createElement('input');
 slider.type = 'range';
-slider.min = 0;
+slider.min = 1;
 slider.max = 150;
-slider.value = 0;
+slider.value = 1;
 slider.oninput = function() {
   console.log(slider.value);
 };
 document.body.appendChild(slider);
-
-var text = document.createElement('div');
-text.innerHTML = 'scramble ratio';
-text.style.position = 'absolute';
-text.style.left = '12%';
-text.style.top = '5%';
-text.style.transform = 'translate(-50%, -50%)';
-document.body.appendChild(text);
-
+var gaussianNoiseButton = document.createElement('button');
+gaussianNoiseButton.innerHTML = 'Noise';
+gaussianNoiseButton.onclick = function() {
+  var image = document.querySelector('img');
+  var canvas = document.createElement('canvas');
+  canvas.width = image.width;
+  canvas.height = image.height;
+  var context = canvas.getContext('2d');
+  context.drawImage(image, 0, 0);
+  var imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+  var data = imageData.data;
+  for (var i = 0; i < data.length; i += 4) {
+    if (Math.random() < slider.value / 100) {
+      data[i] = Math.random() * 255;
+      data[i + 1] = Math.random() * 255;
+      data[i + 2] = Math.random() * 255;
+    }
+  }
+  context.putImageData(imageData, 0, 0);
+  image.src = canvas.toDataURL();
+};
+document.body.appendChild(gaussianNoiseButton);
 var scrambleImageButton = document.createElement('button');
 scrambleImageButton.innerHTML = 'Scramble Image';
 scrambleImageButton.onclick = function() {
@@ -88,7 +107,7 @@ clearButton.onclick = function() {
   location.reload();
 };
 
-document.body.style.overflow = 'hidden';
+
 
 var buttons = document.querySelectorAll('button');
 for (var i = 0; i < buttons.length; i++) {
@@ -125,26 +144,7 @@ twitterLink.style.color = '#666';
 document.body.appendChild(twitterLink);
 document.body.style.overflow = 'auto';
 
+});
+        </script>
 
-var gaussianNoiseButton = document.createElement('button');
-gaussianNoiseButton.innerHTML = 'Noise';
-gaussianNoiseButton.onclick = function() {
-  var image = document.querySelector('img');
-  var canvas = document.createElement('canvas');
-  canvas.width = image.width;
-  canvas.height = image.height;
-  var context = canvas.getContext('2d');
-  context.drawImage(image, 0, 0);
-  var imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-  var data = imageData.data;
-  for (var i = 0; i < data.length; i += 4) {
-    if (Math.random() < slider.value / 100) {
-      data[i] = Math.random() * 255;
-      data[i + 1] = Math.random() * 255;
-      data[i + 2] = Math.random() * 255;
-    }
-  }
-  context.putImageData(imageData, 0, 0);
-  image.src = canvas.toDataURL();
-};
-document.body.appendChild(gaussianNoiseButton);
+</html>
