@@ -1,10 +1,6 @@
-<html>
-    <head>
-        <script>
-        document.addEventListener("DOMContentLoaded", function() {
-
 var importImageButton = document.createElement('button');
 importImageButton.innerHTML = 'Import Image';
+/*/importImageButton.style.position = 'fixed';/*/
 importImageButton.onclick = function() {
   var fileInput = document.createElement('input');
   fileInput.type = 'file';
@@ -143,8 +139,3 @@ twitterLink.style.fontFamily = 'sans-serif';
 twitterLink.style.color = '#666';
 document.body.appendChild(twitterLink);
 document.body.style.overflow = 'auto';
-
-});
-        </script>
-
-</html>
