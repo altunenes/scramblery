@@ -1,4 +1,4 @@
-var importImageButton = document.createElement('button');
+			var importImageButton = document.createElement('button');
 importImageButton.innerHTML = 'Import Image';
 /*/importImageButton.style.position = 'fixed';/*/
 importImageButton.onclick = function() {
@@ -96,6 +96,54 @@ clearButton.onclick = function() {
 document.body.appendChild(clearButton);
 
 
+var selectCircularAreaButton = document.createElement('button');
+selectCircularAreaButton.innerHTML = 'Select Circular Area and Noise';
+selectCircularAreaButton.onclick = function() {
+  var image = document.getElementsByTagName('img')[0];
+  var canvas = document.createElement('canvas');
+  canvas.width = image.width;
+  canvas.height = image.height;
+  var context = canvas.getContext('2d');
+  context.drawImage(image, 0, 0);
+  var imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+  var data = imageData.data;
+  var x = 0;
+  var y = 0;
+  var radius = 0;
+  var isDrawing = false;
+  canvas.onmousedown = function(e) {
+    isDrawing = true;
+    x = e.offsetX;
+    y = e.offsetY;
+    radius = 0;
+  };
+  canvas.onmousemove = function(e) {
+    if (isDrawing) {
+      radius = Math.sqrt(Math.pow(e.offsetX - x, 2) + Math.pow(e.offsetY - y, 2));
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, 0, 0);
+      context.beginPath();
+      context.arc(x, y, radius, 0, 2 * Math.PI);
+      context.stroke();
+    }
+  };
+  canvas.onmouseup = function(e) {
+    isDrawing = false;
+    for (var i = 0; i < data.length; i += 4) {
+      var dx = (i / 4) % canvas.width - x;
+      var dy = Math.floor((i / 4) / canvas.width) - y;
+      if (Math.sqrt(dx * dx + dy * dy) < radius) {
+        data[i] = Math.random() * 255;
+        data[i + 1] = Math.random() * 255;
+        data[i + 2] = Math.random() * 255;
+      }
+    }
+    context.putImageData(imageData, 0, 0);
+  };
+  document.body.appendChild(canvas);
+};
+document.body.appendChild(selectCircularAreaButton);
+
 
 document.body.style.overflow = 'hidden';
 
@@ -127,6 +175,9 @@ scrambleSliderText.style.left = '180px';
 scrambleSliderText.style.fontSize = '15px';
 scrambleSliderText.style.fontFamily = 'sans-serif';
 scrambleSliderText.style.color = '#666';
+
+
+
 
 var twitterLink = document.createElement('a');
 twitterLink.innerHTML = '@altunenes';
