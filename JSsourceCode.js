@@ -152,6 +152,59 @@ document.body.style.overflow = 'hidden';
 clearButton.onclick = function() {
   location.reload();
 };
+var scrambleRectangleAreaButton = document.createElement('button');
+scrambleRectangleAreaButton.innerHTML = 'Scramble Rectangle Area';
+scrambleRectangleAreaButton.onclick = function() {
+  var image = document.getElementsByTagName('img')[0];
+  var canvas = document.createElement('canvas');
+  canvas.width = image.width;
+  canvas.height = image.height;
+  var context = canvas.getContext('2d');
+  context.drawImage(image, 0, 0);
+  var imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+  var data = imageData.data;
+  var x = 0;
+  var y = 0;
+  var width = 0;
+  var height = 0;
+  var isDrawing = false;
+  canvas.onmousedown = function(e) {
+    isDrawing = true;
+    x = e.offsetX;
+    y = e.offsetY;
+    width = 0;
+    height = 0;
+  };
+  canvas.onmousemove = function(e) {
+    if (isDrawing) {
+      width = e.offsetX - x;
+      height = e.offsetY - y;
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, 0, 0);
+      context.beginPath();
+      context.rect(x, y, width, height);
+      context.stroke();
+    }
+  };
+  canvas.onmouseup = function(e) {
+    isDrawing = false;
+    for (var i = 0; i < data.length; i += 4) {
+      var dx = (i / 4) % canvas.width - x;
+      var dy = Math.floor((i / 4) / canvas.width) - y;
+      if (dx >= 0 && dx < width && dy >= 0 && dy < height) {
+        if (Math.random() < slider.value / 100) {
+          var j = Math.floor(Math.random() * data.length / 4) * 4;
+          data[i] = data[j];
+          data[i + 1] = data[j + 1];
+          data[i + 2] = data[j + 2];
+        }
+      }
+    }
+    context.putImageData(imageData, 0, 0);
+  };
+  document.body.appendChild(canvas);
+};
+document.body.appendChild(scrambleRectangleAreaButton);
 
 var scrambleCircularAreaButton = document.createElement('button');
 scrambleCircularAreaButton.innerHTML = 'Scramble Circular Area';
