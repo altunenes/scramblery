@@ -124,6 +124,8 @@ NoiseCircularAreaButton.onclick = function() {
       context.drawImage(image, 0, 0);
       context.beginPath();
       context.arc(x, y, radius, 0, 2 * Math.PI);
+      context.strokeStyle = 'rgba(255, 0, 0, 0.5)';
+      context.lineWidth = 3;
       context.stroke();
     }
   };
