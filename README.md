@@ -19,9 +19,9 @@ details: https://altunenes.github.io/scramblery/
 - import the package:
 - `from scramblery import scramblery`
 - `scramblery.scrambleimage("Lena.png",8,8)`
-- ![8x8](./.assets/LenaSCRAMBLED_(8).png\ "Result")
+- ![8x8](./.assets/LenaSCRAMBLED_(8).png)
 - `scramblery.scrambleface("Lena.png",8)
-- ![8x8](./.assets/scrambledImageface.png\ "Result")
+- ![8x8](./.assets/scrambledImageface.png)
 `
 #### Author
   -  Main Maintainer: [Enes ALTUN]
