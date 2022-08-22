@@ -1,0 +1,30 @@
+[tool.poetry]
+name = "scramblery"
+version = "1.1.1"
+description = ""
+authors = ["altunenes <enesaltun2@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+homepage = "https://github.com/altunenes/scramblery"
+repository = "https://github.com/altunenes/scramblery"
+keywords = ["scramblery", "scramble", "face scramble","psychology","experimental psychology","altunenes"]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.6",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Operating System :: OS Independent",]
+
+
+[tool.poetry.dependencies]
+python = "^3.8"
+
+
+[tool.poetry.dev-dependencies]
+pytest = "^5.2"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
