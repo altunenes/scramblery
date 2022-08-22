@@ -1,6 +1,8 @@
 # Scramblery
 A simple tool to scramble your images or only faces from images or videos
 
+details: https://altunenes.github.io/scramblery/
+
 #### Purpose of Package
  The purpose of this package is the creating scrambled images from images or videos. User can either scramble the whole image or only facial area.
  This is very useful tool in psychology experiments especially if you are working with faces.
