@@ -13,6 +13,14 @@ A simple tool to scramble your images or only faces from images or videos
 #### Installation
 - The package can be found in pypi. To install the package, run the following command in the terminal:
 - `pip install scramblery`
+#### Usage
+- import the package:
+- `from scramblery import scramblery`
+- `scramblery.scrambleimage("Lena.png",8,8)`
+- ![8x8](./assets/LenaSCRAMBLED_(8).png\ "Result")
+- `scramblery.scrambleface("Lena.png",8)
+- ![8x8](./assets/scrambledImageface.png\ "Result")
+`
 #### Author
   -  Main Maintainer: [Enes ALTUN]
 

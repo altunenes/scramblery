@@ -44,10 +44,6 @@ def scrambleface(img,splits):
     hull = cv2.convexHull(landmarks)
     cv2.fillConvexPoly(mask, hull, 255)
 
-    cv2.polylines(img, [hull], 1, (0, 0, 255), 1)
-
-    cv2.polylines(mask, [hull], 1, (255), 1)
-
     for i in range(0, 468):
         pt = landmarks[i]
 
