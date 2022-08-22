@@ -19,7 +19,7 @@ details: https://altunenes.github.io/scramblery/
 - import the package:
 - `from scramblery import scramblery`
 - `scramblery.scrambleimage("Lena.png",8,8)`
-- ![8x8](./.assets/LenaSCRAMBLED_(8).png)
+- ![8x8](./.assets/LenaSCRAMBLED_(8, 8).png)
 - `scramblery.scrambleface("Lena.png",8)
 - ![8x8](./.assets/scrambledImageface.png)
 `
