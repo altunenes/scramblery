@@ -21,7 +21,7 @@ details: https://altunenes.github.io/scramblery/
 - `scramblery.scrambleimage("Lena.png",8,8)`
 - ![8x8](./.assets/Lena.png)
 
-- `scramblery.scrambleface("Lena.png",8)
+- `scramblery.scrambleface("Mona.png",8)
 - ![8x8](./.assets/scrambledImageface.png)
 `
 #### Author
