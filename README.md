@@ -1,4 +1,8 @@
 # Scramblery
+[![Downloads](https://pepy.tech/badge/scramblery)](https://pepy.tech/project/scramblery)
+[![PyPI version](https://badge.fury.io/py/scramblery.svg)](https://badge.fury.io/py/scramblery)
+[![Jekyll site CI](https://github.com/altunenes/scramblery/actions/workflows/jekyll.yml/badge.svg)](https://github.com/altunenes/scramblery/actions/workflows/jekyll.yml)
+
 A simple tool to scramble your images or only faces from images or videos
 
 details: https://altunenes.github.io/scramblery/
