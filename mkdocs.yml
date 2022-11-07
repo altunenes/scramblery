@@ -1,0 +1,9 @@
+site_name: scramblery
+site_url: https://github.com/altunenes/scramblery
+nav:
+  - Home: index.md
+  - User Guide: userguide.md
+  - API: api_reference.md
+  - demo: scramblerydemo.html
+
+theme: readthedocs
