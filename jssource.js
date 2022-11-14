@@ -270,3 +270,62 @@
     aboutText.addEventListener('click', function() {
       aboutText.style.display = 'none';
     });
+
+/* cfa test
+var scrambleImageButton = document.createElement('button');
+	    scrambleImageButton.innerHTML = 'Scramble Image';
+	    scrambleImageButton.onclick = function() {
+	    var image = document.getElementsByTagName('img')[0];
+	    var canvas = document.createElement('canvas');
+	    canvas.width = image.width;
+	    canvas.height = image.height;
+	    var context = canvas.getContext('2d');
+	    context.drawImage(image, 0, 0);
+	    var imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+	    var data = imageData.data;
+	    var frameWidth = Math.round(canvas.width / slider.value);
+	    var frameHeight = Math.round(canvas.height / slider.value);
+	    var frameData = [];
+	    for (var y = 0; y < canvas.height; y += frameHeight) {
+	    for (var x = 0; x < canvas.width; x += frameWidth) {
+	    var sum = 0;
+	    for (var i = 0; i < frameWidth; i++) {
+	    for (var j = 0; j < frameHeight; j++) {
+	    var index = (x + i + (y + j) * canvas.width) * 4;
+	    sum += data[index] + data[index + 1] + data[index + 2];
+	    }
+	    }
+	    frameData.push(sum / (frameWidth * frameHeight * 3));
+	    }
+	    }
+	    frameData.sort(function(a, b) {
+	    return a - b;
+	    });
+	    for (var y = 0; y < canvas.height; y += frameHeight) {
+	    for (var x = 0; x < canvas.width; x += frameWidth) {
+	    var sum = 0;
+	    for (var i = 0; i < frameWidth; i++) {
+	    for (var j = 0; j < frameHeight; j++) {
+	    var index = (x + i + (y + j) * canvas.width) * 3;
+	    sum += data[index] + data[index + 1] + data[index + 2];
+	    }
+	    }
+	    var average = sum / (frameWidth * frameHeight * 4);
+	    var frameIndex = frameData.indexOf(average);
+	    for (var i = 0; i < frameWidth; i++) {
+	    for (var j = 0; j < frameHeight; j++) {
+	    var index = (x + i + (y + j) * canvas.width) * 4;
+	    var index2 = (frameIndex % slider.value * frameWidth + i + (Math.floor(frameIndex / slider.value) * frameHeight + j) * canvas.width) * 12;
+	    data[index] = data[index2];
+	    data[index + 1] = data[index2 + 1];
+	    data[index + 2] = data[index2 + 2];
+	    }
+	    }
+	    }
+	    }
+	    context.putImageData(imageData, 0, 0);
+	    var image2 = document.createElement('img');
+	    image2.src = canvas.toDataURL();
+	    document.body.appendChild(image2);
+	    };
+	    document.body.appendChild(scrambleImageButton); /*/
