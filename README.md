@@ -7,6 +7,8 @@ A simple tool to scramble your images or only faces from images or videos. You c
 
 Update:
 Also, with the same paradigm, I have created an animated version of scramblery just for fun. It's shuffling pixel values and coordinates in a given ratio then it's arranging them back in the original order. You can find the online demo in javascript [here](https://altunenes.github.io/scramblery/magic.html).
+
+example (gif animation):
 ![example](/assets/Animation14.gif)
 
 
