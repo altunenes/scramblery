@@ -5,6 +5,9 @@
 
 A simple tool to scramble your images or only faces from images or videos. You can find the online demo in javascript [here](https://altunenes.github.io/scramblery/scramblerydemo.html). For more information, please visit the [documentation](https://altunenes.github.io/scramblery/).
 
+Update:
+Also, with the same paradigm, I have created an animated version of scramblery just for fun. It's shuffling pixel values and coordinates in a given ratio then it's arranging them back in the original order. You can find the online demo in javascript [here](https://altunenes.github.io/scramblery/magic.html).
+
 #### Purpose of Package
  The purpose of this package is the creating scrambled images from images or videos. User can either scramble the whole image or only facial area.
  This is very useful tool in psychology experiments especially if you are working with faces. With a for loop you can scramble all the images in a folder and create a new folder with scrambled images. It was very long process to scramble images manually in the past and I feel like this package can be useful for many people. Hope this package will be useful for your research.
