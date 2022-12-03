@@ -43,18 +43,6 @@
               <ul class="current">
                 <li class="toctree-l1 current"><a class="reference internal current" href=".">Home</a>
     <ul class="current">
-    <li class="toctree-l2"><a class="reference internal" href="#purpose-of-package">Purpose of Package</a>
-    </li>
-    <li class="toctree-l2"><a class="reference internal" href="#features">Features</a>
-    </li>
-    <li class="toctree-l2"><a class="reference internal" href="#installation">Installation</a>
-    </li>
-    <li class="toctree-l2"><a class="reference internal" href="#author">Author</a>
-    </li>
-    <li class="toctree-l2"><a class="reference internal" href="#usage">Usage</a>
-    </li>
-    <li class="toctree-l2"><a class="reference internal" href="#contributon">Contributon</a>
-    </li>
     </ul>
                 </li>
               </ul>
@@ -97,14 +85,26 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
             <div class="section" itemprop="articleBody">
               
-                <h1 id="scramblery">Scramblery</h1>
-<p><a href="https://pepy.tech/project/scramblery"><img alt="Downloads" src="https://pepy.tech/badge/scramblery" /></a>
+                <p># Scramblery
+<a href="https://pepy.tech/project/scramblery"><img alt="Downloads" src="https://pepy.tech/badge/scramblery" /></a>
 <a href="https://badge.fury.io/py/scramblery"><img alt="PyPI version" src="https://badge.fury.io/py/scramblery.svg" /></a>
 <a href="https://github.com/altunenes/scramblery/actions/workflows/jekyll.yml"><img alt="Jekyll site CI" src="https://github.com/altunenes/scramblery/actions/workflows/jekyll.yml/badge.svg" /></a></p>
-<p>A simple tool to scramble your images or only faces from images or videos</p>
+<p>A simple tool to scramble your images or only faces from images or videos. You can find the online demo in javascript <a href="https://altunenes.github.io/scramblery/scramblerydemo.html">here</a>. For more information, please visit the <a href="https://altunenes.github.io/scramblery/">documentation</a>.</p>
 <h4 id="purpose-of-package">Purpose of Package</h4>
 <p>The purpose of this package is the creating scrambled images from images or videos. User can either scramble the whole image or only facial area.
-This is very useful tool in psychology experiments especially if you are working with faces.</p>
+ This is very useful tool in psychology experiments especially if you are working with faces. With a for loop you can scramble all the images in a folder and create a new folder with scrambled images. It was very long process to scramble images manually in the past and I feel like this package can be useful for many people. Hope this package will be useful for your research.</p>
+<h4 id="motivation">Motivation</h4>
+<ul>
+<li>
+<p>Image scrambling is important in psychology experiments because it allows researchers to control the content and structure of visual stimuli, while removing or altering specific features or patterns that might influence participants' perception or response.</p>
+</li>
+<li>
+<p>By scrambling an image, researchers can create a version of the image that preserves the overall luminance, contrast, and spatial layout, but that removes or distorts specific features or patterns that might be relevant for the experiment. For example, researchers might scramble an image of a face to remove the facial features, while preserving the overall brightness and contrast, or they might scramble an image of a scene to remove the objects, while preserving the spatial layout and color.</p>
+</li>
+<li>
+<p>It allows researchers to control for potential confounds and biases that might arise from the content of the stimuli. By removing or distorting specific features or patterns, researchers can create stimuli that are less predictable and less likely to elicit specific responses from participants. This can help researchers to isolate the effects of the manipulated variables, and to reduce the influence of confounding factors that might interfere with the interpretation of the results.</p>
+</li>
+</ul>
 <h4 id="features"><strong>Features</strong></h4>
 <ul>
 <li>Scramble whole image with desired degree of scrambling (pixel values or pixel coordinates)</li>
@@ -121,13 +121,17 @@ This is very useful tool in psychology experiments especially if you are working
 <li>Main Maintainer: [Enes ALTUN]</li>
 </ul>
 <h4 id="usage">Usage</h4>
-<p>After installing the package, you can import the package as follows:</p>
-<ul>
-<li><code>from scramblery import scramblery</code>
-  <img alt="8x8" src="assets/usage.PNG" /></li>
-</ul>
+<p>After installing the package, you can import the package as follows:
+- <code>from scramblery import scramblery</code>
+Then use the functions as follows to scramble images. I added some examples below.</p>
+<p><img alt="8x8" src="./docs/assets/usage.PNG" /></p>
+<h4 id="javascript-demo">Javascript Demo</h4>
+<p>Update:
+Also, with the same paradigm, I have created an animated version of scramblery just for fun. It's shuffling pixel values and coordinates in a given ratio then it's arranging them back in the original order. You can find the online demo in javascript <a href="https://altunenes.github.io/scramblery/magic.html">here</a>.</p>
+<p>example (gif animation):</p>
+<p><img alt="example" src="/assets/Animation14.gif" /></p>
 <h3 id="contributon">Contributon</h3>
-<p>Any kind of contribution is welcome. Thanks.</p>
+<p>Any kind of contribution is welcome.</p>
               
             </div>
           </div><footer>
@@ -175,5 +179,5 @@ This is very useful tool in psychology experiments especially if you are working
 
 <!--
 MkDocs version : 1.3.1
-Build Date UTC : 2022-11-16 11:30:37.327961+00:00
+Build Date UTC : 2022-12-03 21:14:52.563209+00:00
 -->
