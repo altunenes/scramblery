@@ -29,6 +29,7 @@ document.addEventListener("DOMContentLoaded", function() {
     slider.min = 1;
     slider.max = 150;
     slider.value = 1;
+    slider.id='mosaicSize';
     slider.oninput = function() {
     console.log(slider.value);
     };
@@ -209,14 +210,9 @@ document.addEventListener("DOMContentLoaded", function() {
     document.body.appendChild(scrambleCircularAreaButton);
 
 
-
-
-
-
-
-    var scrambleAnim = document.createElement('button');
-    scrambleAnim.innerHTML = 'Scramble Animated';
-    scrambleAnim.onclick = function() {
+    var scrambleImage = document.createElement('button');
+    scrambleImage.innerHTML = 'Scramble Mosaic';
+    scrambleImage.onclick = function() {
       var img = document.getElementsByTagName('img')[0];
       var canvas = document.createElement('canvas');
       canvas.width = img.width;
@@ -225,77 +221,29 @@ document.addEventListener("DOMContentLoaded", function() {
       ctx.drawImage(img, 0, 0);
       var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       var data = imageData.data;
-      var width = imageData.width;
-      var height = imageData.height;
-      var buttonWidth = 20;
-      var buttonHeight = 20;
-      var buttonWidthCount = Math.floor(width / buttonWidth);
-      var buttonHeightCount = Math.floor(height / buttonHeight);
-      var buttonCount = buttonWidthCount * buttonHeightCount;
-      var buttonColors = [];
-      for (var i = 0; i < buttonCount; i++) {
-        var x = i % buttonWidthCount;
-        var y = Math.floor(i / buttonWidthCount);
-        var r = 0;
-        var g = 0;
-        var b = 0;
-        for (var j = 0; j < buttonWidth; j++) {
-          for (var k = 0; k < buttonHeight; k++) {
-            var index = (y * buttonHeight + k) * width * 4 + (x * buttonWidth + j) * 4;
-            r += data[index];
-            g += data[index + 1];
-            b += data[index + 2];
+      var mosaicSize = document.getElementById('mosaicSize').value;
+      for (var i = 0; i < data.length; i += 4) {
+        var x = (i / 4) % canvas.width;
+        var y = Math.floor((i / 4) / canvas.width);
+        if (x % mosaicSize === 0 && y % mosaicSize === 0) {
+          for (var j = 0; j < mosaicSize; j++) {
+            for (var k = 0; k < mosaicSize; k++) {
+              var index = (y + j) * canvas.width + (x + k);
+              data[index * 4] = data[i];
+              data[index * 4 + 1] = data[i + 1];
+              data[index * 4 + 2] = data[i + 2];
+              data[index * 4 + 3] = data[i + 3];
+            }
           }
         }
-        r = Math.floor(r / (buttonWidth * buttonHeight));
-        g = Math.floor(g / (buttonWidth * buttonHeight));
-        b = Math.floor(b / (buttonWidth * buttonHeight));
-        buttonColors.push([r, g, b]);
       }
-      var buttonPositions = [];
-      for (var i = 0; i < buttonCount; i++) {
-        buttonPositions.push(i);
-      }
-      var scrambleRatio = 0.5;
-      for (var i = 0; i < buttonCount; i++) {
-        var j = Math.floor(Math.random() * buttonCount);
-        var temp = buttonPositions[i];
-        buttonPositions[i] = buttonPositions[j];
-        buttonPositions[j] = temp;
-      }
-      var scrambleCount = Math.floor(buttonCount * scrambleRatio);
-      for (var i = 0; i < scrambleCount; i++) {
-        var j = Math.floor(Math.random() * buttonCount);
-        var temp = buttonPositions[i];
-        buttonPositions[i] = buttonPositions[j];
-        buttonPositions[j] = temp;
-      }
-      var buttons = [];
-      for (var i = 0; i < buttonCount; i++) {
-        var button = document.createElement('button');
-        button.style.width = buttonWidth + 'px';
-        button.style.height = buttonHeight + 'px';
-        button.style.backgroundColor = 'rgb(' + buttonColors[i][0] + ',' + buttonColors[i][1] + ',' + buttonColors[i][2] + ')';
-        button.style.position = 'absolute';
-        button.style.left = (buttonPositions[i] % buttonWidthCount * buttonWidth) + 'px';
-        button.style.top = (Math.floor(buttonPositions[i] / buttonWidthCount) * buttonHeight) + 'px';
-        buttons.push(button);
-        document.body.appendChild(button);
-      }
-      var buttonIndex = 0;
-      var interval = setInterval(function() {
-        if (buttonIndex >= buttonCount) {
-          clearInterval(interval);
-          return;
-        }
-        var button = buttons[buttonIndex];
-        button.style.left = (buttonIndex % buttonWidthCount * buttonWidth) + 'px';
-        button.style.top = (Math.floor(buttonIndex / buttonWidthCount) * buttonHeight) + 'px';
-        buttonIndex++;
-      }, 10);
-      
+      ctx.putImageData(imageData, 0, 0);
+      document.body.appendChild(canvas);
     };
-    document.body.appendChild(scrambleAnim);
+    document.body.appendChild(scrambleImage);
+
+
+
 
 
 
