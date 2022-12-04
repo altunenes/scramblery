@@ -16,7 +16,10 @@ importImage.onchange = function(e) {
   reader.readAsDataURL(file);
 };
 document.body.appendChild(importImage);
-
+var stopAnimation = document.createElement('button');
+stopAnimation.innerHTML = 'Stop';
+stopAnimation.style.position = 'absolute';
+document.body.appendChild(stopAnimation);
 var scrambleImage = document.createElement('button');
 scrambleImage.innerHTML = 'Magic';
 scrambleImage.style.position = 'absolute';
@@ -25,6 +28,18 @@ scrambleImage.style.right = '20px';
 scrambleImage.onclick = function() {
   var img = document.getElementsByTagName('img')[0];
   var canvas = document.createElement('canvas');
+  clearInterval(interval);
+    var interval = setInterval(function() {
+    // Code to animate the button grid, as before...
+  }, 30);
+
+  // Handle the click event for the "Stop" button.
+  stopAnimation.onclick = function() {
+    // Clear the interval that was set to animate the button grid.
+    // This will stop the ongoing animation.
+    clearInterval(interval);
+  };
+
   canvas.width = img.width;
   canvas.height = img.height;
   var ctx = canvas.getContext('2d');
@@ -162,6 +177,22 @@ document.body.appendChild(github);
 
 github.style.borderRadius = '70%';
 github.style.boxShadow = '0 0 20px rgba(0, 0, 0, 0.5)';
+
+stopAnimation.style.top = '30%';
+stopAnimation.style.right = '0px';
+stopAnimation.style.position = 'fixed';
+stopAnimation.style.backgroundColor = 'pink';
+stopAnimation.style.padding = '20px';
+stopAnimation.style.cursor = 'pointer';
+stopAnimation.style.fontFamily = 'sans-serif';
+stopAnimation.style.fontSize = '20px';
+stopAnimation.style.fontWeight = 'bold';
+stopAnimation.style.color = '#000000';
+stopAnimation.style.textAlign = 'center';
+stopAnimation.style.border = '1px solid red';
+stopAnimation.style.borderRadius = '10px';
+stopAnimation.style.boxShadow = '0px 0px 10px #000000';
+stopAnimation.style.zIndex = '9999';
 
 var aboutButton = document.createElement('div');
 aboutButton.innerHTML = 'About';
