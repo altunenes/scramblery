@@ -22,7 +22,7 @@ def get_facial_landmarks(frame):
             y = int(pt1.y * height)
             facelandmarks.append([x, y])
     return np.array(facelandmarks, np.int32)
-def scrambleface(img,splits,type,seamless=False,bg=True):
+def scrambleface(img,splits,type,seamless=False,bg=True,seed=None):
     """"scramble_face: Scramble the facial area of image.
     Args:
         img: input image
@@ -30,10 +30,13 @@ def scrambleface(img,splits,type,seamless=False,bg=True):
         type: type of split, "square" or "stack". Stack works with pixel coordinates, square works with pixel values
         seamless: if True, it will use seamlessClone to blend the scrambled face with the original image
         bg: if True, it will use the background of the original image, if False, it will replace the background with a gray color
+        seed: seed for random number generator (default: None)
 
     usage:
         scrambleface("image.png",10,"square",False,True)
     """
+    if seed is not None:
+        np.random.seed(seed)
     img_name = os.path.splitext(os.path.basename(img))[0]
     img = cv2.imread(img)
     img_copy = img.copy()
@@ -88,16 +91,19 @@ def scrambleface(img,splits,type,seamless=False,bg=True):
             cv2.imwrite(f'{img_name}_scrambled_square.png', img_copy)
 
 
-def scrambleimage(image, x_block=10, y_block=10, scramble_type='classic'):
+def scrambleimage(image, x_block=10, y_block=10, scramble_type='classic',seed=None):
     """scramble_image: Scramble the whole image.
     Args:
         image: input image(with extension)
         x_block: number of splits in x-axis
         y_block: number of splits in y-axis
-        type: type of split, "pixel" or "classic" square is recommended to maintain the image dimensions. classic is works with pixel coordinates, pixel works with pixel values
+        type: type of split, "pixel","square","withinblocks","rotate","colormap","gradient"
+        seed: seed for random number generator (default: None)
         Usage:
             scrambleimage("image.png",10,10,"pixel")
     """
+    if seed is not None:
+        np.random.seed(seed)
     image_path = image.split('/')[-1]
     image_path = image.split('.')[0]
     image = cv2.imread(image)
@@ -140,7 +146,78 @@ def scrambleimage(image, x_block=10, y_block=10, scramble_type='classic'):
                 y2 = int(((j+1)/y_block)*h)
                 image[y1:y2, x1:x2] = image[np.random.randint(y1, y2), np.random.randint(x1, x2)]
         new_image = image
- 
+    elif scramble_type == 'withinblocks':
+        h, w, _ = image.shape
+        block_width = w // x_block
+        block_height = h // y_block
+        new_image = np.zeros((h, w, 3), dtype=np.uint8)
+        for i in range(y_block):
+            for j in range(x_block):
+                y1 = i * block_height
+                y2 = (i+1) * block_height
+                x1 = j * block_width
+                x2 = (j+1) * block_width
+                block = image[y1:y2, x1:x2]
+                block = block[np.random.permutation(block_height), :]
+                block = block[:, np.random.permutation(block_width)]
+                new_image[y1:y2, x1:x2] = block
+
+    elif scramble_type == 'rotate':
+        h, w, _ = image.shape
+        block_width = w // x_block
+        block_height = h // y_block
+        new_image = np.zeros((h, w, 3), dtype=np.uint8)
+        for i in range(y_block):
+            for j in range(x_block):
+                y1 = i * block_height
+                y2 = (i+1) * block_height
+                x1 = j * block_width
+                x2 = (j+1) * block_width
+                block = image[y1:y2, x1:x2]
+                # Rotate the block by a random number of degrees between -45 and 45
+                angle = random.uniform(-45, 45)
+                rows, cols = block.shape[:2]
+                M = cv2.getRotationMatrix2D((cols/2, rows/2), angle, 1)
+                block = cv2.warpAffine(block, M, (cols, rows))
+                new_image[y1:y2, x1:x2] = block    
+    elif scramble_type == 'colormap':
+        h, w, _ = image.shape
+        block_width = w // x_block
+        block_height = h // y_block
+        new_image = np.zeros((h, w, 3), dtype=np.uint8)
+        for i in range(y_block):
+            for j in range(x_block):
+                y1 = i * block_height
+                y2 = (i+1) * block_height
+                x1 = j * block_width
+                x2 = (j+1) * block_width
+                block = image[y1:y2, x1:x2]
+                available_maps = [cv2.COLORMAP_AUTUMN, cv2.COLORMAP_BONE, cv2.COLORMAP_JET,
+                                 cv2.COLORMAP_WINTER, cv2.COLORMAP_RAINBOW, cv2.COLORMAP_OCEAN]
+                chosen_map = random.choice(available_maps)
+                block = cv2.applyColorMap(block, chosen_map)
+                new_image[y1:y2, x1:x2] = block
+    elif scramble_type == 'gradient':
+        h, w, _ = image.shape
+        block_width = w // x_block
+        block_height = h // y_block
+        new_image = np.zeros((h, w, 3), dtype=np.uint8)
+        for i in range(y_block):
+            for j in range(x_block):
+                y1 = i * block_height
+                y2 = (i+1) * block_height
+                x1 = j * block_width
+                x2 = (j+1) * block_width
+                block = image[y1:y2, x1:x2]
+                # Choose a random gradient (Sobel or Laplacian)
+                gradient = random.choice(['sobel', 'laplacian'])
+                if gradient == 'sobel':
+                    block = cv2.Sobel(block, cv2.CV_64F, 1, 0, ksize=5)
+                elif gradient == 'laplacian':
+                    block = cv2.Laplacian(block, cv2.CV_64F, ksize=5)
+                # Scale the gradient image back to 8-bit unsigned integers
+                block = cv2.normalize(block, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
+                new_image[y1:y2, x1:x2] = block   
     else:
         raise ValueError("Invalid scramble type. Must be either 'classic' or 'pixel'.")
     

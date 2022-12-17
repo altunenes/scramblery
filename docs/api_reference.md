@@ -15,7 +15,10 @@ the get_facial_landmarks function takes an image and returns the facial landmark
 the scrambleface function takes an image and returns a scramble the facial area of the image. You can either scramble with the pixel values or with the pixel coordinate
 
 ***scrambleimage***<a name="scrambleimage"></a>
-the scrambleimage function takes an image and returns a scrambled version of the image. This function is for the whole image. 
+the scrambleimage function takes an image and returns a scrambled version of the image. This function is for the whole image.
+types:"pixel","square","withinblocks","rotate","colormap","gradient"
+
+note: gradient is a implement a scramble type that randomly applies a gradient to blocks of the image. This could be achieved using the cv2.Sobel or cv2.Laplacian functions. colormap, will randomly apply one of the available color maps (Autumn, Bone, Jet, Winter, Rainbow, or Ocean) to each block of the image when the function is called with the "colormap" scramble type. This two parameters don't shuffle the blocks.
 
 ```
     """scramble_image: Scramble the whole image.
@@ -23,7 +26,8 @@ the scrambleimage function takes an image and returns a scrambled version of the
         image: input image(with extension)
         x_block: number of splits in x-axis
         y_block: number of splits in y-axis
-        type: type of split, "pixel" or "classic" square is recommended to maintain the image dimensions. classic is works with pixel coordinates, pixel works with pixel values
+        type: type of split: "pixel","classic","withinblocks"
+        seed: seed for random number generator
         Usage:
             scrambleimage("image.png",10,10,"pixel")
     """
