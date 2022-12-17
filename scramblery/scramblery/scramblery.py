@@ -86,37 +86,9 @@ def scrambleface(img,splits,type,seamless=False,bg=True):
         else:
             img_copy[mask == 255] = out[mask == 255]
             cv2.imwrite(f'{img_name}_scrambled_square.png', img_copy)
-            
-def scramble_image_data(image, x_block=10, y_block=10):
-    """a function for further use"""
-    x_length = image.shape[1]
-    y_length = image.shape[0]
-    x_list = []
-    for i in range(x_block):
-        x_list.append(image[0:y_length, int(x_length/x_block) * i:int(x_length/x_block) * (i+1)])
-    np.random.shuffle(x_list)
-    new_image = np.concatenate(x_list, axis=1)
-    x_list = []
-    for i in range(y_block):
-        x_list.append(new_image[int(y_length/y_block) * i:int(y_length/y_block) * (i+1), 0:x_length])
-    np.random.shuffle(x_list)
-    new_image = np.concatenate(x_list, axis=0)
-    return new_image
 
 
-def scramble_image_data2(image_path, x_block=10, y_block=10):
-    """a function for further use"""
-    image_name = image_path.split('/')[-1]
-    image_name = image_name.split('.')[0]
-    image = cv2.imread(image_path)
-    new_image = scramble_image_data(image, x_block, y_block)
-
-    print("your image has been scrambled with dimensions",x_block,"x",y_block)
-    cv2.imwrite(f'{image_name}SCRAMBLED_' + f'{x_block, y_block}.png', new_image)
-
-
-
-def scrambleimage(image,x_block,y_block,type):
+def scrambleimage(image, x_block=10, y_block=10, scramble_type='classic'):
     """scramble_image: Scramble the whole image.
     Args:
         image: input image(with extension)
@@ -126,25 +98,55 @@ def scrambleimage(image,x_block,y_block,type):
         Usage:
             scrambleimage("image.png",10,10,"square")
     """
-    if type == "classic":
-        x_block=int(x_block)
-        y_block=int(y_block)
-        scramble_image_data2(image,x_block,y_block)
-    elif type == "square":
-        img_name = os.path.splitext(os.path.basename(image))[0]
-        image = cv2.imread(image)
-
+    image_path = image.split('/')[-1]
+    image_path = image.split('.')[0]
+    image = cv2.imread(image)
+    def scramble_image_data(image, x_block, y_block):
         h, w, _ = image.shape
-        for i in range(0,x_block):
-            for j in range(0,y_block):
-                x1=int((i/x_block)*w)
-                y1=int((j/y_block)*h)
-                x2=int(((i+1)/x_block)*w)
-                y2=int(((j+1)/y_block)*h)
+        block_width = w // x_block
+        block_height = h // y_block
+        blocks = []
+        for i in range(y_block):
+            for j in range(x_block):
+                y1 = i * block_height
+                y2 = (i+1) * block_height
+                x1 = j * block_width
+                x2 = (j+1) * block_width
+                blocks.append(image[y1:y2, x1:x2])
+        np.random.shuffle(blocks)
+        new_image = np.zeros((h, w, 3), dtype=np.uint8)
+        k = 0
+        for i in range(y_block):
+            for j in range(x_block):
+                y1 = i * block_height
+                y2 = (i+1) * block_height
+                x1 = j * block_width
+                x2 = (j+1) * block_width
+                new_image[y1:y2, x1:x2] = blocks[k]
+                k += 1
+        return new_image
+    
+    if scramble_type == 'classic':
+        x_block = int(x_block)
+        y_block = int(y_block)
+        new_image = scramble_image_data(image, x_block, y_block)
+    elif scramble_type == 'pixel':
+        h, w, _ = image.shape
+        for i in range(0, x_block):
+            for j in range(0, y_block):
+                x1 = int((i/x_block)*w)
+                y1 = int((j/y_block)*h)
+                x2 = int(((i+1)/x_block)*w)
+                y2 = int(((j+1)/y_block)*h)
+                image[y1:y2, x1:x2] = image[np.random.randint(y1, y2), np.random.randint(x1, x2)]
+        new_image = image
+ 
+    else:
+        raise ValueError("Invalid scramble type. Must be either 'classic' or 'pixel'.")
+    
+    img_name = os.path.splitext(os.path.basename(image_path))[0]
+    cv2.imwrite(f'{img_name}SCRAMBLED_' + f'{x_block, y_block}.png', new_image)
 
-                image[y1:y2,x1:x2]=image[np.random.randint(y1,y2),np.random.randint(x1,x2)]
-        
-        cv2.imwrite(f'{img_name}_Wscrambled_square.png', image)
 
 def scramblevideo(cap,splits):
     """scramble_video: Scramble the whole video.
