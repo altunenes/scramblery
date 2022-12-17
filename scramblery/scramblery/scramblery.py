@@ -94,9 +94,9 @@ def scrambleimage(image, x_block=10, y_block=10, scramble_type='classic'):
         image: input image(with extension)
         x_block: number of splits in x-axis
         y_block: number of splits in y-axis
-        type: type of split, "square" or "classic" square is recommended to maintain the image dimensions. classic is works with pixel coordinates, square works with pixel values
+        type: type of split, "pixel" or "classic" square is recommended to maintain the image dimensions. classic is works with pixel coordinates, pixel works with pixel values
         Usage:
-            scrambleimage("image.png",10,10,"square")
+            scrambleimage("image.png",10,10,"pixel")
     """
     image_path = image.split('/')[-1]
     image_path = image.split('.')[0]
