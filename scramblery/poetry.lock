@@ -1,6 +1,6 @@
 [[package]]
 name = "atomicwrites"
-version = "1.4.1"
+version = "1.4.2"
 description = "Atomic file writes."
 category = "dev"
 optional = false

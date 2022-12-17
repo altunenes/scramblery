@@ -7,6 +7,7 @@ import numpy as np
 import os
 mp_face_mesh = mp.solutions.face_mesh
 face_mesh = mp_face_mesh.FaceMesh()
+import random
 
 def get_facial_landmarks(frame):
     """a function for detecting facial landmarks"""
