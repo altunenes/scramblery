@@ -3,6 +3,7 @@
 [![PyPI version](https://badge.fury.io/py/scramblery.svg)](https://badge.fury.io/py/scramblery)
 [![Jekyll site CI](https://github.com/altunenes/scramblery/actions/workflows/jekyll.yml/badge.svg)](https://github.com/altunenes/scramblery/actions/workflows/jekyll.yml)
 [![Build status](https://ci.appveyor.com/api/projects/status/amuravq7o2afvv65?svg=true)](https://ci.appveyor.com/project/altunenes/scramblery)
+
 A simple tool to scramble your images or only faces from images or videos. You can find the online demo in javascript [here](https://altunenes.github.io/scramblery/scramblerydemo.html). For more information, please visit the [documentation](https://altunenes.github.io/scramblery/).
 
 
