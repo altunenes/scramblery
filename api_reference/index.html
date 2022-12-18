@@ -89,19 +89,27 @@
 <p>This page gives an overview of the functions 
 +<a href="#get_facial_landmarks">get_facial_landmarks</a></p>
 <p>+<a href="#scrambleface">scrambleface</a></p>
-<p>+<a href="#scramble_image_data">scramble_image_data</a></p>
-<p>+<a href="#scramble_image">scramble_image_data2</a></p>
 <p>+<a href="#scrambleimage">scrambleimage</a></p>
 <p>+<a href="#scramblevideo">scramblevideo</a></p>
 <p><strong><em>get_facial_landmarks</em></strong><a name="get_facial_landmarks"></a>
 the get_facial_landmarks function takes an image and returns the facial landmarks of the face in the image.</p>
 <p><strong><em>scrambleface</em></strong><a name="scrambleface"></a>
-the scrambleface function takes an image and returns a scramble the facial area of the image. You can either scramble with the pixel values or with the pixel coordinates.</p>
-<p><strong><em>scramble_image_data</em></strong><a name="scramble_image_data"></a>
-<strong><em>scramble_image_data2</em></strong><a name="scramble_image_data2"></a>
-this functions for the randomization of the image data for the further use in the scrambleimage function.</p>
+the scrambleface function takes an image and returns a scramble the facial area of the image. You can either scramble with the pixel values or with the pixel coordinate</p>
 <p><strong><em>scrambleimage</em></strong><a name="scrambleimage"></a>
-the scrambleimage function takes an image and returns a scrambled version of the image. This function is for the whole image.</p>
+the scrambleimage function takes an image and returns a scrambled version of the image. This function is for the whole image.
+types:"pixel","square","withinblocks","rotate","colormap","gradient"</p>
+<p>note: gradient is a implement a scramble type that randomly applies a gradient to blocks of the image. This could be achieved using the cv2.Sobel or cv2.Laplacian functions. colormap, will randomly apply one of the available color maps (Autumn, Bone, Jet, Winter, Rainbow, or Ocean) to each block of the image when the function is called with the "colormap" scramble type. This two parameters don't shuffle the blocks.</p>
+<pre><code>    &quot;&quot;&quot;scramble_image: Scramble the whole image.
+    Args:
+        image: input image(with extension)
+        x_block: number of splits in x-axis
+        y_block: number of splits in y-axis
+        type: type of split: &quot;pixel&quot;,&quot;classic&quot;,&quot;withinblocks&quot;
+        seed: seed for random number generator
+        Usage:
+            scrambleimage(&quot;image.png&quot;,10,10,&quot;pixel&quot;)
+    &quot;&quot;&quot;
+</code></pre>
 <p><strong><em>scramblevideo</em></strong><a name="scramblevideo"></a>
 the scramblevideo function takes a video and returns a scrambled version of the video.</p>
               
