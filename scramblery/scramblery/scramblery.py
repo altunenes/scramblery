@@ -92,7 +92,7 @@ def scrambleface(img,splits,type,seamless=False,bg=True,seed=None):
             cv2.imwrite(f'{img_name}_scrambled_square.png', img_copy)
 
 
-def scrambleimage(image, x_block=10, y_block=10, scramble_type='classic',seed=None):
+def scrambleimage(image, x_block=10, y_block=10, scramble_type='classic',seed=None,write=True):
     """scramble_image: Scramble the whole image.
     Args:
         image: input image(with extension)
@@ -100,6 +100,7 @@ def scrambleimage(image, x_block=10, y_block=10, scramble_type='classic',seed=No
         y_block: number of splits in y-axis
         type: type of split, "pixel","square","withinblocks","rotate","colormap","gradient"
         seed: seed for random number generator (default: None)
+        write: write the image to disk (default: True) 
         Usage:
             scrambleimage("image.png",10,10,"pixel")
     """
@@ -223,7 +224,10 @@ def scrambleimage(image, x_block=10, y_block=10, scramble_type='classic',seed=No
         raise ValueError("Invalid scramble type. Must be either 'classic' or 'pixel'.")
     
     img_name = os.path.splitext(os.path.basename(image_path))[0]
-    cv2.imwrite(f'{img_name}SCRAMBLED_' + f'{x_block, y_block}.png', new_image)
+    if write == True:
+        cv2.imwrite(f'{img_name}SCRAMBLED_' + f'{x_block, y_block}.png', new_image)
+    else:
+        return new_image
 
 
 def scramblevideo(cap,splits):
