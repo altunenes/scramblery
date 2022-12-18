@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "scramblery"
-version = "1.2.2"
+version = "1.2.3"
 description = ""
 authors = ["altunenes <enesaltun2@gmail.com>"]
 license = "MIT"

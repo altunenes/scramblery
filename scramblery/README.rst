@@ -1,7 +1,4 @@
-Scramblery
-==========
-
-|Downloads| |PyPI version| |Jekyll site CI|
+# Scramblery |Downloads| |PyPI version| |Jekyll site CI|
 
 A simple tool to scramble your images or only faces from images or
 videos. You can find the online demo in javascript
@@ -10,7 +7,7 @@ For more information, please visit the
 `documentation <https://altunenes.github.io/scramblery/>`__.
 
 Purpose of Package
-------------------
+^^^^^^^^^^^^^^^^^^
 
 The purpose of this package is the creating scrambled images from images
 or videos. User can either scramble the whole image or only facial area.
@@ -21,8 +18,34 @@ process to scramble images manually in the past and I feel like this
 package can be useful for many people. Hope this package will be useful
 for your research.
 
+Motivation
+^^^^^^^^^^
+
+-  Image scrambling is important in psychology experiments because it
+   allows researchers to control the content and structure of visual
+   stimuli, while removing or altering specific features or patterns
+   that might influence participants’ perception or response.
+
+-  By scrambling an image, researchers can create a version of the image
+   that preserves the overall luminance, contrast, and spatial layout,
+   but that removes or distorts specific features or patterns that might
+   be relevant for the experiment. For example, researchers might
+   scramble an image of a face to remove the facial features, while
+   preserving the overall brightness and contrast, or they might
+   scramble an image of a scene to remove the objects, while preserving
+   the spatial layout and color.
+
+-  It allows researchers to control for potential confounds and biases
+   that might arise from the content of the stimuli. By removing or
+   distorting specific features or patterns, researchers can create
+   stimuli that are less predictable and less likely to elicit specific
+   responses from participants. This can help researchers to isolate the
+   effects of the manipulated variables, and to reduce the influence of
+   confounding factors that might interfere with the interpretation of
+   the results.
+
 **Features**
-------------
+^^^^^^^^^^^^
 
 -  Scramble whole image with desired degree of scrambling (pixel values
    or pixel coordinates)
@@ -32,32 +55,57 @@ for your research.
    with desired degree of scrambling
 
 Installation
-------------
+^^^^^^^^^^^^
 
 -  The package can be found in pypi. To install the package, run the
    following command in the terminal:
--  ``pip install scramblery``
 
-Author
-------
+-  ``pip install scramblery`` #### Author
 
--  Main Maintainer: [Enes ALTUN]
+   -  Main Maintainer: [Enes ALTUN]
 
 Usage
------
+^^^^^
 
-After installing the package, you can import the package as follows:
+After installing the package, you can import the package as follows: -
+``from scramblery import scramblery`` Then use the functions as follows
+to scramble images. I added some examples below.
 
--  ``from scramblery import scramblery`` Then use the functions as
-   follows to scramble images. I added some examples below.
+.. figure:: ./docs/assets/usage.PNG
+   :alt: 8x8
 
-   .. figure:: ../docs/assets/usage.PNG
-      :alt: 8x8
+   8x8
 
-      8x8
+Code example:
+
+.. code:: python
+
+   from scramblery import scramblery
+   scramblery.scrambleimage("Lena.png", x_block=10, y_block=10, scramble_type='classic',seed=None,write=True)
+   #note: seed is optional, none means random seed
+
+If you want to scramble images in a folder, check the API section here
+for an example:
+`API <https://altunenes.github.io/scramblery/userguide/>`__.
+
+Javascript Demo
+^^^^^^^^^^^^^^^
+
+Update: Also, with the same paradigm, I have created an animated version
+of scramblery. It’s shuffling pixel values and coordinates in a given
+ratio then it’s arranging them back in the original order. You can find
+the online demo in javascript
+`here <https://altunenes.github.io/scramblery/magic.html>`__.
+
+example (gif animation):
+
+.. figure:: /assets/Animation14.gif
+   :alt: example
+
+   example
 
 Contributon
------------
+~~~~~~~~~~~
 
 Any kind of contribution is welcome.
 
