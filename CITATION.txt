@@ -1,0 +1,6 @@
+APA
+ALTUN, E. (2022, December 18). Scramblery. Retrieved from osf.io/uhxwf
+MLA
+ALTUN, ENES. “Scramblery.” OSF, 18 Dec. 2022. Web.
+Chicago
+ALTUN, ENES. 2022. “Scramblery.” OSF. December 18. osf.io/uhxwf.
