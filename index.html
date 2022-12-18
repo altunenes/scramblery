@@ -124,10 +124,16 @@
 <p>After installing the package, you can import the package as follows:
 - <code>from scramblery import scramblery</code>
 Then use the functions as follows to scramble images. I added some examples below.</p>
-<p><img alt="8x8" src="assets/usage.PNG" /></p>
+<p><img alt="8x8" src="./docs/assets/usage.PNG" /></p>
+<p>Code example:</p>
+<pre><code class="language-python">from scramblery import scramblery
+scramblery.scrambleimage(&quot;Lena.png&quot;, x_block=10, y_block=10, scramble_type='classic',seed=None,write=True)
+#note: seed is optional, none means random seed
+</code></pre>
+<p>If you want to scramble images in a folder, check the API section here for an example: <a href="https://altunenes.github.io/scramblery/userguide/">API</a>.</p>
 <h4 id="javascript-demo">Javascript Demo</h4>
 <p>Update:
-Also, with the same paradigm, I have created an animated version of scramblery just for fun. It's shuffling pixel values and coordinates in a given ratio then it's arranging them back in the original order. You can find the online demo in javascript <a href="https://altunenes.github.io/scramblery/magic.html">here</a>.</p>
+Also, with the same paradigm, I have created an animated version of scramblery. It's shuffling pixel values and coordinates in a given ratio then it's arranging them back in the original order. You can find the online demo in javascript <a href="https://altunenes.github.io/scramblery/magic.html">here</a>.</p>
 <p>example (gif animation):</p>
 <p><img alt="example" src="/assets/Animation14.gif" /></p>
 <h3 id="contributon">Contributon</h3>
@@ -179,5 +185,5 @@ Also, with the same paradigm, I have created an animated version of scramblery j
 
 <!--
 MkDocs version : 1.4.2
-Build Date UTC : 2022-12-18 00:03:38.784420+00:00
+Build Date UTC : 2022-12-18 10:32:53.363919+00:00
 -->
