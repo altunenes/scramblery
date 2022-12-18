@@ -28,10 +28,12 @@ note: gradient is a implement a scramble type that randomly applies a gradient t
         y_block: number of splits in y-axis
         type: type of split: "pixel","classic","withinblocks"
         seed: seed for random number generator
+        write: write the image to disk or return the scrambled image(True is default)
         Usage:
             scrambleimage("image.png",10,10,"pixel")
     """
 ```
+
 
 ***scramblevideo***<a name="scramblevideo"></a>
 the scramblevideo function takes a video and returns a scrambled version of the video.
