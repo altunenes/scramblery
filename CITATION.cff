@@ -1,6 +1,10 @@
-APA
-ALTUN, E. (2022, December 18). Scramblery. Retrieved from osf.io/uhxwf
-MLA
-ALTUN, ENES. “Scramblery.” OSF, 18 Dec. 2022. Web.
-Chicago
-ALTUN, ENES. 2022. “Scramblery.” OSF. December 18. osf.io/uhxwf.
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Altun"
+  given-names: "Enes"
+  orcid: "https://orcid.org/0000-0002-6478-6909"
+title: "scramblery"
+version: 1.2
+date-released: 2022-10-18
+url: "https://github.com/altunenes/scramblery"
