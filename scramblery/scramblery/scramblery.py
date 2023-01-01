@@ -106,9 +106,11 @@ def scrambleimage(image, x_block=10, y_block=10, scramble_type='classic',seed=No
     """
     if seed is not None:
         np.random.seed(seed)
-    image_path = image.split('/')[-1]
-    image_path = image.split('.')[0]
-    image = cv2.imread(image)
+    
+    if write==True:
+        image_path = image.split('/')[-1]
+        image_path = image.split('.')[0]
+        image = cv2.imread(image)
     def scramble_image_data(image, x_block, y_block):
         h, w, _ = image.shape
         block_width = w // x_block
@@ -223,11 +225,32 @@ def scrambleimage(image, x_block=10, y_block=10, scramble_type='classic',seed=No
     else:
         raise ValueError("Invalid scramble type. Must be either 'classic' or 'pixel'.")
     
-    img_name = os.path.splitext(os.path.basename(image_path))[0]
+    
     if write == True:
+        img_name = os.path.splitext(os.path.basename(image_path))[0]
+
         cv2.imwrite(f'{img_name}SCRAMBLED_' + f'{x_block, y_block}.png', new_image)
     else:
         return new_image
+
+
+def scramblenoiseblur(img,cylce=5,kernel=(3,3),sigma=10):
+    """scramblepix: Scramble the pixels of an image.
+    Args:
+        img: input image
+        cylce: number of times to scramble the image
+        kernel: kernel size for gaussian blur
+        sigma: sigma for gaussian blur
+    Usage:
+        you need to import numpy and cv2
+        img=cv2.imread("image.jpg")
+        scramblepix(img,10,(3,3),10)
+    """
+    for i in range(cylce):
+        img=img+np.random.normal(0,1,(img.shape[0],img.shape[1],3))*255
+        gblur=cv2.GaussianBlur(img,kernel,sigma)
+        img=gblur
+    return img
 
 
 def scramblevideo(cap,splits):
