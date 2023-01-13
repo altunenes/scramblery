@@ -39,7 +39,8 @@ After installing the package, you can import the package as follows:
 Then use the functions as follows to scramble images. I added some examples below.
 
   ![8x8](./docs/assets/usage.PNG)
-  ![12x12](./docs/assets/types.PNG)
+
+  ![12x12](./docs/assets/types.png)
 
 
 Code example:
