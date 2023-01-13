@@ -38,7 +38,7 @@ After installing the package, you can import the package as follows:
 - `from scramblery import scramblery`
 Then use the functions as follows to scramble images. I added some examples below.
 
-![8x8](/assets/usage.PNG)
+![8x8](./assets/usage.PNG)
 
 
 Code example:
@@ -58,7 +58,7 @@ Also, with the same paradigm, I have created an animated version of scramblery. 
 example (gif animation):
 
 
-![example](/assets/Animation14.gif)
+![example](./assets/animation14.gif)
 
 
 ### Contributon

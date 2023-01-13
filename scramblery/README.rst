@@ -1,4 +1,4 @@
-# Scramblery |Downloads| |PyPI version| |Jekyll site CI|
+# Scramblery |Downloads| |PyPI version| |Jekyll site CI| |Build status|
 
 A simple tool to scramble your images or only faces from images or
 videos. You can find the online demo in javascript
@@ -7,7 +7,7 @@ For more information, please visit the
 `documentation <https://altunenes.github.io/scramblery/>`__.
 
 Purpose of Package
-^^^^^^^^^^^^^^^^^^
+==================
 
 The purpose of this package is the creating scrambled images from images
 or videos. User can either scramble the whole image or only facial area.
@@ -19,7 +19,7 @@ package can be useful for many people. Hope this package will be useful
 for your research.
 
 Motivation
-^^^^^^^^^^
+==========
 
 -  Image scrambling is important in psychology experiments because it
    allows researchers to control the content and structure of visual
@@ -45,7 +45,7 @@ Motivation
    the results.
 
 **Features**
-^^^^^^^^^^^^
+============
 
 -  Scramble whole image with desired degree of scrambling (pixel values
    or pixel coordinates)
@@ -55,7 +55,7 @@ Motivation
    with desired degree of scrambling
 
 Installation
-^^^^^^^^^^^^
+============
 
 -  The package can be found in pypi. To install the package, run the
    following command in the terminal:
@@ -65,16 +65,11 @@ Installation
    -  Main Maintainer: [Enes ALTUN]
 
 Usage
-^^^^^
+=====
 
 After installing the package, you can import the package as follows: -
 ``from scramblery import scramblery`` Then use the functions as follows
-to scramble images. I added some examples below.
-
-.. figure:: ./docs/assets/usage.PNG
-   :alt: 8x8
-
-   8x8
+to scramble images. I added some examples below (see on the Github page)
 
 Code example:
 
@@ -89,7 +84,7 @@ for an example:
 `API <https://altunenes.github.io/scramblery/userguide/>`__.
 
 Javascript Demo
-^^^^^^^^^^^^^^^
+===============
 
 Update: Also, with the same paradigm, I have created an animated version
 of scramblery. It’s shuffling pixel values and coordinates in a given
@@ -99,13 +94,8 @@ the online demo in javascript
 
 example (gif animation):
 
-.. figure:: /assets/Animation14.gif
-   :alt: example
-
-   example
-
 Contributon
-~~~~~~~~~~~
+===========
 
 Any kind of contribution is welcome.
 
@@ -115,3 +105,5 @@ Any kind of contribution is welcome.
    :target: https://badge.fury.io/py/scramblery
 .. |Jekyll site CI| image:: https://github.com/altunenes/scramblery/actions/workflows/jekyll.yml/badge.svg
    :target: https://github.com/altunenes/scramblery/actions/workflows/jekyll.yml
+.. |Build status| image:: https://ci.appveyor.com/api/projects/status/amuravq7o2afvv65?svg=true
+   :target: https://ci.appveyor.com/project/altunenes/scramblery
