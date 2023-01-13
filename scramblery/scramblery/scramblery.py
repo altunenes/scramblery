@@ -224,7 +224,8 @@ def scrambleimage(image, x_block=10, y_block=10, scramble_type='classic',seed=No
                 rows, cols = block.shape[:2]
                 M = cv2.getRotationMatrix2D((cols/2, rows/2), angle, 1)
                 block = cv2.warpAffine(block, M, (cols, rows))
-                new_image[y1:y2, x1:x2] = block    
+                new_image[y1:y2, x1:x2] = block
+                new_image=scramble_image_data(new_image, x_block, y_block)    
     elif scramble_type == 'colormap':
         h, w, _ = image.shape
         block_width = w // x_block
@@ -242,6 +243,7 @@ def scrambleimage(image, x_block=10, y_block=10, scramble_type='classic',seed=No
                 chosen_map = random.choice(available_maps)
                 block = cv2.applyColorMap(block, chosen_map)
                 new_image[y1:y2, x1:x2] = block
+                new_image=scramble_image_data(new_image, x_block, y_block)            
     elif scramble_type == 'gradient':
         h, w, _ = image.shape
         block_width = w // x_block
@@ -262,7 +264,8 @@ def scrambleimage(image, x_block=10, y_block=10, scramble_type='classic',seed=No
                     block = cv2.Laplacian(block, cv2.CV_64F, ksize=5)
                 # Scale the gradient image back to 8-bit unsigned integers
                 block = cv2.normalize(block, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
-                new_image[y1:y2, x1:x2] = block   
+                new_image[y1:y2, x1:x2] = block
+                new_image=scramble_image_data(new_image, x_block, y_block)
     else:
         raise ValueError("Invalid scramble type. Must be either 'classic' or 'pixel'.")
     
@@ -273,6 +276,7 @@ def scrambleimage(image, x_block=10, y_block=10, scramble_type='classic',seed=No
         cv2.imwrite(f'{img_name}SCRAMBLED_' + f'{x_block, y_block}.png', new_image)
     else:
         return new_image
+
 
 
 def scramblenoiseblur(img,cylce=5,kernel=(3,3),sigma=10):
