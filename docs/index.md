@@ -38,7 +38,7 @@ After installing the package, you can import the package as follows:
 - `from scramblery import scramblery`
 Then use the functions as follows to scramble images. I added some examples below.
 
-  ![8x8](./docs/assets/usage.PNG)
+![8x8](/assets/usage.PNG)
 
 
 Code example:

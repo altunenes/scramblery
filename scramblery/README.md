@@ -35,9 +35,7 @@ A simple tool to scramble your images or only faces from images or videos. You c
 #### Usage
 After installing the package, you can import the package as follows:
 - `from scramblery import scramblery`
-Then use the functions as follows to scramble images. I added some examples below.
-
-  ![8x8](./docs/assets/usage.PNG)
+Then use the functions as follows to scramble images. I added some examples below (see on the Github page)
 
 
 Code example:
@@ -55,9 +53,6 @@ Update:
 Also, with the same paradigm, I have created an animated version of scramblery. It's shuffling pixel values and coordinates in a given ratio then it's arranging them back in the original order. You can find the online demo in javascript [here](https://altunenes.github.io/scramblery/magic.html).
 
 example (gif animation):
-
-
-![example](/assets/Animation14.gif)
 
 
 ### Contributon

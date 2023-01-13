@@ -23,23 +23,36 @@ def get_facial_landmarks(frame):
             y = int(pt1.y * height)
             facelandmarks.append([x, y])
     return np.array(facelandmarks, np.int32)
-def scrambleface(img,splits,type,seamless=False,bg=True,seed=None):
+def scrambleface(img,splits,type,seamless=False,bg=True,seed=None,write=True):
     """"scramble_face: Scramble the facial area of image.
     Args:
         img: input image
         splits: number of splits to perform, it works reversed between square and stack splits
-        type: type of split, "square" or "stack". Stack works with pixel coordinates, square works with pixel values
+        type: type of split, "pixel" or "stack". Stack works with pixel coordinates, square works with pixel values
         seamless: if True, it will use seamlessClone to blend the scrambled face with the original image
         bg: if True, it will use the background of the original image, if False, it will replace the background with a gray color
         seed: seed for random number generator (default: None)
+        write: if True, it will write the output image to the disk, if False, it will return the output image
 
     usage:
         scrambleface("image.png",10,"square",False,True)
     """
     if seed is not None:
         np.random.seed(seed)
-    img_name = os.path.splitext(os.path.basename(img))[0]
-    img = cv2.imread(img)
+
+    if type not in ["stack","pixel"]:
+        raise ValueError("type must be stack or pixel")
+    if bg==False and seamless==True:
+        print("You can't have seamless without bg")
+        seamless=False
+        
+
+    if write==True:
+        image_path = img.split('/')[-1]
+        image_path = img.split('.')[0]
+        img_name = os.path.splitext(os.path.basename(image_path))[0]
+
+        img = cv2.imread(img)    
     img_copy = img.copy()
     h, w, _ = img.shape
     mask = np.zeros((h, w), np.uint8)
@@ -48,17 +61,13 @@ def scrambleface(img,splits,type,seamless=False,bg=True,seed=None):
     cv2.fillConvexPoly(mask, hull, 255)
 
     if type=="stack":
-
-        for i in range(0, 468):
-            pt = landmarks[i]
-
         splits=int(splits)
         img_new = np.array_split(img, splits)
         np.random.shuffle(img_new)
-
         img_new = np.vstack(img_new)
-
         face = cv2.bitwise_and(img_new, img_new, mask=mask)
+        face_only = 128*np.ones_like(img)
+        face_only[mask == 255] = face[mask == 255]
         frame_copy = img_new
         face_extracted = cv2.bitwise_and(frame_copy, frame_copy, mask=mask)
 
@@ -66,9 +75,29 @@ def scrambleface(img,splits,type,seamless=False,bg=True,seed=None):
         background = cv2.bitwise_and(img, img, mask=backgroundm)
 
         result = cv2.add(background, face_extracted)
-        cv2.imwrite(f'{img_name}_scrambled_stack.png', result)
+        if seamless==True:
+            M = cv2.moments(hull)
+            cX = int(M["m10"] / M["m00"])
+            cY = int(M["m01"] / M["m00"])
+            center = (cX, cY)
+            result = cv2.seamlessClone(result, img_copy, mask, center, cv2.NORMAL_CLONE)
+            if write:
+                cv2.imwrite(f'{img_name}SCRAMBLED_seamless' + f'{splits}.png', result)
+            else:
+                return result
+        if bg == False:
+            if write:
+                cv2.imwrite(f'{img_name}SCRAMBLED_nobg' + f'{splits}.png', face_only)
+            else:
+                return face_only
+        elif seamless==False:
+            img_copy[mask == 255] = result[mask == 255]
+            if write:
+                cv2.imwrite(f'{img_name}SCRAMBLED_' + f'{splits}.png', img_copy)
+            else:
+                return img_copy
 
-    elif type=="square":
+    elif type=="pixel":
         for i in range(0,splits):
             for j in range(0,splits):
                 x1=int((i/splits)*w)
@@ -77,19 +106,31 @@ def scrambleface(img,splits,type,seamless=False,bg=True,seed=None):
                 y2=int(((j+1)/splits)*h)
 
                 img[y1:y2,x1:x2]=img[np.random.randint(y1,y2),np.random.randint(x1,x2)]
-                #img[y1:y2,x1:x2]=cv2.bitwise_and(img[y1:y2,x1:x2],img[y1:y2,x1:x2],mask=mask[y1:y2,x1:x2]) #this also works, but to adjust the b
 
         out = 128*np.ones_like(img)
         out[mask == 255] = img[mask == 255]
-        if bg == False:
-            cv2.imwrite(f'{img_name}_scrambled_nobg.png', out)
         if seamless==True:
-            out = cv2.seamlessClone(out, img_copy, mask, (w//2, h//2), cv2.NORMAL_CLONE)
-            cv2.imwrite(f'{img_name}scrambled_seamless.png', out)
-
-        else:
+            M = cv2.moments(hull)
+            cX = int(M["m10"] / M["m00"])
+            cY = int(M["m01"] / M["m00"])
+            center = (cX, cY)
+            out = cv2.seamlessClone(out, img_copy, mask, center, cv2.NORMAL_CLONE)
+            if write:
+                cv2.imwrite(f'{img_name}SCRAMBLED_seamless' + f'{splits, splits}.png', out)
+            else:
+                return out
+        if bg == False:
+            if write:
+                cv2.imwrite(f'{img_name}SCRAMBLED_nobg' + f'{splits, splits}.png', out)
+            else:
+                return out
+        elif seamless==False:
             img_copy[mask == 255] = out[mask == 255]
-            cv2.imwrite(f'{img_name}_scrambled_square.png', img_copy)
+            if write:
+                cv2.imwrite(f'{img_name}SCRAMBLED_' + f'{splits, splits}.png', img_copy)
+
+            else:
+                return img_copy
 
 
 def scrambleimage(image, x_block=10, y_block=10, scramble_type='classic',seed=None,write=True):
