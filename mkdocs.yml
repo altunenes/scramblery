@@ -6,5 +6,6 @@ nav:
   - API: api_reference.md
   - demo: scramblerydemo.html
   - animation: magic.html
+  - animation2: pixeldance.html
 
 theme: readthedocs
