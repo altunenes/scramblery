@@ -55,9 +55,13 @@ function draw() {
                 let pixelIndex = (imgX + imgY * img.width) * 4;
                 fill(img.pixels[pixelIndex], img.pixels[pixelIndex + 1], img.pixels[pixelIndex + 2], img.pixels[pixelIndex + 3]);
                 rect(x, y, squareSize, squareSize);
-                stroke(255, 255, 255, 100); // semi-transparent, you can adjust the alpha value
-                strokeWeight(1); // adjust the weight of the stroke, increasing the value will make the line thicker
-                rect(x, y, squareSize, squareSize);            }
+                //*
+                //*/rect(x, y, squareSize, squareSize);
+                //*/stroke(255, 255, 255, 100); // semi-transparent, you can adjust the alpha value
+                //*/strokeWeight(1); // adjust the weight of the stroke, increasing the value will make the line thicker
+                //*/rect(x, y, squareSize, squareSize);
+                //*/
+            }
         }
     }
 }
