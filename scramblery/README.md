@@ -50,7 +50,7 @@ If you want to scramble images in a folder, check the API section here for an ex
 #### Javascript Demo
 
 Update:
-Also, with the same paradigm, I have created an animated version of scramblery. It's shuffling pixel values and coordinates in a given ratio then it's arranging them back in the original order. You can find the online demo in javascript [here](https://altunenes.github.io/scramblery/magic.html).
+Also, with the same paradigm, I have created an animated version of scramblery. It's shuffling pixel values and coordinates in a given ratio then it's arranging them back in the original order. You can find the online demo in javascript [here](https://altunenes.github.io/scramblery/pixeldance.html)
 
 example (gif animation):
 
