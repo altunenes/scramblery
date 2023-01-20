@@ -1,12 +1,11 @@
 let img;
 let squareSize = 8;
-let squareSpacing = 2;
+let squareSpacing = 0;
 let noiseScale = 0.001;
 let noiseDimensions = 44;
 let input;
-
 function setup() {
-    createCanvas(800, 600);
+    createCanvas(900, 600);
     noStroke();
     input = createFileInput(handleFile);
     input.hide();
@@ -30,6 +29,30 @@ function setup() {
 fullscreenButton.addEventListener("click", function(){
     let canvas = document.querySelector("canvas");
     canvas.requestFullscreen();
+});
+
+let borderButton = select('#border-button');
+borderButton.mousePressed(() => {
+    if (squareSpacing === 0) {
+        squareSpacing = 2;
+        borderButton.html("Add Borders");
+    } else {
+        squareSpacing = 0;
+        borderButton.html("Remove Borders");
+    }
+});
+let increaseSizeButton = select('#increase-size-button');
+increaseSizeButton.mousePressed(() => {
+    squareSize += 1;
+});
+
+let decreaseSizeButton = select('#decrease-size-button');
+decreaseSizeButton.mousePressed(() => {
+    squareSize -= 1;
+});
+let noiseScaleSlider = select("#noise-scale-slider");
+noiseScaleSlider.input(() => {
+    noiseScale = noiseScaleSlider.value();
 });
 }
 

@@ -89,3 +89,62 @@
     }
 }
 
+#border-button {
+    background-color: red;
+    color: white;
+    padding: 15px 32px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 16px;
+    margin: 4px 2px;
+    cursor: pointer;
+    border-radius: 5px;
+    border: none;
+}
+
+#increase-size-button {
+    background-color: green;
+    color: white;
+    padding: 15px 32px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 16px;
+    margin: 4px 2px;
+    cursor: pointer;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    border: none;
+}
+
+#decrease-size-button {
+    background-color: red;
+    color: white;
+    padding: 15px 32px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 16px;
+    margin: 4px 2px;
+    cursor: pointer;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    border: none;
+}
+
+#noise-scale-slider {
+    background-color: #4CAF50;
+    border: none;
+    position: absolute;
+    bottom: 60vh;
+    left: 30vw;
+}
+label[for='noise-scale-slider'] {
+    position: absolute;
+    bottom: 58vh;
+    left: 30vw;
+}
+
