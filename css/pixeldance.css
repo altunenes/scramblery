@@ -12,7 +12,6 @@
 }
 
 #social-media-icons {
-    position: absolute;
     bottom: 10px;
     right: 10px;
     display: flex;
@@ -134,17 +133,3 @@
     height: 40px;
     border: none;
 }
-
-#noise-scale-slider {
-    background-color: #4CAF50;
-    border: none;
-    position: absolute;
-    bottom: 60vh;
-    left: 30vw;
-}
-label[for='noise-scale-slider'] {
-    position: absolute;
-    bottom: 58vh;
-    left: 30vw;
-}
-
