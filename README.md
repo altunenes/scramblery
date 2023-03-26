@@ -5,6 +5,9 @@
 [![Build status](https://ci.appveyor.com/api/projects/status/amuravq7o2afvv65?svg=true)](https://ci.appveyor.com/project/altunenes/scramblery)
 [![DOI](https://zenodo.org/badge/449034134.svg)](https://zenodo.org/badge/latestdoi/449034134)
 
+![sacasc](https://user-images.githubusercontent.com/54986652/227797464-3fc1fc88-a31b-4244-b99f-df0f77a6e282.png)
+
+
 A simple tool to scramble your images or only faces from images or videos. You can find the online demo in javascript [here](https://altunenes.github.io/scramblery/scramblerydemo.html). For more information, please visit the [documentation](https://altunenes.github.io/scramblery/).
 
 
