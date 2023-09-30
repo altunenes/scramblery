@@ -10,6 +10,8 @@
 
 A simple tool to scramble your images or only faces from images or videos. You can find the online demo in javascript [here](https://altunenes.github.io/scramblery/scramblerydemo.html). For more information, please visit the [documentation](https://altunenes.github.io/scramblery/).
 
+Note: The Javascript demo doesn't have a face detection algorithm and it's designed to be applied to a single image. If you want to do this for multiple imagees you should use Python.
+
 
 #### Purpose of Package
  The purpose of this package is the creating scrambled images from images or videos. User can either scramble the whole image or only facial area.
@@ -54,25 +56,6 @@ scramblery.scrambleimage("Lena.png", x_block=10, y_block=10, scramble_type='clas
 ```
 If you want to scramble images in a folder, check the API section here for an example: [API](https://altunenes.github.io/scramblery/userguide/).
 
-
-#### Javascript Demo
-
-Update:
-Also, with the same paradigm, I have created an animated version of scramblery. It's shuffling pixel values and coordinates in a given ratio then it's arranging them back in the original order. You can find the online demo in javascript [here](https://altunenes.github.io/scramblery/magic.html).
-
-example (gif animation):
-
-
-![example](/assets/Animation14.gif)
-
-
-#### Another Application
-
-In this version, scramble processing is infinitely applied to the image :) 
-
-You can find the online demo in javascript [here](https://altunenes.github.io/scramblery/pixeldance.html)
-
-![example](/assets/animationd.gif)
 
 ### Contributon
  Any kind of contribution is welcome.
