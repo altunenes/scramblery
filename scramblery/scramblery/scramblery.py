@@ -5,6 +5,9 @@ import mediapipe as mp
 import cv2
 import numpy as np
 import os
+import random
+from numpy.fft import fft2, ifft2, fftshift, ifftshift
+
 mp_face_mesh = mp.solutions.face_mesh
 face_mesh = mp_face_mesh.FaceMesh()
 import random
@@ -23,36 +26,45 @@ def get_facial_landmarks(frame):
             y = int(pt1.y * height)
             facelandmarks.append([x, y])
     return np.array(facelandmarks, np.int32)
-def scrambleface(img,splits,type,seamless=False,bg=True,seed=None,write=True):
-    """"scramble_face: Scramble the facial area of image.
-    Args:
-        img: input image
-        splits: number of splits to perform, it works reversed between square and stack splits
-        type: type of split, "pixel" or "stack". Stack works with pixel coordinates, square works with pixel values
-        seamless: if True, it will use seamlessClone to blend the scrambled face with the original image
-        bg: if True, it will use the background of the original image, if False, it will replace the background with a gray color
-        seed: seed for random number generator (default: None)
-        write: if True, it will write the output image to the disk, if False, it will return the output image
-
-    usage:
-        scrambleface("image.png",10,"square",False,True)
+def scrambleface(img, splits, type, seamless=False, bg=True, seed=None, write=True, scramble_ratio=1.0):
     """
+    Scramble the facial area of the image.
+
+    Args:
+        img: input image path or image array
+        splits: number of splits to perform, works differently between square and stack splits
+        type: type of split, "pixel", "stack", or "fourier". Stack works with pixel coordinates, square works with pixel values
+        seamless: if True, uses seamlessClone to blend the scrambled face with the original image
+        bg: if True, uses the background of the original image, if False, replaces the background with a gray color
+        seed: seed for random number generator (default: None)
+        write: if True, writes the output image to disk, if False, returns the output image
+        scramble_ratio: the power of Fourier scrambling (default: 1.0)
+
+    Usage:
+        scrambleface("image.png", 10, "fourier", False, True, None, True, 0.5)
+    """
+    img_name = None
+
     if seed is not None:
         np.random.seed(seed)
 
-    if type not in ["stack","pixel"]:
-        raise ValueError("type must be stack or pixel")
-    if bg==False and seamless==True:
+    if type not in ["stack", "pixel", "fourier"]:
+        raise ValueError("type must be 'stack', 'pixel', or 'fourier'")
+    
+    if bg == False and seamless == True:
         print("You can't have seamless without bg")
-        seamless=False
-        
+        seamless = False
 
-    if write==True:
-        image_path = img.split('/')[-1]
-        image_path = img.split('.')[0]
+    if isinstance(img, str):
+        image_path = img
+        img = cv2.imread(img)
+        if img is None:
+            raise ValueError("Could not read the image")
+
         img_name = os.path.splitext(os.path.basename(image_path))[0]
 
-        img = cv2.imread(img)    
+
+
     img_copy = img.copy()
     h, w, _ = img.shape
     mask = np.zeros((h, w), np.uint8)
@@ -60,14 +72,44 @@ def scrambleface(img,splits,type,seamless=False,bg=True,seed=None,write=True):
     hull = cv2.convexHull(landmarks)
     cv2.fillConvexPoly(mask, hull, 255)
 
-    if type=="stack":
-        splits=int(splits)
+    if type == "fourier":
+        gray_image_full = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+        face_region = cv2.bitwise_and(gray_image_full, gray_image_full, mask=mask)
+
+        scrambled_face = fourier_scramble(face_region, scramble_ratio=scramble_ratio)
+
+        if bg:
+            output = gray_image_full.copy() 
+        else:
+            output = 128 * np.ones_like(gray_image_full)
+
+        output[mask == 255] = scrambled_face[mask == 255]
+
+
+        if seamless:
+            M = cv2.moments(hull)
+            cX = int(M["m10"] / M["m00"])
+            cY = int(M["m01"] / M["m00"])
+            center = (cX, cY)
+            output = cv2.seamlessClone(output, img_copy, mask, center, cv2.NORMAL_CLONE)
+
+        if write:
+            filename_suffix = f"SCRAMBLED_fourier_{scramble_ratio}" + ("_seamless" if seamless else "") + ("" if bg else "_nobg") + ".png"
+            cv2.imwrite(f'{img_name}{filename_suffix}', output)
+        else:
+            return output
+
+    elif type == "stack":
+        splits = int(splits)
         img_new = np.array_split(img, splits)
         np.random.shuffle(img_new)
         img_new = np.vstack(img_new)
         face = cv2.bitwise_and(img_new, img_new, mask=mask)
-        face_only = 128*np.ones_like(img)
+
+        face_only = 128 * np.ones_like(img)
         face_only[mask == 255] = face[mask == 255]
+
         frame_copy = img_new
         face_extracted = cv2.bitwise_and(frame_copy, frame_copy, mask=mask)
 
@@ -75,210 +117,357 @@ def scrambleface(img,splits,type,seamless=False,bg=True,seed=None,write=True):
         background = cv2.bitwise_and(img, img, mask=backgroundm)
 
         result = cv2.add(background, face_extracted)
-        if seamless==True:
+
+        if seamless:
             M = cv2.moments(hull)
             cX = int(M["m10"] / M["m00"])
             cY = int(M["m01"] / M["m00"])
             center = (cX, cY)
             result = cv2.seamlessClone(result, img_copy, mask, center, cv2.NORMAL_CLONE)
             if write:
-                cv2.imwrite(f'{img_name}SCRAMBLED_seamless' + f'{splits}.png', result)
+                cv2.imwrite(f'{img_name}_SCRAMBLED_seamless_{splits}.png', result)
             else:
                 return result
-        if bg == False:
+        elif bg == False:
             if write:
-                cv2.imwrite(f'{img_name}SCRAMBLED_nobg' + f'{splits}.png', face_only)
+                cv2.imwrite(f'{img_name}_SCRAMBLED_nobg_{splits}.png', face_only)
             else:
                 return face_only
-        elif seamless==False:
+        else:
             img_copy[mask == 255] = result[mask == 255]
             if write:
-                cv2.imwrite(f'{img_name}SCRAMBLED_' + f'{splits}.png', img_copy)
+                cv2.imwrite(f'{img_name}_SCRAMBLED_{splits}.png', img_copy)
             else:
                 return img_copy
 
-    elif type=="pixel":
-        for i in range(0,splits):
-            for j in range(0,splits):
-                x1=int((i/splits)*w)
-                y1=int((j/splits)*h)
-                x2=int(((i+1)/splits)*w)
-                y2=int(((j+1)/splits)*h)
+    elif type == "pixel":
+        for i in range(0, splits):
+            for j in range(0, splits):
+                x1 = int((i / splits) * w)
+                y1 = int((j / splits) * h)
+                x2 = int(((i + 1) / splits) * w)
+                y2 = int(((j + 1) / splits) * h)
 
-                img[y1:y2,x1:x2]=img[np.random.randint(y1,y2),np.random.randint(x1,x2)]
+                img[y1:y2, x1:x2] = img[np.random.randint(y1, y2), np.random.randint(x1, x2)]
 
-        out = 128*np.ones_like(img)
+        out = 128 * np.ones_like(img)
         out[mask == 255] = img[mask == 255]
-        if seamless==True:
+
+        if seamless:
             M = cv2.moments(hull)
             cX = int(M["m10"] / M["m00"])
             cY = int(M["m01"] / M["m00"])
             center = (cX, cY)
             out = cv2.seamlessClone(out, img_copy, mask, center, cv2.NORMAL_CLONE)
             if write:
-                cv2.imwrite(f'{img_name}SCRAMBLED_seamless' + f'{splits, splits}.png', out)
+                cv2.imwrite(f'{img_name}_SCRAMBLED_seamless_{splits}_{splits}.png', out)
             else:
                 return out
-        if bg == False:
+        elif bg == False:
             if write:
-                cv2.imwrite(f'{img_name}SCRAMBLED_nobg' + f'{splits, splits}.png', out)
+                cv2.imwrite(f'{img_name}_SCRAMBLED_nobg_{splits}_{splits}.png', out)
             else:
                 return out
-        elif seamless==False:
+        else:
             img_copy[mask == 255] = out[mask == 255]
             if write:
-                cv2.imwrite(f'{img_name}SCRAMBLED_' + f'{splits, splits}.png', img_copy)
-
+                cv2.imwrite(f'{img_name}_SCRAMBLED_{splits}_{splits}.png', img_copy)
             else:
-                return img_copy
+                return img_copy    
 
 
-def scrambleimage(image, x_block=10, y_block=10, scramble_type='classic',seed=None,write=True):
-    """scramble_image: Scramble the whole image.
-    Args:
-        image: input image(with extension)
-        x_block: number of splits in x-axis
-        y_block: number of splits in y-axis
-        type: type of split, "pixel","square","withinblocks","rotate","colormap","gradient"
-        seed: seed for random number generator (default: None)
-        write: write the image to disk (default: True) 
-        Usage:
-            scrambleimage("image.png",10,10,"pixel")
+def scrambleimage(image_path, x_block=10, y_block=10, scramble_type='classic', seed=None, write=True, **kwargs):
     """
+    Main function to scramble an image based on the specified scramble type.
+
+    Args:
+        image_path: Path to the input image (with extension).
+        x_block: Number of splits in x-axis.
+        y_block: Number of splits in y-axis.
+        scramble_type: Type of split; valid values are "classic", "pixel", "withinblocks", "rotate", "colormap", "gradient", "fourier".
+        seed: Seed for random number generator (default: None).
+        write: Write the image to disk (default: True).
+        **kwargs: Additional keyword arguments specific to scramble types.
+
+    Returns:
+        If write is True, writes the scrambled image to disk.
+        If write is False, returns the scrambled image.
+
+    Raises:
+        ValueError: If an invalid scramble_type is provided or image cannot be read.
+        FileNotFoundError: If the image_path does not exist.
+    """
+    # Validation
+    if not os.path.exists(image_path):
+        raise FileNotFoundError(f"No such file: '{image_path}'")
+
+    if scramble_type not in ["classic", "pixel", "withinblocks", "rotate", "colormap", "gradient", "fourier"]:
+        raise ValueError(f"Invalid scramble type: {scramble_type}")
+
     if seed is not None:
         np.random.seed(seed)
-    
-    if write==True:
-        image_path = image.split('/')[-1]
-        image_path = image.split('.')[0]
-        image = cv2.imread(image)
-    def scramble_image_data(image, x_block, y_block):
-        h, w, _ = image.shape
-        block_width = w // x_block
-        block_height = h // y_block
-        blocks = []
-        for i in range(y_block):
-            for j in range(x_block):
-                y1 = i * block_height
-                y2 = (i+1) * block_height
-                x1 = j * block_width
-                x2 = (j+1) * block_width
-                blocks.append(image[y1:y2, x1:x2])
-        np.random.shuffle(blocks)
-        new_image = np.zeros((h, w, 3), dtype=np.uint8)
-        k = 0
-        for i in range(y_block):
-            for j in range(x_block):
-                y1 = i * block_height
-                y2 = (i+1) * block_height
-                x1 = j * block_width
-                x2 = (j+1) * block_width
-                new_image[y1:y2, x1:x2] = blocks[k]
-                k += 1
-        return new_image
-    
-    if scramble_type == 'classic':
-        x_block = int(x_block)
-        y_block = int(y_block)
-        new_image = scramble_image_data(image, x_block, y_block)
-    elif scramble_type == 'pixel':
-        h, w, _ = image.shape
-        for i in range(0, x_block):
-            for j in range(0, y_block):
-                x1 = int((i/x_block)*w)
-                y1 = int((j/y_block)*h)
-                x2 = int(((i+1)/x_block)*w)
-                y2 = int(((j+1)/y_block)*h)
-                image[y1:y2, x1:x2] = image[np.random.randint(y1, y2), np.random.randint(x1, x2)]
-        new_image = image
-    elif scramble_type == 'withinblocks':
-        h, w, _ = image.shape
-        block_width = w // x_block
-        block_height = h // y_block
-        new_image = np.zeros((h, w, 3), dtype=np.uint8)
-        for i in range(y_block):
-            for j in range(x_block):
-                y1 = i * block_height
-                y2 = (i+1) * block_height
-                x1 = j * block_width
-                x2 = (j+1) * block_width
-                block = image[y1:y2, x1:x2]
-                block = block[np.random.permutation(block_height), :]
-                block = block[:, np.random.permutation(block_width)]
-                new_image[y1:y2, x1:x2] = block
 
-    elif scramble_type == 'rotate':
-        h, w, _ = image.shape
-        block_width = w // x_block
-        block_height = h // y_block
-        new_image = np.zeros((h, w, 3), dtype=np.uint8)
-        for i in range(y_block):
-            for j in range(x_block):
-                y1 = i * block_height
-                y2 = (i+1) * block_height
-                x1 = j * block_width
-                x2 = (j+1) * block_width
-                block = image[y1:y2, x1:x2]
-                # Rotate the block by a random number of degrees between -45 and 45
-                angle = random.uniform(-45, 45)
-                rows, cols = block.shape[:2]
-                M = cv2.getRotationMatrix2D((cols/2, rows/2), angle, 1)
-                block = cv2.warpAffine(block, M, (cols, rows))
-                new_image[y1:y2, x1:x2] = block
-                new_image=scramble_image_data(new_image, x_block, y_block)    
-    elif scramble_type == 'colormap':
-        h, w, _ = image.shape
-        block_width = w // x_block
-        block_height = h // y_block
-        new_image = np.zeros((h, w, 3), dtype=np.uint8)
-        for i in range(y_block):
-            for j in range(x_block):
-                y1 = i * block_height
-                y2 = (i+1) * block_height
-                x1 = j * block_width
-                x2 = (j+1) * block_width
-                block = image[y1:y2, x1:x2]
-                available_maps = [cv2.COLORMAP_AUTUMN, cv2.COLORMAP_BONE, cv2.COLORMAP_JET,
-                                 cv2.COLORMAP_WINTER, cv2.COLORMAP_RAINBOW, cv2.COLORMAP_OCEAN]
-                chosen_map = random.choice(available_maps)
-                block = cv2.applyColorMap(block, chosen_map)
-                new_image[y1:y2, x1:x2] = block
-                new_image=scramble_image_data(new_image, x_block, y_block)            
-    elif scramble_type == 'gradient':
-        h, w, _ = image.shape
-        block_width = w // x_block
-        block_height = h // y_block
-        new_image = np.zeros((h, w, 3), dtype=np.uint8)
-        for i in range(y_block):
-            for j in range(x_block):
-                y1 = i * block_height
-                y2 = (i+1) * block_height
-                x1 = j * block_width
-                x2 = (j+1) * block_width
-                block = image[y1:y2, x1:x2]
-                # Choose a random gradient (Sobel or Laplacian)
-                gradient = random.choice(['sobel', 'laplacian'])
-                if gradient == 'sobel':
-                    block = cv2.Sobel(block, cv2.CV_64F, 1, 0, ksize=5)
-                elif gradient == 'laplacian':
-                    block = cv2.Laplacian(block, cv2.CV_64F, ksize=5)
-                # Scale the gradient image back to 8-bit unsigned integers
-                block = cv2.normalize(block, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
-                new_image[y1:y2, x1:x2] = block
-                new_image=scramble_image_data(new_image, x_block, y_block)
+    image = cv2.imread(image_path)
+    if image is None:
+        raise ValueError(f"Could not read the image: '{image_path}'")
+
+    # A dictionary linking scramble types to their respective functions
+    scramble_functions = {
+        'classic': classic_scramble,
+        'pixel': pixel_scramble,
+        'withinblocks': withinblocks_scramble,
+        'rotate': rotate_scramble,
+        'colormap': colormap_scramble,
+        'gradient': gradient_scramble,
+        'fourier': fourier_scramble  # this function will be called differently
+    }
+
+    scramble_function = scramble_functions[scramble_type]
+
+    if scramble_type == 'fourier':
+        scrambled_image = scramble_function(image, **kwargs)
     else:
-        raise ValueError("Invalid scramble type. Must be either 'classic' or 'pixel'.")
-    
-    
-    if write == True:
-        img_name = os.path.splitext(os.path.basename(image_path))[0]
+        scrambled_image = scramble_function(image, x_block, y_block, **kwargs)
 
-        cv2.imwrite(f'{img_name}SCRAMBLED_' + f'{x_block, y_block}.png', new_image)
+    if write:
+        if scramble_type == 'fourier':
+            scramble_ratio = kwargs.get('scramble_ratio', 1.0)  # default to 1.0 if not provided
+            output_filename = f"{os.path.splitext(image_path)[0]}_SCRAMBLED_fourier_{scramble_ratio}.png"
+        else:
+            output_filename = f"{os.path.splitext(image_path)[0]}_SCRAMBLED_{x_block}_{y_block}.png"
+
+        cv2.imwrite(output_filename, scrambled_image)
+        print(f"Image written to {output_filename}")
     else:
-        return new_image
+        return scrambled_image
+def classic_scramble(image, x_block, y_block):
+    """
+    Scrambles an image by shuffling its blocks.
 
+    Args:
+        image: The image to scramble.
+        x_block: Number of splits in x-axis.
+        y_block: Number of splits in y-axis.
 
+    Returns:
+        The scrambled image.
+    """
+    h, w, _ = image.shape
+    block_width = w // x_block
+    block_height = h // y_block
+    blocks = [image[i * block_height:(i + 1) * block_height, j * block_width:(j + 1) * block_width] for i in range(y_block) for j in range(x_block)]
+    np.random.shuffle(blocks)
 
+    output = np.zeros_like(image)
+
+    for i in range(y_block):
+        for j in range(x_block):
+            output[i * block_height:(i + 1) * block_height, j * block_width:(j + 1) * block_width] = blocks[i * x_block + j]
+
+    return output
+
+def pixel_scramble(image, x_block, y_block):
+    """
+    Scrambles an image by randomly assigning pixel colors within blocks.
+
+    Args:
+        image: The image to scramble.
+        x_block: Number of splits in x-axis.
+        y_block: Number of splits in y-axis.
+
+    Returns:
+        The scrambled image.
+    """
+    h, w, _ = image.shape
+    new_image = np.copy(image)
+    for i in range(y_block):
+        for j in range(x_block):
+            y1 = i * (h // y_block)
+            y2 = (i + 1) * (h // y_block)
+            x1 = j * (w // x_block)
+            x2 = (j + 1) * (w // x_block)
+
+            rand_y = random.randint(y1, y2-1)
+            rand_x = random.randint(x1, x2-1)
+            new_image[y1:y2, x1:x2] = image[rand_y, rand_x]
+
+    return new_image
+def withinblocks_scramble(image, x_block, y_block):
+    """
+    Scrambles an image by shuffling pixels within each block.
+
+    Args:
+        image: The image to scramble.
+        x_block: Number of splits in x-axis.
+        y_block: Number of splits in y-axis.
+
+    Returns:
+        The scrambled image.
+    """
+    h, w, _ = image.shape
+    new_image = np.zeros_like(image)
+
+    for i in range(y_block):
+        for j in range(x_block):
+            y1 = i * (h // y_block)
+            y2 = (i + 1) * (h // y_block)
+            x1 = j * (w // x_block)
+            x2 = (j + 1) * (w // x_block)
+            block = image[y1:y2, x1:x2]
+
+            block = block.reshape(-1, 3)
+            np.random.shuffle(block)
+            block = block.reshape((y2 - y1, x2 - x1, 3))
+
+            new_image[y1:y2, x1:x2] = block
+
+    return new_image
+def rotate_scramble(image, x_block, y_block):
+    """
+    Scrambles an image by rotating each block by a random angle.
+
+    Args:
+        image: The image to scramble.
+        x_block: Number of splits in x-axis.
+        y_block: Number of splits in y-axis.
+
+    Returns:
+        The scrambled image.
+    """
+    h, w, _ = image.shape
+    new_image = np.zeros_like(image)
+
+    for i in range(y_block):
+        for j in range(x_block):
+            y1 = i * (h // y_block)
+            y2 = (i + 1) * (h // y_block)
+            x1 = j * (w // x_block)
+            x2 = (j + 1) * (w // x_block)
+            block = image[y1:y2, x1:x2]
+
+            center = ((x2 - x1) / 2, (y2 - y1) / 2)
+            angle = random.uniform(-45, 45)
+
+            M = cv2.getRotationMatrix2D(center, angle, 1.0)
+            rotated_block = cv2.warpAffine(block, M, (x2 - x1, y2 - y1))
+
+            new_image[y1:y2, x1:x2] = rotated_block
+
+    return new_image
+def colormap_scramble(image, x_block, y_block):
+    """
+    Scrambles an image by applying a random colormap to each block.
+
+    Args:
+        image: The image to scramble.
+        x_block: Number of splits in x-axis.
+        y_block: Number of splits in y-axis.
+
+    Returns:
+        The scrambled image.
+    """
+    h, w, _ = image.shape
+    new_image = np.zeros_like(image)
+
+    colormaps = [
+        cv2.COLORMAP_AUTUMN, cv2.COLORMAP_BONE, cv2.COLORMAP_JET,
+        cv2.COLORMAP_WINTER, cv2.COLORMAP_RAINBOW, cv2.COLORMAP_OCEAN
+    ]
+
+    for i in range(y_block):
+        for j in range(x_block):
+            y1 = i * (h // y_block)
+            y2 = (i + 1) * (h // y_block)
+            x1 = j * (w // x_block)
+            x2 = (j + 1) * (w // x_block)
+            block = image[y1:y2, x1:x2]
+            colormap = random.choice(colormaps)
+            colored_block = cv2.applyColorMap(block, colormap)
+
+            new_image[y1:y2, x1:x2] = colored_block
+
+    return new_image
+def gradient_scramble(image, x_block, y_block):
+    """
+    Scrambles an image by applying a random gradient effect to each block.
+
+    Args:
+        image: The image to scramble.
+        x_block: Number of splits in x-axis.
+        y_block: Number of splits in y-axis.
+
+    Returns:
+        The scrambled image.
+    """
+    h, w, _ = image.shape
+    new_image = np.zeros_like(image)
+
+    for i in range(y_block):
+        for j in range(x_block):
+            y1 = i * (h // y_block)
+            y2 = (i + 1) * (h // y_block)
+            x1 = j * (w // x_block)
+            x2 = (j + 1) * (w // x_block)
+            block = image[y1:y2, x1:x2]
+            gradient_type = random.choice(['sobel', 'laplacian'])
+            if gradient_type == 'sobel':
+                gx = cv2.Sobel(block, cv2.CV_64F, 1, 0, ksize=5)
+                gy = cv2.Sobel(block, cv2.CV_64F, 0, 1, ksize=5)
+                block = cv2.magnitude(gx, gy)
+            elif gradient_type == 'laplacian':
+                block = cv2.Laplacian(block, cv2.CV_64F)
+            block = cv2.normalize(block, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
+
+            new_image[y1:y2, x1:x2] = block
+
+    return new_image
+def fourier_scramble(image, scramble_ratio=1.0, **kwargs):
+    """
+    Scrambles an image by randomizing the phase in the frequency domain (Fourier domain),
+    while keeping the magnitude constant. The amount of phase randomization is controlled
+    by the scramble_ratio.
+
+    Args:
+        image: The image to scramble.
+        scramble_ratio: The ratio of phase scrambling (default is 1.0, which means complete scrambling).
+        **kwargs: Additional keyword arguments that are ignored in this function.
+
+    Returns:
+        The phase-scrambled image.
+    """
+    scramble_ratio = kwargs.get('scramble_ratio', 1.0)  # default to 1.0 if not provided
+    if image.ndim == 2:  # The image is already grayscale
+        gray_image = image
+    elif image.ndim == 3: 
+        gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    else:
+        raise ValueError("The input image should be a 2D grayscale or a 3D color image.")
+    
+    if not (0 <= scramble_ratio <= 1):
+        raise ValueError("scramble_ratio must be between 0 and 1")
+
+    f_transform = fft2(gray_image)
+
+    f_transform_shift = fftshift(f_transform)
+
+    magnitude = np.abs(f_transform_shift)
+    phase = np.angle(f_transform_shift)
+
+    random_phase = np.exp(1j * (2 * np.pi * np.random.rand(*phase.shape) - np.pi))
+
+    new_phase = (1 - scramble_ratio) * phase + scramble_ratio * np.angle(random_phase)
+
+    new_transform = magnitude * np.exp(1j * new_phase)
+
+    f_ishift = ifftshift(new_transform)
+    img_back = ifft2(f_ishift)
+
+    img_back = np.real(img_back)
+
+    img_back = (img_back - np.min(img_back)) / (np.max(img_back) - np.min(img_back))
+    final_image = (255 * img_back).astype(np.uint8)
+
+    return final_image
 def scramblenoiseblur(img,cylce=5,kernel=(3,3),sigma=10):
     """scramblepix: Scramble the pixels of an image.
     Args:
@@ -298,52 +487,77 @@ def scramblenoiseblur(img,cylce=5,kernel=(3,3),sigma=10):
     return img
 
 
-def scramblevideo(cap,splits):
-    """scramble_video: Scramble the whole video.
+def scramblevideo(input_video_path, output_video_path=None, scramble_settings=None):
+    """
+    Scramble the facial area in a video.
+    
     Args:
-        cap: input video
-        splits: number of splits to perform
+        input_video_path: Path to the input video.
+        splits: Number of splits to perform on the face.
+        output_video_path: Path where the output video will be saved (if None, the video won't be saved).
+        scramble_settings: Dictionary of settings for the scrambleface function.
+    
     Usage:
-        scramblevideo("video.mp4",10)
+        scramblevideo("input_video.mp4", 10, "output_video.mp4", scramble_settings)
+    """
 
-        """
-    cap = cv2.VideoCapture(cap)
-    splits=int(splits)
-    while True:
+    # Check if scramble_settings is provided, else use default settings
+    if scramble_settings is None:
+        scramble_settings = {
+            'splits': 25,
+            'type': 'pixel',
+            'seamless': False,
+            'bg': True,
+            'seed': None,
+            'write': False  # Important: this should always be False for video processing
+        }
+    else:
+        if "write" in scramble_settings and scramble_settings["write"]:
+            print("Warning: The 'write' setting in scramble_settings must be False for video processing. Overriding it to False.")
+            scramble_settings["write"] = False
 
+    # Open the video file
+    cap = cv2.VideoCapture(input_video_path)
+    if not cap.isOpened():
+        print(f"Error: Could not open video {input_video_path}.")
+        return
+
+    frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    codec = cv2.VideoWriter_fourcc(*'XVID')
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+    if output_video_path:
+        out = cv2.VideoWriter(output_video_path, codec, fps, (frame_width, frame_height))
+    else:
+        out = None
+        print("No output path specified. The scrambled video won't be saved.")
+
+    frame_number = 0
+    while cap.isOpened():
         ret, frame = cap.read()
-        frame_copy = frame.copy()
-        h, w, _ = frame.shape
-        mask = np.zeros((h, w), np.uint8)
-        landmarks = get_facial_landmarks(frame)
-        print(landmarks)
-        hull = cv2.convexHull(landmarks)
-        cv2.fillConvexPoly(mask, hull, 255)
-
-        cv2.polylines(frame, [hull], 1, (0, 0, 255), 1)
-
-        cv2.polylines(mask, [hull], 1, (255), 1)
-
-        for i in range(0, 468):
-            pt = landmarks[i]
-        if ret is not True:
+        if not ret:
+            print("Reached the end of the video.")
             break
 
-        # frame_copy = cv2.blur(frame_copy, (27, 27)) # testing blur
-        img_new = np.array_split(frame_copy, splits)
-        np.random.shuffle(img_new)
-        img_new = np.vstack(img_new)
-        #face = cv2.bitwise_and(img_new, img_new, mask=mask) further use
-        frame_copy = img_new
-        face_extracted = cv2.bitwise_and(frame_copy, frame_copy, mask=mask)
+        frame_number += 1
+        print(f"Processing frame {frame_number}/{total_frames}")
 
-        backgroundm = cv2.bitwise_not(mask)
-        background = cv2.bitwise_and(frame, frame, mask=backgroundm)
+        try:
+            scrambled_frame = scrambleface(frame, **scramble_settings)
+        except Exception as e:
+            print(f"An error occurred while processing frame {frame_number}: {str(e)}")
+            scrambled_frame = frame  
 
-        result = cv2.add(background, face_extracted)
+        if out:
+            out.write(scrambled_frame)
 
-        cv2.imshow("mask", result)
+    cap.release()
+    if out:
+        out.release()
 
-        cv2.waitKey(1)
+    cv2.destroyAllWindows()
+    print("Video processing completed.")
 
 
