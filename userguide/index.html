@@ -94,6 +94,12 @@
 <li>The package can be found in pypi. To install the package, run the following command in the terminal:</li>
 <li><code>pip install scramblery</code></li>
 </ul>
+<h3 id="dependencies">Dependencies</h3>
+<p>To use the <code>scramblery</code> package, the following Python packages need to be installed. You can install them using <code>pip</code>:</p>
+<pre><code class="language-sh">pip install mediapipe
+pip install opencv-python
+pip install numpy
+</code></pre>
 <h4 id="usage">Usage</h4>
 <ul>
 <li>import the package:</li>
@@ -101,11 +107,10 @@
 <li>The package has 3 functions to use. Use the functions in the following manner:</li>
 <li><code>scramblery.scrambleimage("Lena.png",8,8)</code></li>
 <li><code>scramblery.scrambleface("Lena.png",8)</code></li>
-<li>scramblery.scramblevideo("Lena.png",8,8)</li>
-<li>Sometimes there may be some errors related to the size of the image when splitting into squares. Therefore, you may need to edit the number you will reserve. I will fix this issue in future releases.</li>
 </ul>
+<p>Sometimes there may be some errors related to the size of the image when splitting into squares. Therefore, you may need to edit the number you will reserve. I will fix this issue in future releases.</p>
 <p>If you want to scramble multiple images you can use following code for best results. This will make sure that the same blocks are scrambled in all images.</p>
-<pre><code>import glob
+<pre><code class="language-python">import glob
 #input folder containing the images to be scrambled (in this case, the folder is called 'inputfolder' in my working directory)
 input_dir = 'inputfolder'
 #output folder where the scrambled images will be saved 
@@ -130,6 +135,44 @@ for image_file in image_files:
     image=scrambleimage(image_file, scramble_type='pixel', write=True)
 </code></pre>
 <p>This was a simple example of how to use the scrambleimage function to scramble multiple images. You can easily modify the code to suit your needs.</p>
+<h3 id="scrambling-faces-in-videos">Scrambling Faces in Videos</h3>
+<p>The <code>scramblevideo</code> function allows you to scramble faces within a video. It's perfect for studies involving dynamic stimuli or any application where you need to anonymize faces in motion.</p>
+<p>Here's how to use it: </p>
+<pre><code class="language-python">
+from scramblery import scramblery
+
+# Path to the input video
+input_video_path = &quot;enes23.mp4&quot;
+
+# Path where the output video will be saved
+output_video_path = &quot;enes2555.mp4&quot;
+
+# Scramble settings
+scramble_settings = {
+    'splits': 25,         # Number of splits to perform on the face
+    'type': 'pixel',      # Type of scrambling ('pixel', 'classic', etc.)
+    'seamless': False,    # Whether to use seamless cloning (True or False)
+    'bg': True,           # Whether to include background scrambling (True or False)
+    'seed': None,         # Seed for random number generator (None for random seed)
+    'write': False        # Must always be False for video processing
+}
+
+# Call the function
+scramblery.scramblevideo(input_video_path, output_video_path, scramble_settings)
+</code></pre>
+<h3 id="detailed-explanation">Detailed Explanation</h3>
+<ul>
+<li><strong>input_video_path</strong>: The path to the video file you wish to process.</li>
+<li><strong>output_video_path</strong>: The path where the scrambled video will be saved. If you don't want to save the video, set this to <code>None</code>.</li>
+<li><strong>scramble_settings</strong>: A dictionary of settings that dictate how the video will be scrambled.</li>
+<li><strong>splits</strong>: Determines how many blocks the face will be split into. A higher number means more, smaller blocks.</li>
+<li><strong>type</strong>: The type of scrambling. Options include 'pixel', 'classic', 'fourier', etc.</li>
+<li><strong>bg</strong>: If <code>True</code>, the background will also be scrambled, not just the face.</li>
+<li><strong>seed</strong>: A seed for the random number generator, ensuring the same scrambling is applied across different calls. If <code>None</code>, the seed will be random.</li>
+<li><strong>write</strong>: This should always be <code>False</code> for video processing, as the function handles the writing process.</li>
+</ul>
+<h3 id="performance-note">Performance Note</h3>
+<p>Processing videos, especially long ones, can be time-consuming and computationally expensive. The time it takes to process a video largely depends on the length of the video, the resolution, the <code>splits</code> parameter, and the hardware of your computer. Ensure your system is adequately equipped to handle the processing, and expect this operation to be more time-consuming than processing images.</p>
               
             </div>
           </div><footer>

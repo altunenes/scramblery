@@ -51,6 +51,26 @@
               <ul class="current">
                 <li class="toctree-l1 current"><a class="reference internal current" href="./">API</a>
     <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#updates">Updates</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#function-documentation">Function Documentation</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#scrambleface">scrambleface</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#scrambleimage">scrambleimage</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#scramblevideo">scramblevideo</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#usage-examples">Usage Examples</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#fourier-scrambling">Fourier Scrambling</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#enhanced-video-scrambling">Enhanced Video Scrambling</a>
+    </li>
+        </ul>
+    </li>
     </ul>
                 </li>
               </ul>
@@ -89,57 +109,104 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
             <div class="section" itemprop="articleBody">
               
-                <h3 id="api-reference">API reference</h3>
-<p>This page gives an overview of the functions 
-+<a href="#get_facial_landmarks">get_facial_landmarks</a></p>
-<p>+<a href="#scrambleface">scrambleface</a></p>
-<p>+<a href="#scrambleimage">scrambleimage</a></p>
-<p>+<a href="#scramblevideo">scramblevideo</a></p>
-<p><strong><em>get_facial_landmarks</em></strong><a name="get_facial_landmarks"></a>
-the get_facial_landmarks function takes an image and returns the facial landmarks of the face in the image.</p>
-<p><strong><em>scrambleface</em></strong><a name="scrambleface"></a>
-the scrambleface function takes an image and returns a scramble the facial area of the image. You can either scramble with the pixel values or with the pixel coordinate</p>
-<pre><code>    &quot;&quot;&quot;&quot;scramble_face: Scramble the facial area of image.
-    Args:
-        img: input image
-        splits: number of splits to perform, it works reversed between pixel and stack splits
-        type: type of split, &quot;pixel&quot; or &quot;stack&quot;. Stack works with pixel coordinates, square works with pixel values
-        seamless: if True, it will use seamlessClone to blend the scrambled face with the original image
-        bg: if True, it will use the background of the original image, if False, it will replace the background with a gray color
-        seed: seed for random number generator (default: None)
-        write: if True, it will write the output image to the disk, if False, it will return the output image
+                <h1 id="scramblery-functions-in-python">Scramblery Functions in Python</h1>
+<p>Maintained by: @altunenes</p>
+<p>This document outlines the updated functionalities of the Scramblery library, including the newly introduced Fourier scrambling technique and the enhancements made to the video scrambling function.</p>
+<h2 id="updates">Updates</h2>
+<ol>
+<li>
+<p><strong>Fourier Scrambling</strong>: A novel method for image scrambling that operates in the frequency domain. Unlike traditional scrambling methods that shuffle pixel values or coordinates, Fourier scrambling randomizes the phase information of the image's Fourier transform, thereby disrupting the image's structure while preserving its energy distribution. This method is particularly potent for applications requiring non-reversible image transformations without a significant loss of information content (e.g., privacy preservation, data anonymization).</p>
+</li>
+<li>
+<p><strong>Video Scrambling Enhancements</strong>: The <code>scramblevideo</code> function has been overhauled to provide more flexibility and control over the scrambling process. Users can now specify detailed scrambling settings, allowing for different scrambling techniques to be applied throughout a video sequence. This feature is crucial for researchers and practitioners working with video data, where consistent scrambling parameters are necessary across frames.</p>
+</li>
+</ol>
+<h2 id="function-documentation">Function Documentation</h2>
+<h3 id="scrambleface"><code>scrambleface</code></h3>
+<pre><code class="language-python">def scrambleface(img, splits, type, seamless=False, bg=True, seed=None, write=True, scramble_ratio=1.0):
+    &quot;&quot;&quot;
+Scramble the facial area of the image.
+
+Args:
+    img: input image path or image array
+    splits: number of splits to perform, works differently between square and stack splits
+    type: type of split, &quot;pixel&quot;, &quot;stack&quot;, or &quot;fourier&quot;. Stack works with pixel coordinates, square works with pixel values
+    seamless: if True, uses seamlessClone to blend the scrambled face with the original image
+    bg: if True, uses the background of the original image, if False, replaces the background with a gray color
+    seed: seed for random number generator (default: None)
+    write: if True, writes the output image to disk, if False, returns the output image
+    scramble_ratio: the power of Fourier scrambling (default: 1.0)
+
+Usage:
+    scrambleface(&quot;image.png&quot;, 10, &quot;fourier&quot;, False, True, None, True, 0.5)
     &quot;&quot;&quot;
 </code></pre>
-<p>usage:</p>
-<pre><code class="language-python">    scrambleface(&quot;test.jpg&quot;,splits=12,type=&quot;pixel&quot;,bg=True,seamless=True,write=True)
-</code></pre>
-<p>In this version, with write=True, the function will write the scrambled image to the disk. If you want to use the scrambled image in your code, you can set write=False and the function will return the scrambled image.</p>
-<pre><code class="language-python">    import cv2
-    img=cv2.imread(&quot;test.jpg&quot;)
-    a=scrambleface(img,splits=12,type=&quot;pixel&quot;,bg=True,seamless=True,write=False)
-    cv2.imshow(&quot;scrambled&quot;,a)
-    cv2.waitKey(0)
-</code></pre>
-<p>The function will return the scrambled image. You can use the image in your code. This is useful if you want to scramble multiple images in a loop. Check the user guide for more information, I show how to use the function in a loop.</p>
-<p>Note: bg=False and seamless=True will not work. seamlessClone requires a background image. If you want to use seamlessClone, you need to set bg=True. I may add this feature in the future.</p>
-<p><strong><em>scrambleimage</em></strong><a name="scrambleimage"></a>
-the scrambleimage function takes an image and returns a scrambled version of the image. This function is for the whole image.
-types:"pixel","square","withinblocks","rotate","colormap","gradient"</p>
-<p>note: gradient is a implement a scramble type that randomly applies a gradient to blocks of the image. This could be achieved using the cv2.Sobel or cv2.Laplacian functions. colormap, will randomly apply one of the available color maps (Autumn, Bone, Jet, Winter, Rainbow, or Ocean) to each block of the image when the function is called with the "colormap" scramble type. This two parameters don't shuffle the blocks.</p>
-<pre><code>    &quot;&quot;&quot;scramble_image: Scramble the whole image.
-    Args:
-        image: input image(with extension)
-        x_block: number of splits in x-axis
-        y_block: number of splits in y-axis
-        type: type of split: &quot;pixel&quot;,&quot;classic&quot;,&quot;withinblocks&quot;
-        seed: seed for random number generator
-        write: write the image to disk or return the scrambled image(True is default)
-        Usage:
-            scrambleimage(&quot;image.png&quot;,10,10,&quot;pixel&quot;)
+<h3 id="scrambleimage"><code>scrambleimage</code></h3>
+<pre><code class="language-python">def scrambleimage(image_path, x_block=10, y_block=10, scramble_type='classic', seed=None, write=True, **kwargs):
+    &quot;&quot;&quot;
+Main function to scramble an image based on the specified scramble type.
+
+Args:
+    image_path: Path to the input image (with extension).
+    x_block: Number of splits in x-axis.
+    y_block: Number of splits in y-axis.
+    scramble_type: Type of split; valid values are &quot;classic&quot;, &quot;pixel&quot;, &quot;withinblocks&quot;, &quot;rotate&quot;, &quot;colormap&quot;, &quot;gradient&quot;, &quot;fourier&quot;.
+    seed: Seed for random number generator (default: None).
+    write: Write the image to disk (default: True).
+    **kwargs: Additional keyword arguments specific to scramble types.
+
+Returns:
+    If write is True, writes the scrambled image to disk.
+    If write is False, returns the scrambled image.
+
+Raises:
+    ValueError: If an invalid scramble_type is provided or image cannot be read.
+    FileNotFoundError: If the image_path does not exist.
     &quot;&quot;&quot;
 </code></pre>
-<p><strong><em>scramblevideo</em></strong><a name="scramblevideo"></a>
-the scramblevideo function takes a video and returns a scrambled version of the video.</p>
+<h3 id="scramblevideo"><code>scramblevideo</code></h3>
+<pre><code class="language-python">def scramblevideo(input_video_path, output_video_path=None, scramble_settings=None):
+    &quot;&quot;&quot;
+Scramble the facial area in a video.
+
+Args:
+    input_video_path: Path to the input video.
+    splits: Number of splits to perform on the face.
+    output_video_path: Path where the output video will be saved (if None, the video won't be saved).
+    scramble_settings: Dictionary of settings for the scrambleface function.
+
+Usage:
+    scramblevideo(&quot;input_video.mp4&quot;, 10, &quot;output_video.mp4&quot;, scramble_settings)
+    &quot;&quot;&quot;
+</code></pre>
+<h2 id="usage-examples">Usage Examples</h2>
+<h3 id="fourier-scrambling">Fourier Scrambling</h3>
+<p>The <code>scrambleface</code> and <code>scrambleimage</code> functions now support Fourier scrambling, a method that disrupts the image's visual content without altering its energy spectrum significantly. This technique is particularly useful in situations where the image's overall energy distribution must be maintained for subsequent processing steps (e.g., deep learning applications) or for privacy-preserving transformations.</p>
+<pre><code class="language-python">from scramblery import scrambleface, scrambleimage
+
+# Scramble the face in the image using the Fourier method
+scrambled_face = scrambleface(&quot;face.jpg&quot;, splits=10, type=&quot;fourier&quot;, scramble_ratio=0.7, write=False)
+
+# Scramble the entire image using the Fourier method
+scrambled_image = scrambleimage(&quot;image.jpg&quot;, scramble_type=&quot;fourier&quot;, scramble_ratio=0.5, write=False)
+</code></pre>
+<h3 id="enhanced-video-scrambling">Enhanced Video Scrambling</h3>
+<p>The updated <code>scramblevideo</code> function allows for more granular control over the video scrambling process, with the ability to specify detailed settings for the <code>scrambleface</code> function used internally. This update is particularly beneficial for use cases requiring consistent scrambling effects across different video frames or varied scrambling intensities throughout a video sequence.</p>
+<pre><code class="language-python">from scramblery import scramblevideo
+
+# Define custom settings for the video scrambling process
+scramble_settings = {
+    'splits': 20,
+    'type': 'fourier',
+    'scramble_ratio': 0.6,
+    'seamless': True,
+    'bg': False
+}
+
+# Apply scrambling to a video file
+scramblevideo(&quot;input_video.mp4&quot;, &quot;output_scrambled_video.mp4&quot;, scramble_settings)
+</code></pre>
+<hr />
               
             </div>
           </div><footer>
