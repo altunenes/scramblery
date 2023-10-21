@@ -1,3 +1,8 @@
+let isCvReady = false;
+function onOpenCvReady() {
+    isCvReady = true;
+    document.getElementById('status').innerHTML = 'OpenCV.js is ready.';
+}
 document.addEventListener("DOMContentLoaded", function() {
   let originalImage; 
   let processedImage; 
@@ -72,25 +77,28 @@ document.addEventListener("DOMContentLoaded", function() {
   const processedImageContainer = createImageContainer();
 
   createButton('Import Image', function() {
-      const fileInput = document.createElement('input');
-      fileInput.type = 'file';
-      fileInput.onchange = function() {
-          const file = fileInput.files[0];
-          const reader = new FileReader();
-          reader.onload = function(e) {
-              originalImage = new Image();
-              originalImage.src = e.target.result;
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.onchange = function() {
+        // Clear the existing image
+        originalImageContainer.innerHTML = ''; 
 
-              const displayImage = document.createElement('img');
-              displayImage.src = originalImage.src;
-              displayImage.style.maxWidth = '100%';
-              displayImage.style.maxHeight = '100%';
-              originalImageContainer.appendChild(displayImage); 
-          };
-          reader.readAsDataURL(file);
-      };
-      fileInput.click();
-  });
+        const file = fileInput.files[0];
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            originalImage = new Image();
+            originalImage.src = e.target.result;
+
+            const displayImage = document.createElement('img');
+            displayImage.src = originalImage.src;
+            displayImage.style.maxWidth = '100%';
+            displayImage.style.maxHeight = '100%';
+            originalImageContainer.appendChild(displayImage); 
+        };
+        reader.readAsDataURL(file);
+    };
+    fileInput.click();
+});
 
   const slider = document.createElement('input');
   slider.type = 'range';
@@ -197,7 +205,71 @@ document.addEventListener("DOMContentLoaded", function() {
 
       createProcessedImage(canvas.toDataURL());
   });
+  const statusIndicator = document.createElement('div');
+  statusIndicator.id = 'status';
+  statusIndicator.textContent = 'Loading OpenCV.js...';
+  document.body.appendChild(statusIndicator);
 
+
+  
+  createButton('Fourier Scramble', function() {
+    if (!originalImage || !isCvReady) {
+      alert('Please wait for OpenCV to load, or make sure an image is loaded.');
+      return;
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = originalImage.width;
+    canvas.height = originalImage.height;
+    const context = canvas.getContext('2d');
+    context.drawImage(originalImage, 0, 0);
+
+    let imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+
+    let gray = cv.imread(imageData);
+    cv.cvtColor(gray, gray, cv.COLOR_RGBA2GRAY);
+
+    let scrambledImage = fourierTransformAndScramble(gray);
+    
+    let resultImageData = new ImageData(new Uint8ClampedArray(scrambledImage.data), gray.cols, gray.rows);
+
+    context.putImageData(resultImageData, 0, 0);
+    createProcessedImage(canvas.toDataURL());
+
+    gray.delete(); scrambledImage.delete();
+});
+
+function fourierTransformAndScramble(mat) {
+    const optimalRows = cv.getOptimalDFTSize(mat.rows);
+    const optimalCols = cv.getOptimalDFTSize(mat.cols);
+    let padded = new cv.Mat();
+    cv.copyMakeBorder(mat, padded, 0, optimalRows - mat.rows, 0, optimalCols - mat.cols, cv.BORDER_CONSTANT, new cv.Scalar());
+
+    padded.convertTo(padded, cv.CV_32F);
+
+    let planes = new cv.MatVector();
+    planes.push_back(padded);
+    planes.push_back(new cv.Mat.zeros(padded.rows, padded.cols, cv.CV_32F));
+    let complexI = new cv.Mat();
+    cv.merge(planes, complexI);
+    cv.dft(complexI, complexI);
+
+    let mag = new cv.Mat(), angle = new cv.Mat();
+    cv.cartToPolar(planes.get(0), planes.get(1), mag, angle, false);
+    let randomPhase = new cv.Mat(angle.rows, angle.cols, cv.CV_32F, new cv.Scalar(Math.PI));
+    cv.addWeighted(angle, 1, randomPhase, 1, 0, angle, -1);
+    cv.polarToCart(mag, angle, planes.get(0), planes.get(1), false);
+
+    cv.merge(planes, complexI);
+    cv.idft(complexI, complexI, cv.DFT_REAL_OUTPUT);
+    let restored = new cv.Mat();
+    cv.split(complexI, planes);
+    planes.get(0).convertTo(restored, cv.CV_8U);
+
+    padded.delete(); planes.delete(); complexI.delete(); mag.delete(); angle.delete(); randomPhase.delete();
+
+    return restored;
+}
   function createProcessedImage(dataUrl) {
       if (processedImage) {
           processedImageContainer.removeChild(processedImage);
@@ -211,68 +283,4 @@ document.addEventListener("DOMContentLoaded", function() {
   }
 });
 
-  
-    document.body.appendChild(scrambleImage);
-    var buttons = document.querySelectorAll('button');
-    for (var i = 0; i < buttons.length; i++) {
-    buttons[i].style.fontSize = '20px';
-    buttons[i].style.padding = '10px';
-    buttons[i].style.margin = '10px';
-    buttons[i].style.borderRadius = '10px';
-    buttons[i].style.border = 'none';
-    buttons[i].style.backgroundColor = '#eee';
-    buttons[i].style.cursor = 'pointer';
-    }
-    
-    var scrambleSliderText = document.createElement('div');
-    scrambleSliderText.innerHTML = 'Scramble ratio';
-    document.body.appendChild(scrambleSliderText);
-    
-    scrambleSliderText.style.position = 'absolute';
-    scrambleSliderText.style.top = '50px';
-    scrambleSliderText.style.left = '180px';
-    
-    scrambleSliderText.style.fontSize = '15px';
-    scrambleSliderText.style.fontFamily = 'sans-serif';
-    scrambleSliderText.style.color = '#666';
-    
-    
-    var twitterLink = document.createElement('a');
-    twitterLink.innerHTML = '@altunenes';
-    twitterLink.href = 'https://github.com/altunenes';
-    twitterLink.style.position = 'fixed';
-    twitterLink.style.bottom = '10px';
-    twitterLink.style.right = '10px';
-    twitterLink.style.fontSize = '15px';
-    twitterLink.style.fontFamily = 'sans-serif';
-    twitterLink.style.color = '#666';
-    document.body.appendChild(twitterLink);
-    document.body.style.overflow = 'auto';
-    var about = document.createElement('div');
-    about.innerHTML = 'About';
-    about.style.position = 'absolute';
-    about.style.top = '0px';
-    about.style.right = '0px';
-    about.style.backgroundColor = '#ccc';
-    about.style.padding = '10px';
-    about.style.cursor = 'pointer';
-    document.body.appendChild(about);
-    var aboutText = document.createElement('div');
-    aboutText.innerHTML = '<h1>About</h1><p>"Scramble selected areas" is still under construction</p><p>Made by <a href="https://altunenes.github.io/">enes altun, 2022</a></p>';
-    aboutText.style.position = 'absolute';
-    aboutText.style.top = '0px';
-    aboutText.style.right = '0px';
-    aboutText.style.backgroundColor = '#ccc';
-    aboutText.style.padding = '10px';
-    aboutText.style.cursor = 'pointer';
-    aboutText.style.display = 'none';
-    document.body.appendChild(aboutText);
-    about.addEventListener('click', function() {
-      aboutText.style.display = 'block';
-    });
-    aboutText.addEventListener('click', function() {
-      aboutText.style.display = 'none';
-    });
-    
-    
-    
+
