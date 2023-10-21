@@ -13,49 +13,74 @@ A simple tool to scramble your images or only faces from images or videos. You c
 Note: The Javascript demo doesn't have a face detection algorithm and it's designed to be applied to a single image. If you want to do this for multiple imagees you should use Python.
 
 
-#### Purpose of Package
- The purpose of this package is the creating scrambled images from images or videos. User can either scramble the whole image or only facial area.
- This is very useful tool in psychology experiments especially if you are working with faces. With a for loop you can scramble all the images in a folder and create a new folder with scrambled images. It was very long process to scramble images manually in the past and I feel like this package can be useful for many people. Hope this package will be useful for your research.
+### Purpose of Package
+The Scramblery package offers tools for creating scrambled images from existing images or videos. Users have the flexibility to scramble entire images or target only specific areas, such as faces. This functionality is particularly beneficial in psychological experiments involving facial recognition tasks. With Scramblery, users can automate the scrambling of multiple images, eliminating the tedious manual process traditionally associated with this task. We hope this package significantly contributes to your research endeavors.
 
-#### Motivation
+### Motivation
 
-- Image scrambling is important in psychology experiments because it allows researchers to control the content and structure of visual stimuli, while removing or altering specific features or patterns that might influence participants' perception or response.
+- Image scrambling plays a crucial role in psychology experiments, enabling researchers to manipulate visual stimuli while maintaining control over certain visual aspects. This manipulation helps eliminate or alter specific features or patterns that may influence participants' perceptions or responses.
 
-- By scrambling an image, researchers can create a version of the image that preserves the overall luminance, contrast, and spatial layout, but that removes or distorts specific features or patterns that might be relevant for the experiment. For example, researchers might scramble an image of a face to remove the facial features, while preserving the overall brightness and contrast, or they might scramble an image of a scene to remove the objects, while preserving the spatial layout and color.
-  
-- It allows researchers to control for potential confounds and biases that might arise from the content of the stimuli. By removing or distorting specific features or patterns, researchers can create stimuli that are less predictable and less likely to elicit specific responses from participants. This can help researchers to isolate the effects of the manipulated variables, and to reduce the influence of confounding factors that might interfere with the interpretation of the results.
+- Scramblery allows for the creation of stimuli that retain general attributes such as luminance, contrast, and spatial layout, but lack identifiable features or objects. This is useful in experiments where researchers wish to control for these specific attributes.
 
-#### **Features**
-- Scramble whole image with desired degree of scrambling (pixel values or pixel coordinates)
-- Scramble only facial area with desired degree of scrambling (pixel values or pixel coordinates)
-- Scramble only facial area in a video (useful for dynmaic stimuli) with desired degree of scrambling
+- The package helps in mitigating biases and confounding variables in stimuli, thereby providing more reliable and valid experimental conditions. The ability to automate this process ensures consistency across stimuli and saves valuable time for researchers.
+
+### Features
+
+- Scramble an entire image with a specified degree of scrambling (either by altering pixel values or pixel coordinates).
+- Target scrambling to only the facial area within an image, with customizable levels of scrambling.
+- Extend the scrambling feature to videos, particularly useful for dynamic stimuli in motion-based experiments.
+- Leverage Fourier-based scrambling to disrupt the phase information while maintaining the power spectrum, particularly useful for psychophysical studies.
+
+### Installation
+
+Scramblery is available on PyPI and can be installed using pip. Use the following command in your terminal:
 
 #### Installation
 - The package can be found in pypi. To install the package, run the following command in the terminal:
 - `pip install scramblery`
-#### Author
-
-  -  Main Maintainer: [Enes ALTUN]
 
 
-#### Usage
-After installing the package, you can import the package as follows:
+
 - `from scramblery import scramblery`
 Then use the functions as follows to scramble images. I added some examples below.
 
   ![8x8](./docs/assets/usage.PNG)
 
   ![12x12](./docs/assets/types.png)
+  ![8x8](./docs/assets/fr.png)
 
 
-Code example:
+
+
+### Usage
+
+After installation, you can import and use Scramblery as follows:
+
 ```python
 from scramblery import scramblery
-scramblery.scrambleimage("Lena.png", x_block=10, y_block=10, scramble_type='classic',seed=None,write=True)
-#note: seed is optional, none means random seed
+
+# To scramble an entire image
+scramblery.scrambleimage("Lena.png", x_block=10, y_block=10, scramble_type='classic', seed=None, write=True)
+
+# To scramble only the facial area within an image
+scramblery.scrambleface("Lena.png", splits=10, type='pixel', seamless=False, bg=True, seed=None, write=True)
+
+# To apply Fourier-based scrambling on an image
+scramblery.scrambleimage("Lena.png", scramble_type='fourier', scramble_ratio=0.5, seed=None, write=True)
+# To apply Fourier-based scrambling o only the facial area within an image
+scramblery.scrambleface("lena.png",splits=10,type='fourier', scramble_ratio=0.5,write=True)
+
+# To scramble faces within a video first we need to create a dict.
+scramble_settings = {
+    'splits': 25,
+    'type': 'pixel',
+    'bg': True,
+    'seed': None,
+    'write': False  # Should always be False for video processing
+}
+scramblery.scramblevideo("input_video.mp4", "output_video.mp4", scramble_settings)
 ```
-If you want to scramble images in a folder, check the API section here for an example: [API](https://altunenes.github.io/scramblery/userguide/).
 
+### Contribution
+We welcome contributions of any kind to Scramblery. If you have ideas for improvement or have found a bug, please don't hesitate to contribute.
 
-### Contributon
- Any kind of contribution is welcome.
