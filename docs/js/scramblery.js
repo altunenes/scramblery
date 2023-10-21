@@ -17,13 +17,21 @@ document.addEventListener("DOMContentLoaded", function() {
   headerContainer.style.width = '100%';
   headerContainer.style.backgroundColor = '#6200ee';
   
+  const spacer = document.createElement('div');
+  spacer.style.width = '150px'; 
+  spacer.style.flexShrink = '0'; 
+  headerContainer.appendChild(spacer);
+  
   const header = document.createElement('h1');
   header.textContent = 'Scramblery';
   header.style.textAlign = 'center';
   header.style.margin = '0';
   header.style.padding = '10px 0';
-  header.style.flexGrow = '1';
-  header.style.color = 'White';
+  header.style.flexGrow = '1'; 
+  header.style.color = 'White'; 
+
+  headerContainer.appendChild(header);
+  
 
   headerContainer.appendChild(header);
   
