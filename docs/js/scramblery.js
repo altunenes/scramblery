@@ -1,263 +1,218 @@
 document.addEventListener("DOMContentLoaded", function() {
+  let originalImage; 
+  let processedImage; 
+  document.body.style.fontFamily = 'sans-serif';
+  document.body.style.margin = '0';
+  document.body.style.padding = '0';
+  document.body.style.display = 'flex';
+  document.body.style.flexDirection = 'column';
+  document.body.style.alignItems = 'center';
+  document.body.style.justifyContent = 'flex-start';
+  document.body.style.overflow = 'auto';
+  const header = document.createElement('h1');
+  header.textContent = 'Scramblery';
+  header.style.textAlign = 'center';
+  header.style.width = '100%';
+  header.style.backgroundColor = '#6200ee';
+  header.style.color = 'white';
+  header.style.margin = '0';
+  header.style.padding = '10px 0';
+  document.body.appendChild(header);
 
-    var importImageButton = document.createElement('button');
-    importImageButton.innerHTML = 'Import Image';
-    /*/importImageButton.style.position = 'fixed';/*/
-    importImageButton.onclick = function() {
-    var fileInput = document.createElement('input');
-    fileInput.type = 'file';
-    fileInput.onchange = function() {
-    var file = fileInput.files[0];
-    var reader = new FileReader();
-    reader.onload = function(e) {
-    var image = document.createElement('img');
-    image.src = e.target.result;
-    document.body.appendChild(image);
-    };
-    reader.readAsDataURL(file);
-    };
-    fileInput.click();
-    };
-    document.body.appendChild(importImageButton);
-    
-    
-    
-    
-    
-    var slider = document.createElement('input');
-    slider.type = 'range';
-    slider.min = 1;
-    slider.max = 150;
-    slider.value = 1;
-    slider.id='mosaicSize';
-    slider.oninput = function() {
-    console.log(slider.value);
-    };
-    document.body.appendChild(slider);
-    var gaussianNoiseButton = document.createElement('button');
-    gaussianNoiseButton.innerHTML = 'Noise';
-    gaussianNoiseButton.onclick = function() {
-    var image = document.querySelector('img');
-    var canvas = document.createElement('canvas');
-    canvas.width = image.width;
-    canvas.height = image.height;
-    var context = canvas.getContext('2d');
-    context.drawImage(image, 0, 0);
-    var imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-    var data = imageData.data;
-    for (var i = 0; i < data.length; i += 4) {
-    if (Math.random() < slider.value / 100) {
-    data[i] = Math.random() * 255;
-    data[i + 1] = Math.random() * 255;
-    data[i + 2] = Math.random() * 255;
-    }
-    }
-    context.putImageData(imageData, 0, 0);
-    image.src = canvas.toDataURL();
-    };
-    document.body.appendChild(gaussianNoiseButton);
-    var scrambleImageButton = document.createElement('button');
-    scrambleImageButton.innerHTML = 'Scramble Image';
-    scrambleImageButton.onclick = function() {
-    var image = document.querySelector('img');
-    var canvas = document.createElement('canvas');
-    canvas.width = image.width;
-    canvas.height = image.height;
-    var context = canvas.getContext('2d');
-    context.drawImage(image, 0, 0);
-    var imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-    var data = imageData.data;
-    var tileWidth = Math.floor(canvas.width / slider.value);
-    var tileHeight = Math.floor(canvas.height / slider.value);
-    var tiles = [];
-    for (var y = 0; y < canvas.height; y += tileHeight) {
-    for (var x = 0; x < canvas.width; x += tileWidth) {
-    var tile = context.getImageData(x, y, tileWidth, tileHeight);
-    tiles.push(tile);
-    }
-    }
-    tiles.sort(function() {
-    return Math.random() - 0.5;
-    });
-    var i = 0;
-    for (var y = 0; y < canvas.height; y += tileHeight) {
-    for (var x = 0; x < canvas.width; x += tileWidth) {
-    context.putImageData(tiles[i], x, y);
-    i++;
-    }
-    }
-    image.src = canvas.toDataURL();
-    };
-    document.body.appendChild(scrambleImageButton);
-    
-    var clearButton = document.createElement('button');
-    clearButton.innerHTML = 'Clear';
-    clearButton.onclick = function() {
-    var image = document.querySelector('img');
-    image.src = '';
-    };
-    document.body.appendChild(clearButton);
-    
-    
-    var NoiseCircularAreaButton = document.createElement('button');
-    NoiseCircularAreaButton.innerHTML = 'Noise Circular Area';
-    NoiseCircularAreaButton.onclick = function() {
-    var image = document.getElementsByTagName('img')[0];
-    var canvas = document.createElement('canvas');
-    canvas.width = image.width;
-    canvas.height = image.height;
-    var context = canvas.getContext('2d');
-    context.drawImage(image, 0, 0);
-    var imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-    var data = imageData.data;
-    var x = 0;
-    var y = 0;
-    var radius = 0;
-    var isDrawing = false;
-    canvas.onmousedown = function(e) {
-    isDrawing = true;
-    x = e.offsetX;
-    y = e.offsetY;
-    radius = 0;
-    };
-    canvas.onmousemove = function(e) {
-    if (isDrawing) {
-    radius = Math.sqrt(Math.pow(e.offsetX - x, 2) + Math.pow(e.offsetY - y, 2));
-    context.clearRect(0, 0, canvas.width, canvas.height);
-    context.drawImage(image, 0, 0);
-    context.beginPath();
-    context.arc(x, y, radius, 0, 2 * Math.PI);
-    context.strokeStyle = 'rgba(255, 0, 0, 0.5)';
-    context.lineWidth = 3;
-    context.stroke();
-    }
-    };
-    canvas.onmouseup = function(e) {
-    isDrawing = false;
-    for (var i = 0; i < data.length; i += 4) {
-    var dx = (i / 4) % canvas.width - x;
-    var dy = Math.floor((i / 4) / canvas.width) - y;
-    if (Math.sqrt(dx * dx + dy * dy) < radius) {
-    if (Math.random() < slider.value / 100) {
-      var j = Math.floor(Math.random() * data.length);
-      data[i] = data[j];
-      data[i + 1] = data[j + 1];
-      data[i + 2] = data[j + 2];
-    }
-    }
-    }
-    context.putImageData(imageData, 0, 0);
-    };
-    document.body.appendChild(canvas);
-    };
-    document.body.appendChild(NoiseCircularAreaButton);
-    
-    document.body.style.overflow = 'hidden';
-    
-    clearButton.onclick = function() {
-    location.reload();
-    };
-    
-    var scrambleCircularAreaButton = document.createElement('button');
-    scrambleCircularAreaButton.innerHTML = 'Scramble Circular Area';
-    scrambleCircularAreaButton.onclick = function() {
-    var image = document.getElementsByTagName('img')[0];
-    var canvas = document.createElement('canvas');
-    canvas.width = image.width;
-    canvas.height = image.height;
-    var context = canvas.getContext('2d');
-    context.drawImage(image, 0, 0);
-    var imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-    var data = imageData.data;
-    var x = 0;
-    var y = 0;
-    var radius = 0;
-    var isDrawing = false;
-    canvas.onmousedown = function(e) {
-    isDrawing = true;
-    x = e.offsetX;
-    y = e.offsetY;
-    radius = 0;
-    };
-    canvas.onmousemove = function(e) {
-    if (isDrawing) {
-    radius = Math.sqrt(Math.pow(e.offsetX - x, 2) + Math.pow(e.offsetY - y, 2));
-    context.clearRect(0, 0, canvas.width, canvas.height);
-    context.drawImage(image, 0, 0);
-    context.beginPath();
-    context.arc(x, y, radius, 0, 2 * Math.PI);
-    context.stroke();
-    }
-    };
-    canvas.onmouseup = function(e) {
-    isDrawing = false;
-    for (var i = 0; i < data.length; i += 4) {
-    var dx = (i / 4) % canvas.width - x;
-    var dy = Math.floor((i / 4) / canvas.width) - y;
-    if (Math.sqrt(dx * dx + dy * dy) < radius) {
-    if (Math.random() < slider.value / 100) {
-      var j = Math.floor(Math.random() * data.length / 4) * 4;
-      data[i] = data[j];
-      data[i + 1] = data[j + 1];
-      data[i + 2] = data[j + 2];
-    }
-    }
-    }
-    context.putImageData(imageData, 0, 0);
-    };
-    document.body.appendChild(canvas);
-    };
-    document.body.appendChild(scrambleCircularAreaButton);
+  const controlsContainer = document.createElement('div');
+  controlsContainer.style.display = 'flex';
+  controlsContainer.style.flexDirection = 'row';
+  controlsContainer.style.flexWrap = 'wrap';
+  controlsContainer.style.justifyContent = 'center';
+  controlsContainer.style.gap = '10px';
+  controlsContainer.style.margin = '20px 0';
+  document.body.appendChild(controlsContainer);
 
+  function createButton(text, onClick) {
+      const button = document.createElement('button');
+      button.innerHTML = text;
+      button.onclick = onClick;
+      button.style.fontSize = '20px';
+      button.style.padding = '10px';
+      button.style.margin = '0';
+      button.style.borderRadius = '10px';
+      button.style.border = 'none';
+      button.style.backgroundColor = '#7c4dff';
+      button.style.color = 'white';
+      button.style.cursor = 'pointer';
+      controlsContainer.appendChild(button);
+      return button;
+  }
 
-    var scrambleImage = document.createElement('button');
-    scrambleImage.innerHTML = 'Scramble Mosaic';
-    scrambleImage.onclick = function() {
-      var img = document.getElementsByTagName('img')[0];
-      var canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
-      var ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0);
-      var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      var data = imageData.data;
-      var mosaicSize = document.getElementById('mosaicSize').value;
-      for (var i = 0; i < data.length; i += 4) {
-        var x = (i / 4) % canvas.width;
-        var y = Math.floor((i / 4) / canvas.width);
-        if (x % mosaicSize === 0 && y % mosaicSize === 0) {
-          for (var j = 0; j < mosaicSize; j++) {
-            for (var k = 0; k < mosaicSize; k++) {
-              var index = (y + j) * canvas.width + (x + k);
-              data[index * 4] = data[i];
-              data[index * 4 + 1] = data[i + 1];
-              data[index * 4 + 2] = data[i + 2];
-              data[index * 4 + 3] = data[i + 3];
-            }
+  const imagesContainer = document.createElement('div');
+  imagesContainer.style.display = 'flex';
+  imagesContainer.style.flexDirection = 'row';
+  imagesContainer.style.gap = '20px';
+  imagesContainer.style.margin = '20px 0';
+  imagesContainer.style.flexWrap = 'wrap';
+  imagesContainer.style.justifyContent = 'center';
+  document.body.appendChild(imagesContainer);
+
+  function createImageContainer() {
+      const container = document.createElement('div');
+      container.style.border = '2px solid #6200ee';
+      container.style.borderRadius = '10px';
+      container.style.padding = '10px';
+      container.style.width = '300px';
+      container.style.height = '300px';
+      container.style.display = 'flex';
+      container.style.alignItems = 'center';
+      container.style.justifyContent = 'center';
+      container.style.overflow = 'hidden';
+      imagesContainer.appendChild(container);
+      return container;
+  }
+
+  const originalImageContainer = createImageContainer();
+  const processedImageContainer = createImageContainer();
+
+  createButton('Import Image', function() {
+      const fileInput = document.createElement('input');
+      fileInput.type = 'file';
+      fileInput.onchange = function() {
+          const file = fileInput.files[0];
+          const reader = new FileReader();
+          reader.onload = function(e) {
+              originalImage = new Image();
+              originalImage.src = e.target.result;
+
+              const displayImage = document.createElement('img');
+              displayImage.src = originalImage.src;
+              displayImage.style.maxWidth = '100%';
+              displayImage.style.maxHeight = '100%';
+              originalImageContainer.appendChild(displayImage); 
+          };
+          reader.readAsDataURL(file);
+      };
+      fileInput.click();
+  });
+
+  const slider = document.createElement('input');
+  slider.type = 'range';
+  slider.min = 1;
+  slider.max = 150;
+  slider.value = 1;
+  slider.id = 'mosaicSize';
+  slider.oninput = function() {
+      console.log(slider.value);
+  };
+  controlsContainer.appendChild(slider);
+
+  createButton('Noise', function() {
+      if (!originalImage) return; 
+
+      const canvas = document.createElement('canvas');
+      canvas.width = originalImage.width;
+      canvas.height = originalImage.height;
+      const context = canvas.getContext('2d');
+      context.drawImage(originalImage, 0, 0);
+
+      const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imageData.data;
+      for (let i = 0; i < data.length; i += 4) {
+          if (Math.random() < slider.value / 100) {
+              data[i] = Math.random() * 255;
+              data[i + 1] = Math.random() * 255;
+              data[i + 2] = Math.random() * 255;
           }
-        }
       }
+      context.putImageData(imageData, 0, 0);
+
+      createProcessedImage(canvas.toDataURL());
+  });
+
+  createButton('Scramble Image', function() {
+      if (!originalImage) return; 
+
+      const canvas = document.createElement('canvas');
+      canvas.width = originalImage.width;
+      canvas.height = originalImage.height;
+      const context = canvas.getContext('2d');
+      context.drawImage(originalImage, 0, 0);
+
+      const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imageData.data;
+      const tileWidth = Math.floor(canvas.width / slider.value);
+      const tileHeight = Math.floor(canvas.height / slider.value);
+      const tiles = [];
+
+      for (let y = 0; y < canvas.height; y += tileHeight) {
+          for (let x = 0; x < canvas.width; x += tileWidth) {
+              const tile = context.getImageData(x, y, tileWidth, tileHeight);
+              tiles.push(tile);
+          }
+      }
+
+      tiles.sort(() => 0.5 - Math.random());
+
+      let i = 0;
+      for (let y = 0; y < canvas.height; y += tileHeight) {
+          for (let x = 0; x < canvas.width; x += tileWidth) {
+              context.putImageData(tiles[i++], x, y);
+          }
+      }
+
+      createProcessedImage(canvas.toDataURL());
+  });
+
+  createButton('Clear', function() {
+      location.reload(); 
+  });
+
+  createButton('Scramble Mosaic', function() {
+      if (!originalImage) return; 
+
+      const canvas = document.createElement('canvas');
+      canvas.width = originalImage.width;
+      canvas.height = originalImage.height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(originalImage, 0, 0);
+
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imageData.data;
+      const mosaicSize = parseInt(document.getElementById('mosaicSize').value);
+
+      for (let i = 0; i < data.length; i += 4) {
+          const x = (i / 4) % canvas.width;
+          const y = Math.floor((i / 4) / canvas.width);
+          if (x % mosaicSize === 0 && y % mosaicSize === 0) {
+              for (let j = 0; j < mosaicSize; j++) {
+                  for (let k = 0; k < mosaicSize; k++) {
+                      const index = (y + j) * canvas.width + (x + k);
+                      data[index * 4] = data[i];
+                      data[index * 4 + 1] = data[i + 1];
+                      data[index * 4 + 2] = data[i + 2];
+                      data[index * 4 + 3] = data[i + 3];
+                  }
+              }
+          }
+      }
+
       ctx.putImageData(imageData, 0, 0);
-      document.body.appendChild(canvas);
-    };
+
+      createProcessedImage(canvas.toDataURL());
+  });
+
+  function createProcessedImage(dataUrl) {
+      if (processedImage) {
+          processedImageContainer.removeChild(processedImage);
+      }
+
+      processedImage = new Image();
+      processedImage.src = dataUrl;
+      processedImage.style.maxWidth = '100%';
+      processedImage.style.maxHeight = '100%';
+      processedImageContainer.appendChild(processedImage);
+  }
+});
+
+  
     document.body.appendChild(scrambleImage);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     var buttons = document.querySelectorAll('button');
     for (var i = 0; i < buttons.length; i++) {
     buttons[i].style.fontSize = '20px';
@@ -282,8 +237,6 @@ document.addEventListener("DOMContentLoaded", function() {
     scrambleSliderText.style.color = '#666';
     
     
-    
-    
     var twitterLink = document.createElement('a');
     twitterLink.innerHTML = '@altunenes';
     twitterLink.href = 'https://github.com/altunenes';
@@ -295,8 +248,6 @@ document.addEventListener("DOMContentLoaded", function() {
     twitterLink.style.color = '#666';
     document.body.appendChild(twitterLink);
     document.body.style.overflow = 'auto';
-    
-    
     var about = document.createElement('div');
     about.innerHTML = 'About';
     about.style.position = 'absolute';
@@ -325,4 +276,3 @@ document.addEventListener("DOMContentLoaded", function() {
     
     
     
-    });
