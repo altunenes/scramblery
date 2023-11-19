@@ -253,18 +253,23 @@ function getPaddedCanvas(imageElement) {
     canvas.width = nextPowerOfTwo(imageElement.naturalWidth);
     canvas.height = nextPowerOfTwo(imageElement.naturalHeight);
     const ctx = canvas.getContext('2d');
-    if (imageElement.naturalWidth > imageElement.naturalHeight) {
-        const scale = Math.max(canvas.width / imageElement.naturalWidth, canvas.height / imageElement.naturalHeight);
-        const scaledWidth = imageElement.naturalWidth * scale;
-        const scaledHeight = imageElement.naturalHeight * scale;
-        const offsetX = (canvas.width - scaledWidth) / 2;
-        const offsetY = (canvas.height - scaledHeight) / 2;
-        ctx.drawImage(imageElement, offsetX, offsetY, scaledWidth, scaledHeight);
-    } else {
-        const pattern = ctx.createPattern(imageElement, 'repeat');
-        ctx.fillStyle = pattern;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-    }
+
+    // Set the scale to maintain aspect ratio based on the larger dimension
+    const scale = Math.min(canvas.width / imageElement.naturalWidth, canvas.height / imageElement.naturalHeight);
+    const scaledWidth = imageElement.naturalWidth * scale;
+    const scaledHeight = imageElement.naturalHeight * scale;
+    
+    // Calculate the offset to center the image on the canvas
+    const offsetX = (canvas.width - scaledWidth) / 2;
+    const offsetY = (canvas.height - scaledHeight) / 2;
+
+    // Fill the canvas with a black background to prevent repeating patterns
+    ctx.fillStyle = 'black';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Draw the image centered on the canvas
+    ctx.drawImage(imageElement, offsetX, offsetY, scaledWidth, scaledHeight);
+    
     return canvas;
 }
 createButton('Fourier Scramble', async function() {
