@@ -12,6 +12,9 @@ A simple tool to scramble your images or only faces from images or videos. You c
 
 Note: The Javascript demo doesn't have a face detection algorithm and it's designed to be applied to a single image. If you want to do this for multiple imagees you should use Python.
 
+Citation
+
+`Altun, E. (2023). altunenes/scramblery: 1.2.5 (1.2.5). Zenodo. https://doi.org/10.5281/zenodo.10028991`
 
 ### Purpose of Package
 The Scramblery package offers tools for creating scrambled images from existing images or videos. Users have the flexibility to scramble entire images or target only specific areas, such as faces. This functionality is particularly beneficial in psychological experiments involving facial recognition tasks. With Scramblery, users can automate the scrambling of multiple images, eliminating the tedious manual process traditionally associated with this task. We hope this package significantly contributes to your research endeavors.
