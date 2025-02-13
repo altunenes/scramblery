@@ -1,18 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
-import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
-//TODO
+import SingleImage from "./singleimage";
 
-function SingleImage() {
-  return (
-    <div className="page-container">
-      <h2>Single Image Scrambling</h2>
-      <p>Upload and scramble a single image.</p>
-      {/* TODO */}
-    </div>
-  );
-}
-//TODO
 function FolderProcess() {
   return (
     <div className="page-container">
@@ -22,7 +11,6 @@ function FolderProcess() {
     </div>
   );
 }
-//TODO
 
 function VideoProcess() {
   return (
