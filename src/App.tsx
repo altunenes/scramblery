@@ -1,52 +1,71 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
+import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
+//TODO
+
+function SingleImage() {
+  return (
+    <div className="page-container">
+      <h2>Single Image Scrambling</h2>
+      <p>Upload and scramble a single image.</p>
+      {/* TODO */}
+    </div>
+  );
+}
+//TODO
+function FolderProcess() {
+  return (
+    <div className="page-container">
+      <h2>Batch Image Scrambling</h2>
+      <p>Process multiple images from a folder.</p>
+      {/* TODO */}
+    </div>
+  );
+}
+//TODO
+
+function VideoProcess() {
+  return (
+    <div className="page-container">
+      <h2>Video Scrambling</h2>
+      <p>Upload and scramble video content.</p>
+      {/* TODO */}
+    </div>
+  );
+}
+
+function MainMenu() {
+  return (
+    <div className="menu-container">
+      <h1>Image Scrambling Tool</h1>
+      <p>Select processing type:</p>
+      <div className="button-container">
+        <Link to="/single" className="menu-button">
+          Single Image Processing
+        </Link>
+        <Link to="/folder" className="menu-button">
+          Multiple Image Processing
+        </Link>
+        <Link to="/video" className="menu-button">
+          Video Processing
+        </Link>
+      </div>
+    </div>
+  );
+}
 
 function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
-
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
-    setGreetMsg(await invoke("greet", { name }));
-  }
-
   return (
-    <div className="container">
-      <h1>Welcome to Tauri!</h1>
-
-      <div className="row">
-        <a href="https://vitejs.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://reactjs.org" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+    <Router>
+      <div className="container">
+        <Routes>
+          <Route path="/" element={<MainMenu />} />
+          <Route path="/single" element={<SingleImage />} />
+          <Route path="/folder" element={<FolderProcess />} />
+          <Route path="/video" element={<VideoProcess />} />
+        </Routes>
       </div>
-
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
-
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-
-      <p>{greetMsg}</p>
-    </div>
+    </Router>
   );
 }
 
