@@ -8,7 +8,11 @@
   "permissions": [
     "core:default",
     "shell:allow-open",
+    "dialog:default",
     "fs:default",
-    "dialog:default"
+    "fs:allow-write-file",
+    "fs:allow-download-write",
+    "fs:allow-download-write-recursive",
+    "fs:write-files"
   ]
 }
