@@ -5,17 +5,193 @@
   font-weight: 400;
   color: #0f0f0f;
   background-color: #f6f6f6;
+  
+  /* CSS Variables for styling */
+  --panel-bg: #ffffff;
+  --border-color: #e5e7eb;
+  --primary-color: #2f2f2f;
+  --success-color: #10b981;
+  --error-color: #dc2626;
 }
 
-.container {
-  margin: 0 auto;
-  padding: 2rem;
-  max-width: 800px;
+/* Base Styles */
+.app-container {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 1rem;
+  gap: 1rem;
+  background-color: #f6f6f6;
 }
 
+/* Controls Panel */
+.controls-panel {
+  background: var(--panel-bg);
+  border: 2px solid var(--border-color);
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.controls-panel h2 {
+  margin-bottom: 1.5rem;
+  font-size: 1.5rem;
+  color: #1f2937;
+}
+
+/* File Upload */
+.file-upload-container {
+  margin-bottom: 1.5rem;
+}
+
+.file-upload-container label {
+  font-weight: 500;
+}
+
+.file-input {
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  border: 2px solid var(--border-color);
+  border-radius: 0.5rem;
+}
+
+/* Intensity Control */
+.intensity-control {
+  margin-bottom: 1.5rem;
+}
+
+.intensity-control label {
+  font-weight: 500;
+}
+
+.intensity-control input[type="range"] {
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
+/* Buttons */
+.button-group {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.scramble-button, .save-button {
+  flex: 1;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.scramble-button {
+  background-color: var(--primary-color);
+  color: white;
+}
+
+.scramble-button:disabled {
+  background-color: #9ca3af;
+  cursor: not-allowed;
+}
+
+.save-button {
+  background-color: var(--success-color);
+  color: white;
+}
+
+/* Image Comparison */
+.image-comparison-container {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  min-height: 0;
+}
+
+.image-panel {
+  background: var(--panel-bg);
+  border: 2px solid var(--border-color);
+  border-radius: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.panel-header {
+  padding: 1rem;
+  border-bottom: 2px solid var(--border-color);
+  background-color: #f9fafb;
+}
+
+.panel-header h3 {
+  font-size: 1.125rem;
+  color: #1f2937;
+  margin-bottom: 0.25rem;
+}
+
+.panel-header p {
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.image-container {
+  flex: 1;
+  min-height: 0;
+  padding: 1rem;
+  background-color: white;
+  position: relative;
+}
+
+.image-container img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #9ca3af;
+  font-style: italic;
+}
+
+/* Error Message */
+.error-message {
+  margin-top: 1rem;
+  padding: 1rem;
+  background-color: #fee2e2;
+  color: var(--error-color);
+  border-radius: 0.5rem;
+  border: 1px solid var(--error-color);
+}
+
+/* Main Menu Styles */
 .menu-container {
   text-align: center;
   padding: 2rem;
+  background-color: #000000;
+  color: #ffffff;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.menu-container h1 {
+  font-size: 2rem;
+  margin-bottom: 1rem;
+}
+
+.menu-container p {
+  margin-bottom: 2rem;
+  font-size: 1.125rem;
 }
 
 .button-container {
@@ -23,7 +199,7 @@
   flex-direction: column;
   gap: 1rem;
   max-width: 400px;
-  margin: 2rem auto;
+  margin: 0 auto;
 }
 
 .menu-button {
@@ -40,31 +216,8 @@
   background-color: #404040;
 }
 
-.page-container {
+.container {
+  margin: 0 auto;
   padding: 2rem;
-}
-
-h1 {
-  font-size: 2rem;
-  margin-bottom: 1rem;
-}
-
-h2 {
-  font-size: 1.5rem;
-  margin-bottom: 1rem;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    color: #f6f6f6;
-    background-color: #2f2f2f;
-  }
-
-  .menu-button {
-    background-color: #404040;
-  }
-
-  .menu-button:hover {
-    background-color: #505050;
-  }
+  max-width: 1200px;
 }

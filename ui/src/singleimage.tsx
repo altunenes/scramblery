@@ -1,4 +1,4 @@
-import React, { useState, ChangeEvent } from 'react';
+import { useState, ChangeEvent } from 'react';
 import { invoke } from "@tauri-apps/api/core";
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeFile } from '@tauri-apps/plugin-fs';
@@ -32,7 +32,6 @@ function SingleImage() {
       });
       const base64String = btoa(binary);
 
-      // Get original image dimensions
       const img = new Image();
       img.src = URL.createObjectURL(file);
       await new Promise((resolve) => {
@@ -42,8 +41,8 @@ function SingleImage() {
             name: file.name,
             originalSize: {
               width: img.width,
-              height: img.height
-            }
+              height: img.height,
+            },
           });
           URL.revokeObjectURL(img.src);
           resolve(null);
@@ -59,7 +58,6 @@ function SingleImage() {
 
   const handleScramble = async () => {
     if (!selectedImage) return;
-
     setIsProcessing(true);
     setError(null);
 
@@ -68,10 +66,9 @@ function SingleImage() {
         imageData: selectedImage.data,
         options: {
           intensity: intensity / 100,
-          seed: null
-        }
+          seed: null,
+        },
       });
-
       setScrambledImage(result);
     } catch (err) {
       console.error('Scramble error:', err);
@@ -88,9 +85,9 @@ function SingleImage() {
       const filePath = await save({
         filters: [{
           name: 'Image',
-          extensions: ['png']
+          extensions: ['png'],
         }],
-        defaultPath: selectedImage.name.replace(/\.[^/.]+$/, "") + '_scrambled.png'
+        defaultPath: selectedImage.name.replace(/\.[^/.]+$/, "") + '_scrambled.png',
       });
 
       if (filePath) {
@@ -99,7 +96,6 @@ function SingleImage() {
         for (let i = 0; i < binaryString.length; i++) {
           bytes[i] = binaryString.charCodeAt(i);
         }
-
         await writeFile(filePath, bytes);
       }
     } catch (err) {
@@ -109,92 +105,89 @@ function SingleImage() {
   };
 
   return (
-    <div className="flex flex-col space-y-6 p-4 max-w-7xl mx-auto">
-      <div className="space-y-4">
-        <h2 className="text-2xl font-bold">Image Scrambler</h2>
+    <div className="app-container">
+      {/* Controls Section */}
+      <div className="controls-panel">
+        <h2>Image Scrambler</h2>
         
-        {/* Controls Section */}
-        <div className="flex flex-col md:flex-row gap-4">
-          {/* Upload and Options */}
-          <div className="flex-1 space-y-4">
-            <div>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleImageUpload}
-                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">
-                Scramble Intensity: {intensity}%
-              </label>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={intensity}
-                onChange={(e) => setIntensity(Number(e.target.value))}
-                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-              />
-            </div>
-
-            <div className="flex gap-2">
-              <button
-                onClick={handleScramble}
-                disabled={!selectedImage || isProcessing}
-                className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-md disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-blue-600 transition-colors"
-              >
-                {isProcessing ? "Processing..." : "Scramble Image"}
-              </button>
-
-              {scrambledImage && (
-                <button
-                  onClick={handleSaveScrambled}
-                  className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors"
-                >
-                  Save Scrambled
-                </button>
-              )}
-            </div>
-
-            {error && (
-              <div className="text-red-500 text-sm">
-                {error}
-              </div>
-            )}
-          </div>
+        <div className="file-upload-container">
+          <label>Select Image</label>
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleImageUpload}
+            className="file-input"
+          />
         </div>
+
+        <div className="intensity-control">
+          <label>Intensity: {intensity}%</label>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={intensity}
+            onChange={(e) => setIntensity(Number(e.target.value))}
+          />
+        </div>
+
+        <div className="button-group">
+          <button
+            onClick={handleScramble}
+            disabled={!selectedImage || isProcessing}
+            className="scramble-button"
+          >
+            {isProcessing ? "Processing..." : "Scramble Image"}
+          </button>
+          
+          {scrambledImage && (
+            <button onClick={handleSaveScrambled} className="save-button">
+              Save Result
+            </button>
+          )}
+        </div>
+
+        {error && <div className="error-message">{error}</div>}
       </div>
 
-      {/* Image Preview Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {selectedImage && (
-          <div className="space-y-2">
-            <h3 className="font-medium">Original Image</h3>
-            <div className="relative aspect-video bg-gray-100 rounded-lg overflow-hidden">
-              <img 
+      {/* Image Comparison Section */}
+      {selectedImage && (
+        <div className="image-comparison-container">
+          {/* Original Image Panel */}
+          <div className="image-panel original-panel">
+            <div className="panel-header">
+              <h3>Original Image</h3>
+              <p>{selectedImage.originalSize.width}x{selectedImage.originalSize.height}</p>
+            </div>
+            <div className="image-container">
+              <img
                 src={`data:image/png;base64,${selectedImage.data}`}
                 alt="Original"
-                className="absolute w-full h-full object-contain"
               />
             </div>
           </div>
-        )}
-        {scrambledImage && (
-          <div className="space-y-2">
-            <h3 className="font-medium">Scrambled Image</h3>
-            <div className="relative aspect-video bg-gray-100 rounded-lg overflow-hidden">
-              <img 
-                src={`data:image/png;base64,${scrambledImage}`}
-                alt="Scrambled"
-                className="absolute w-full h-full object-contain"
-              />
+
+          {/* Scrambled Image Panel */}
+          <div className="image-panel scrambled-panel">
+            <div className="panel-header">
+              <h3>Scrambled Result</h3>
+              <p>{selectedImage.originalSize.width}x{selectedImage.originalSize.height}</p>
+            </div>
+            <div className="image-container">
+              {scrambledImage ? (
+                <img
+                  src={`data:image/png;base64,${scrambledImage}`}
+                  alt="Scrambled"
+                />
+              ) : (
+                <div className="placeholder">
+                  <span>Scrambled preview will appear here</span>
+                </div>
+              )}
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
