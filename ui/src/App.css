@@ -285,3 +285,122 @@
   font-size: 0.875rem;
   margin-top: 0.25rem;
 }
+
+.directory-selection {
+  margin-bottom: 1.25rem;
+}
+
+.input-group {
+  margin-bottom: 1rem;
+}
+
+.directory-input {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.directory-path {
+  flex: 1;
+  padding: 0.375rem;
+  border: 1px solid var(--border-color);
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  background-color: #f9fafb;
+  cursor: default;
+}
+
+.select-dir-button {
+  padding: 0.375rem 1rem;
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.select-dir-button:hover {
+  opacity: 0.9;
+}
+
+/* Progress Bar Styles */
+.progress-bar {
+  height: 1.5rem;
+  background-color: #f3f4f6;
+  border-radius: 0.375rem;
+  overflow: hidden;
+  margin: 1rem 0;
+  position: relative;
+}
+
+.progress-fill {
+  height: 100%;
+  background-color: var(--success-color);
+  transition: width 0.3s ease;
+}
+
+.progress-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #1f2937;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+/* Results Panel */
+.results-panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  padding: 1.25rem;
+  margin-top: 1rem;
+}
+
+.results-summary {
+  display: flex;
+  gap: 2rem;
+  margin: 1rem 0;
+}
+
+.results-list {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.result-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.result-item.error {
+  background-color: #fee2e2;
+}
+
+.file-name {
+  font-size: 0.875rem;
+  color: #1f2937;
+}
+
+.process-button {
+  width: 100%;
+  padding: 0.5rem 1rem;
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 0.375rem;
+  font-weight: 500;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.process-button:disabled {
+  background-color: #9ca3af;
+  cursor: not-allowed;
+}

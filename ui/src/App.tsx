@@ -1,16 +1,8 @@
 import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
 import "./App.css";
 import SingleImage from "./singleimage";
+import FolderProcess from "./folderprocess"; 
 
-function FolderProcess() {
-  return (
-    <div className="page-container">
-      <h2>Batch Image Scrambling</h2>
-      <p>Process multiple images from a folder.</p>
-      {/* TODO */}
-    </div>
-  );
-}
 
 function VideoProcess() {
   return (

@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 base64 = "0.22.1"
+rayon = "1.10.0"
 image = { workspace = true }
 serde = { workspace = true }
 anyhow = { workspace = true }
