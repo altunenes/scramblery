@@ -11,13 +11,24 @@ interface SelectedImage {
     height: number;
   };
 }
-
+interface ScrambleOptions {
+  intensity: number;
+  seed: number | null;
+  face_detection: {
+    confidence_threshold: number;
+    expansion_factor: number;
+    background_mode: 'Include' | 'Exclude';
+  } | null;
+}
 function SingleImage() {
   const [selectedImage, setSelectedImage] = useState<SelectedImage | null>(null);
   const [scrambledImage, setScrambledImage] = useState<string | null>(null);
   const [intensity, setIntensity] = useState(50);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [useFaceDetection, setUseFaceDetection] = useState(false);
+  const [backgroundMode, setBackgroundMode] = useState<'Include' | 'Exclude'>('Include');
+
 
   const handleImageUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -62,12 +73,18 @@ function SingleImage() {
     setError(null);
 
     try {
+      const options: ScrambleOptions = {
+        intensity: intensity / 100,
+        seed: null,
+        face_detection: useFaceDetection ? {
+          confidence_threshold: 0.7,
+          expansion_factor: 1.0,
+          background_mode: backgroundMode,
+        } : null,
+      };
       const result = await invoke<string>('scramble_image', {
         imageData: selectedImage.data,
-        options: {
-          intensity: intensity / 100,
-          seed: null,
-        },
+        options,
       });
       setScrambledImage(result);
     } catch (err) {
@@ -77,7 +94,6 @@ function SingleImage() {
       setIsProcessing(false);
     }
   };
-
   const handleSaveScrambled = async () => {
     if (!scrambledImage || !selectedImage) return;
 
@@ -106,7 +122,6 @@ function SingleImage() {
 
   return (
     <div className="app-container">
-      {/* Controls Section */}
       <div className="controls-panel">
         <h2>Image Scrambler</h2>
         
@@ -119,7 +134,31 @@ function SingleImage() {
             className="file-input"
           />
         </div>
-
+        <div className="face-detection-control">
+          <div className="checkbox-control">
+            <input
+              type="checkbox"
+              id="face-detection"
+              checked={useFaceDetection}
+              onChange={(e) => setUseFaceDetection(e.target.checked)}
+            />
+            <label htmlFor="face-detection">Use Face Detection</label>
+          </div>
+          
+          {useFaceDetection && (
+            <div className="background-mode-control">
+              <label>Background Mode:</label>
+              <select
+                value={backgroundMode}
+                onChange={(e) => setBackgroundMode(e.target.value as 'Include' | 'Exclude')}
+                className="select-input"
+              >
+                <option value="Include">Keep Background (Scramble Faces Only)</option>
+                <option value="Exclude">Exclude Background (Faces Only)</option>
+              </select>
+            </div>
+          )}
+        </div>
         <div className="intensity-control">
           <label>Intensity: {intensity}%</label>
           <input

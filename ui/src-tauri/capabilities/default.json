@@ -13,6 +13,7 @@
     "fs:allow-write-file",
     "fs:allow-download-write",
     "fs:allow-download-write-recursive",
-    "fs:write-files"
+    "fs:write-files",
+    "log:default"
   ]
 }

@@ -4,11 +4,23 @@ use serde::{Deserialize, Serialize};
 pub enum ScrambleType {
     Pixel,
 }
+#[derive(Debug, Serialize, Deserialize)]
+pub enum BackgroundMode {
+    Include,    // Keep background as is, only scramble faces
+    Exclude,    // Output only the scrambled face regions
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ScrambleOptions {
     pub intensity: f32,
     pub seed: Option<u64>,
+    pub face_detection: Option<FaceDetectionOptions>,
+}
+#[derive(Debug, Serialize, Deserialize)]
+pub struct FaceDetectionOptions {
+    pub confidence_threshold: f32,
+    pub expansion_factor: f32,
+    pub background_mode: BackgroundMode,
 }
 
 impl Default for ScrambleOptions {
@@ -16,6 +28,17 @@ impl Default for ScrambleOptions {
         Self {
             intensity: 0.5,
             seed: None,
+            face_detection: None,
+        }
+    }
+}
+//expansion_factor: How much to expand detected regions?
+impl Default for FaceDetectionOptions {
+    fn default() -> Self {
+        Self {
+            confidence_threshold: 0.7,
+            expansion_factor: 1.0,
+            background_mode: BackgroundMode::Include,
         }
     }
 }

@@ -50,7 +50,7 @@ impl FaceRegion {
 
 /// Loads the face detection model: This currently TODO.
 pub fn load_face_detector(model_path: Option<PathBuf>) -> Result<Session> {
-    let model_path = model_path.unwrap_or_else(|| PathBuf::from("models/version-RFB-640.onnx"));
+    let model_path = model_path.unwrap_or_else(|| PathBuf::from("../../models/version-RFB-640.onnx"));
     info!("Loading face detection model from {:?}", model_path);
     new_session_from_path(model_path)
 }
@@ -77,7 +77,7 @@ pub fn detect_face_regions(
     confidence_threshold: f32,
     expansion_factor: Option<f32>,
 ) -> Result<Vec<FaceRegion>> {
-    let input_tensor: ndarray::ArrayBase<ndarray::OwnedRepr<f32>, ndarray::Dim<[usize; 4]>> = preprocess_image(image);
+    let input_tensor = preprocess_image(image);
     let input_name = &session.inputs[0].name;
     let input_values = std::collections::HashMap::from([(
         input_name.as_str(),
@@ -87,26 +87,91 @@ pub fn detect_face_regions(
     let output_names: Vec<_> = session.outputs.iter().map(|o| o.name.as_str()).collect();
     let confidences: ArrayViewD<f32> = outputs[output_names[0]].try_extract_tensor()?;
     let boxes: ArrayViewD<f32> = outputs[output_names[1]].try_extract_tensor()?;
+    info!("Processing detections... Confidence shape: {:?}, Boxes shape: {:?}", 
+          confidences.shape(), boxes.shape());
     let num_detections = confidences.shape()[1];
     let (orig_width, orig_height) = image.dimensions();
-    let mut regions = Vec::new();
+    let mut detected_boxes = Vec::new();
     for i in 0..num_detections {
-        let conf = confidences[[0, i, 0]];
-        if conf < confidence_threshold {
+        let face_confidence = confidences[[0, i, 1]];
+        if face_confidence < confidence_threshold {
             continue;
         }
+        
+        // corner coordinates
+        let x1 = boxes[[0, i, 0]];
+        let y1 = boxes[[0, i, 1]];
+        let x2 = boxes[[0, i, 2]];
+        let y2 = boxes[[0, i, 3]];
+        
+        info!("Raw detection: x1={}, y1={}, x2={}, y2={}, conf={}", 
+              x1, y1, x2, y2, face_confidence);
+        // Scale to image dimensions
         let mut region = FaceRegion {
-            x1: (boxes[[0, i, 0]] * orig_width as f32) as u32,
-            y1: (boxes[[0, i, 1]] * orig_height as f32) as u32,
-            x2: (boxes[[0, i, 2]] * orig_width as f32) as u32,
-            y2: (boxes[[0, i, 3]] * orig_height as f32) as u32,
-            confidence: conf,
+            x1: (x1 * orig_width as f32) as u32,
+            y1: (y1 * orig_height as f32) as u32,
+            x2: (x2 * orig_width as f32) as u32,
+            y2: (y2 * orig_height as f32) as u32,
+            confidence: face_confidence,
         };
-        if let Some(factor) = expansion_factor {
-            region = region.expand(factor, orig_width, orig_height);
+        // Skip invalid boxes
+        if region.x2 <= region.x1 || region.y2 <= region.y1 {
+            continue;
         }
-        regions.push(region);
+        // Only expand if requested and box is valid
+        if let Some(factor) = expansion_factor {
+            let orig_region = region.clone();
+            region = region.expand(factor, orig_width, orig_height);
+            info!("Expanded region: {:?} -> {:?}", orig_region, region);
+        }
+        detected_boxes.push(region);
     }
+    // Sort by confidence and apply NMS (please see:https://github.com/onnx/models/blob/main/validated/vision/body_analysis/ultraface/dependencies/box_utils.py)
+    detected_boxes.sort_by(|a, b| b.confidence.partial_cmp(&a.confidence).unwrap());
+    let regions = apply_nms(detected_boxes, 0.5)?;
     info!("Detected {} face regions above threshold {}", regions.len(), confidence_threshold);
     Ok(regions)
+}
+
+fn calculate_iou(a: &FaceRegion, b: &FaceRegion) -> f32 {
+    let x_left = a.x1.max(b.x1) as f32;
+    let y_top = a.y1.max(b.y1) as f32;
+    let x_right = a.x2.min(b.x2) as f32;
+    let y_bottom = a.y2.min(b.y2) as f32;
+    
+    if x_right < x_left || y_bottom < y_top {
+        return 0.0;
+    }
+    
+    let intersection = (x_right - x_left) * (y_bottom - y_top);
+    let area_a = (a.x2 - a.x1) as f32 * (a.y2 - a.y1) as f32;
+    let area_b = (b.x2 - b.x1) as f32 * (b.y2 - b.y1) as f32;
+    
+    intersection / (area_a + area_b - intersection)
+}
+
+fn apply_nms(boxes: Vec<FaceRegion>, iou_threshold: f32) -> Result<Vec<FaceRegion>> {
+    let mut keep = vec![true; boxes.len()];
+    let mut result = Vec::new();
+    
+    for i in 0..boxes.len() {
+        if !keep[i] {
+            continue;
+        }
+        
+        result.push(boxes[i].clone());
+        
+        for j in (i + 1)..boxes.len() {
+            if !keep[j] {
+                continue;
+            }
+            
+            let iou = calculate_iou(&boxes[i], &boxes[j]);
+            if iou > iou_threshold {
+                keep[j] = false;
+            }
+        }
+    }
+    
+    Ok(result)
 }

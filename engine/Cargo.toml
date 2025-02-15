@@ -9,3 +9,4 @@ image = { workspace = true }
 serde = { workspace = true }
 anyhow = { workspace = true }
 rand = { workspace = true }
+face_detection = { path = "../face_detection" }
