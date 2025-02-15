@@ -1,0 +1,8 @@
+[package]
+name = "face_detection"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+image = { workspace = true }
+ndarray = { workspace = true }
