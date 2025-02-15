@@ -2,7 +2,6 @@ use std::path::PathBuf;
 use log::{info, debug};
 use once_cell::sync::Lazy;
 use anyhow::Result;
-use ort::session::Session;
 use ort::session::builder::GraphOptimizationLevel;
 use ort::execution_providers::CPUExecutionProvider;
 
@@ -43,3 +42,4 @@ pub struct ModelConfig {
 
 pub use ort::value::{Tensor, Value};
 pub use ort::inputs;
+pub use ort::session::Session;

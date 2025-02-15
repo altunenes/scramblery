@@ -1022,8 +1022,11 @@ dependencies = [
 name = "face_detection"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "image",
+ "log",
  "ndarray",
+ "onnx",
 ]
 
 [[package]]
