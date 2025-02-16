@@ -4,19 +4,19 @@ use serde::{Deserialize, Serialize};
 pub enum ScrambleType {
     Pixel,
 }
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum BackgroundMode {
     Include,    // Keep background as is, only scramble faces
     Exclude,    // Output only the scrambled face regions
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ScrambleOptions {
     pub intensity: f32,
     pub seed: Option<u64>,
     pub face_detection: Option<FaceDetectionOptions>,
 }
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FaceDetectionOptions {
     pub confidence_threshold: f32,
     pub expansion_factor: f32,

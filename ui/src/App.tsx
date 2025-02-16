@@ -2,17 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
 import "./App.css";
 import SingleImage from "./singleimage";
 import FolderProcess from "./folderprocess"; 
-
-
-function VideoProcess() {
-  return (
-    <div className="page-container">
-      <h2>Video Scrambling</h2>
-      <p>Upload and scramble video content.</p>
-      {/* TODO */}
-    </div>
-  );
-}
+import VideoProcess from "./videoprocess";
 
 function MainMenu() {
   return (

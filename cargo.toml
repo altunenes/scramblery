@@ -1,5 +1,5 @@
 [workspace]
-members = ["engine", "face_detection", "onnx", "ui/src-tauri"]
+members = ["engine", "face_detection", "video-processor", "onnx", "ui/src-tauri"]
 resolver = "2"
 
 [workspace.dependencies]
