@@ -5,7 +5,7 @@ use rustfft::{Fft, FftPlanner};
 use rand::{Rng, SeedableRng};
 use rand::rngs::StdRng;
 use crate::Result;
-use super::types::{FourierOptions, FrequencyRange, PaddingMode};
+use super::types::{FourierOptions,PaddingMode};
 use face_detection::{detect_face_regions, load_face_detector};
 use crate::FaceDetectionOptions;
 use crate::BackgroundMode;
@@ -42,7 +42,30 @@ impl FourierScrambler {
     }
 
     /// Scrambles a single image.
+    /// If the `grayscale` option is enabled, the image is first converted to grayscale,
+    /// processed as a single luminance channel, and returned as a grayscale image.
+    /// Otherwise, each color channel is processed separately.
     pub fn scramble(&mut self, image: &DynamicImage) -> Result<DynamicImage> {
+        if self.options.grayscale {
+            let gray_image = image.to_luma8();
+            let (width, height) = gray_image.dimensions();
+            let mut channel = Array2::zeros((height as usize, width as usize));
+            for y in 0..height as usize {
+                for x in 0..width as usize {
+                    channel[[y, x]] = gray_image.get_pixel(x as u32, y as u32)[0] as f64 / 255.0;
+                }
+            }
+            let processed_channel = self.process_channel(channel)?;
+            let mut output = image::GrayImage::new(width, height);
+            for y in 0..height as usize {
+                for x in 0..width as usize {
+                    let val = (processed_channel[[y, x]] * 255.0).clamp(0.0, 255.0) as u8;
+                    output.put_pixel(x as u32, y as u32, image::Luma([val]));
+                }
+            }
+            return Ok(DynamicImage::ImageLuma8(output));
+        }
+
         let (width, height) = image.dimensions();
         self.width = width as usize;
         self.height = height as usize;
@@ -117,7 +140,7 @@ impl FourierScrambler {
     /// replaces its phase while preserving the magnitude, and then computes the inverse FFT.
     fn process_channel(&mut self, channel: Array2<f64>) -> Result<Array2<f64>> {
         let padded = self.apply_padding(&channel)?;
-        let n = padded.dim().0; // padded is square of size n x n
+        let n = padded.dim().0;
         let mut complex_data = self.to_complex(&padded);
         self.fft2d(&mut complex_data, n);
         if self.options.phase_scramble {
@@ -125,22 +148,18 @@ impl FourierScrambler {
         }
         self.ifft2d(&mut complex_data, n);
         let mut result = self.remove_padding(&complex_data, channel.dim())?;
-        // Clamp the output values to [0, 1]
         for val in result.iter_mut() {
             *val = val.max(0.0).min(1.0);
         }
         Ok(result)
     }
 
-    /// Computes the 2D FFT by applying the 1D FFT along rows then columns.
     fn fft2d(&self, data: &mut [Complex64], n: usize) {
-        // FFT each row.
         for row in 0..n {
             let start = row * n;
             let end = start + n;
             self.fft.process(&mut data[start..end]);
         }
-        // FFT each column.
         let mut column = vec![Complex64::new(0.0, 0.0); n];
         for col in 0..n {
             for row in 0..n {
@@ -152,17 +171,14 @@ impl FourierScrambler {
             }
         }
     }
-
     /// Computes the 2D inverse FFT by applying the 1D IFFT along rows then columns.
     /// The result is scaled by 1/(n*n).
     fn ifft2d(&self, data: &mut [Complex64], n: usize) {
-        // IFFT each row.
         for row in 0..n {
             let start = row * n;
             let end = start + n;
             self.ifft.process(&mut data[start..end]);
         }
-        // IFFT each column.
         let mut column = vec![Complex64::new(0.0, 0.0); n];
         for col in 0..n {
             for row in 0..n {
@@ -173,13 +189,11 @@ impl FourierScrambler {
                 data[row * n + col] = column[row];
             }
         }
-        // Scale the output.
         let scale = 1.0 / (n * n) as f64;
         for val in data.iter_mut() {
             *val = *val * scale;
         }
     }
-
     /// Replaces the phase of each frequency coefficient while preserving its magnitude.
     /// For each coefficient, a random phase is generated and the new phase is computed as:
     ///    new_phase = orig_phase + intensity * (random_phase - orig_phase)
@@ -188,10 +202,8 @@ impl FourierScrambler {
         let n = (data.len() as f64).sqrt() as usize;
         for y in 0..n {
             for x in 0..n {
-                // Determine symmetric coordinates.
                 let sym_y = if y == 0 { 0 } else { n - y };
                 let sym_x = if x == 0 { 0 } else { n - x };
-                // Process each pair only once.
                 if y > sym_y || (y == sym_y && x > sym_x) {
                     continue;
                 }
@@ -199,7 +211,7 @@ impl FourierScrambler {
                 let orig = data[idx];
                 let mag = orig.norm();
                 let orig_phase = orig.arg();
-                let random_phase = self.rng.gen_range(0.0..(2.0 * std::f64::consts::PI));
+                let random_phase = self.rng.random_range(0.0..(2.0 * std::f64::consts::PI));
                 let dphase = angle_difference(random_phase, orig_phase);
                 let new_phase = orig_phase + self.options.intensity as f64 * dphase;
                 let new_val = Complex64::from_polar(mag, new_phase);
@@ -212,12 +224,10 @@ impl FourierScrambler {
         }
     }
 
-    /// Converts a 2D real array to a flat vector of Complex64.
     fn to_complex(&self, real: &Array2<f64>) -> Vec<Complex64> {
         real.iter().map(|&val| Complex64::new(val, 0.0)).collect()
     }
 
-    /// Splits the input image into three channels (normalized to [0, 1]) as 2D arrays.
     fn split_channels(&self, image: &DynamicImage) -> Result<Vec<Array2<f64>>> {
         let rgb = image.to_rgb8();
         let (width, height) = (self.width, self.height);
@@ -248,7 +258,6 @@ impl FourierScrambler {
         }
         Ok(DynamicImage::ImageRgb8(image))
     }
-    /// Pads the given channel to a square of size (padded_size x padded_size) using the chosen mode.
     fn apply_padding(&self, channel: &Array2<f64>) -> Result<Array2<f64>> {
         let (height, width) = channel.dim();
         let padded_size = get_optimal_fft_size(width.max(height));
@@ -262,19 +271,16 @@ impl FourierScrambler {
                 }
             },
             PaddingMode::Reflect => {
-                // Copy original data.
                 for y in 0..height {
                     for x in 0..width {
                         padded[[y, x]] = channel[[y, x]];
                     }
                 }
-                // Reflect horizontally.
                 for y in 0..height {
                     for x in width..padded_size {
                         padded[[y, x]] = channel[[y, 2 * width - x - 1]];
                     }
                 }
-                // Reflect vertically.
                 for y in height..padded_size {
                     for x in 0..padded_size {
                         padded[[y, x]] = padded[[2 * height - y - 1, x]];
@@ -291,7 +297,7 @@ impl FourierScrambler {
         }
         Ok(padded)
     }
-    /// Removes the padding from the inverse-transformed data.
+
     fn remove_padding(&self, complex_data: &[Complex64], original_dim: (usize, usize)) -> Result<Array2<f64>> {
         let (height, width) = original_dim;
         let padded_size = get_optimal_fft_size(width.max(height));
@@ -306,7 +312,6 @@ impl FourierScrambler {
     }
 }
 
-/// Returns the next power of two greater than or equal to `size`.
 fn get_optimal_fft_size(size: usize) -> usize {
     let mut optimal_size = size;
     while !is_power_of_two(optimal_size) {
@@ -318,7 +323,6 @@ fn get_optimal_fft_size(size: usize) -> usize {
 fn is_power_of_two(n: usize) -> bool {
     n != 0 && (n & (n - 1)) == 0
 }
-
 /// Computes the minimal angular difference between two angles (in radians),
 /// accounting for wrapping at ±π.
 fn angle_difference(a: f64, b: f64) -> f64 {

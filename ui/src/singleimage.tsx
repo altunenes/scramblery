@@ -17,6 +17,7 @@ interface FourierOptions {
   magnitude_scramble: boolean;
   padding_mode: PaddingMode;
   intensity: number;
+  grayscale: boolean;
 }
 
 //to match Rust's enum structure
@@ -181,8 +182,7 @@ function FourierControls({
           />
           Scramble Magnitudes
         </label>
-      </div>
-
+      </div> 
       <div className="control-group">
         <label>Padding Mode</label>
         <select
@@ -197,6 +197,19 @@ function FourierControls({
           <option value="Reflect">Reflect Padding</option>
           <option value="Wrap">Wrap Padding</option>
         </select>
+      </div>
+      <div className="checkbox-group">
+        <label>
+          <input
+            type="checkbox"
+            checked={options.grayscale}
+            onChange={(e) => onChange({
+              ...options,
+              grayscale: e.target.checked
+            })}
+          />
+          Process as Grayscale
+        </label>
       </div>
     </div>
   );
@@ -216,8 +229,9 @@ function SingleImage() {
     phase_scramble: true,
     magnitude_scramble: false,
     padding_mode: 'Reflect',
-    intensity: 0.5 
-});
+    intensity: 0.5,
+    grayscale: false
+  });
   const handleImageUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -254,12 +268,10 @@ function SingleImage() {
       setError("Failed to load image");
     }
   };
-
   const handleScramble = async () => {
     if (!selectedImage) return;
     setIsProcessing(true);
     setError(null);
-
     try {
       const result = await invoke<string>('scramble_image', {
         imageData: selectedImage.data,
@@ -272,7 +284,8 @@ function SingleImage() {
                   phase_scramble: fourierOptions.phase_scramble,
                   magnitude_scramble: fourierOptions.magnitude_scramble,
                   padding_mode: fourierOptions.padding_mode,
-                  intensity: fourierOptions.intensity
+                  intensity: fourierOptions.intensity,
+                  grayscale: fourierOptions.grayscale
                 }
               },
           intensity: intensity / 100,
@@ -291,8 +304,7 @@ function SingleImage() {
     } finally {
       setIsProcessing(false);
     }
-};
-
+  };
 const formatFrequencyRange = (range: FrequencyRange) => {
   if (range === 'All') return 'All';
   if ('HighPass' in range) return { HighPass: range.HighPass.cutoff };
