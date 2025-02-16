@@ -25,6 +25,7 @@ pub struct FourierOptions {
     pub phase_scramble: bool,
     pub magnitude_scramble: bool,
     pub padding_mode: PaddingMode,
+    pub intensity: f32,
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum FrequencyRange {
@@ -76,6 +77,7 @@ impl Default for FourierOptions {
             phase_scramble: true,
             magnitude_scramble: false,
             padding_mode: PaddingMode::Reflect,
+            intensity: 1.0,
         }
     }
 }

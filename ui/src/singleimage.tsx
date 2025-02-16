@@ -16,6 +16,7 @@ interface FourierOptions {
   phase_scramble: boolean;
   magnitude_scramble: boolean;
   padding_mode: PaddingMode;
+  intensity: number;
 }
 
 //to match Rust's enum structure
@@ -215,6 +216,7 @@ function SingleImage() {
     phase_scramble: true,
     magnitude_scramble: false,
     padding_mode: 'Reflect',
+    intensity: 0.5 
 });
   const handleImageUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -269,7 +271,8 @@ function SingleImage() {
                   frequency_range: formatFrequencyRange(fourierOptions.frequency_range),
                   phase_scramble: fourierOptions.phase_scramble,
                   magnitude_scramble: fourierOptions.magnitude_scramble,
-                  padding_mode: fourierOptions.padding_mode
+                  padding_mode: fourierOptions.padding_mode,
+                  intensity: fourierOptions.intensity
                 }
               },
           intensity: intensity / 100,
