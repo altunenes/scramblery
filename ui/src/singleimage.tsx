@@ -90,70 +90,78 @@ function FourierControls({
       </div>
 
       {options.frequency_range !== 'All' && (
-        <div className="control-group">
-{'BandPass' in options.frequency_range ? (
-  <>
-    <label>Low Cutoff: {(options.frequency_range as { BandPass: { low: number } }).BandPass.low}</label>
-    <input
-      type="range"
-      min="0"
-      max="1"
-      step="0.1"
-      value={(options.frequency_range as { BandPass: { low: number } }).BandPass.low}
-      onChange={(e) => onChange({
-        ...options,
-        frequency_range: {
-          BandPass: {
-            low: Number(e.target.value),
-            high: (options.frequency_range as { BandPass: { high: number } }).BandPass.high
-          }
-        }
-      })}
-      className="range-input"
-    />
-              <label>High Cutoff: {options.frequency_range.BandPass.high}</label>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.1"
-                value={options.frequency_range.BandPass.high}
-                onChange={(e) => onChange({
-                  ...options,
-                  frequency_range: {
-                    BandPass: {
-                      low: Number(e.target.value),
-                      high: (options.frequency_range as { BandPass: { high: number } }).BandPass.high
-                    }
+      <div className="control-group">
+      {'BandPass' in options.frequency_range ? (
+        <>
+          <label>Low Cutoff: {(options.frequency_range as { BandPass: { low: number } }).BandPass.low.toFixed(3)}</label>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.01"
+            value={(options.frequency_range as { BandPass: { low: number } }).BandPass.low}
+            onChange={(e) => {
+              const newLow = Number(e.target.value);
+              const currentHigh = (options.frequency_range as { BandPass: { high: number } }).BandPass.high;
+              onChange({
+                ...options,
+                frequency_range: {
+                  BandPass: {
+                    low: Math.min(newLow, currentHigh - 0.01),
+                    high: currentHigh
                   }
-                })}
-                className="range-input"
-              />
-            </>
-          ) : (
-            <div className="control-group">
-              <label>Cutoff Frequency: {getCutoffValue(options.frequency_range)}</label>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.1"
-                value={getCutoffValue(options.frequency_range)}
-                onChange={(e) => {
-                  const value = Number(e.target.value);
-                  const currentType = getCurrentRangeType(options.frequency_range);
-                  onChange({
-                    ...options,
-                    frequency_range: currentType === 'HighPass' 
-                      ? { HighPass: { cutoff: value } }
-                      : { LowPass: { cutoff: value } }
-                  });
-                }}
-                className="range-input"
-              />
-            </div>
-          )}
+                }
+              });
+            }}
+            className="range-input"
+          />
+          <label>High Cutoff: {(options.frequency_range as { BandPass: { high: number } }).BandPass.high.toFixed(3)}</label>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.01" 
+            value={(options.frequency_range as { BandPass: { high: number } }).BandPass.high}
+            onChange={(e) => {
+              const newHigh = Number(e.target.value);
+              const currentLow = (options.frequency_range as { BandPass: { low: number } }).BandPass.low;
+              onChange({
+                ...options,
+                frequency_range: {
+                  BandPass: {
+                    low: currentLow,
+                    high: Math.max(newHigh, currentLow + 0.01)
+                  }
+                }
+              });
+            }}
+            className="range-input"
+          />
+        </>
+      ) : (
+        <div className="control-group">
+          <label>Cutoff Frequency: {getCutoffValue(options.frequency_range).toFixed(3)}</label>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.01"
+            value={getCutoffValue(options.frequency_range)}
+            onChange={(e) => {
+              const value = Number(e.target.value);
+              const currentType = getCurrentRangeType(options.frequency_range);
+              onChange({
+                ...options,
+                frequency_range: currentType === 'HighPass' 
+                  ? { HighPass: { cutoff: value } }
+                  : { LowPass: { cutoff: value } }
+              });
+            }}
+            className="range-input"
+          />
         </div>
+      )}
+      </div>
       )}
 
       <div className="checkbox-group">

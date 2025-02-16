@@ -8,6 +8,7 @@ use crate::Result;
 use super::types::{FourierOptions, PaddingMode};
 use face_detection::{detect_face_regions, load_face_detector};
 use crate::FaceDetectionOptions;
+use crate::FrequencyRange;
 use crate::BackgroundMode;
 use image::GenericImage;
 pub struct FourierScrambler {
@@ -150,6 +151,7 @@ impl FourierScrambler {
         let n = padded.dim().0;
         let mut complex_data = self.to_complex(&padded);
         self.fft2d(&mut complex_data, n);
+        self.apply_frequency_filter(&mut complex_data, n);
         if self.options.phase_scramble {
             self.phase_scramble(&mut complex_data);
         }
@@ -161,6 +163,59 @@ impl FourierScrambler {
         Ok(result)
     }
 
+    fn apply_frequency_filter(&self, data: &mut [Complex64], n: usize) {
+        match &self.options.frequency_range {
+            FrequencyRange::All => {
+                // No filtering needed
+                return;
+            },
+            FrequencyRange::LowPass(cutoff) => {
+                // Keep only low frequencies (center of FFT)
+                let cutoff_radius = (cutoff * n as f32 / 2.0) as usize;
+                for y in 0..n {
+                    for x in 0..n {
+                        let center_y = if y < n/2 { y } else { n - y };
+                        let center_x = if x < n/2 { x } else { n - x };
+                        let radius = ((center_y * center_y + center_x * center_x) as f32).sqrt();
+                        
+                        if radius > cutoff_radius as f32 {
+                            data[y * n + x] = Complex64::new(0.0, 0.0);
+                        }
+                    }
+                }
+            },
+            FrequencyRange::HighPass(cutoff) => {
+                // Keep only high frequencies (edges of FFT)
+                let cutoff_radius = (cutoff * n as f32 / 2.0) as usize;
+                for y in 0..n {
+                    for x in 0..n {
+                        let center_y = if y < n/2 { y } else { n - y };
+                        let center_x = if x < n/2 { x } else { n - x };
+                        let radius = ((center_y * center_y + center_x * center_x) as f32).sqrt();
+                        
+                        if radius < cutoff_radius as f32 {
+                            data[y * n + x] = Complex64::new(0.0, 0.0);
+                        }
+                    }
+                }
+            },
+            FrequencyRange::BandPass { low, high } => {
+                let low_radius = (low * n as f32 / 2.0) as usize;
+                let high_radius = (high * n as f32 / 2.0) as usize;
+                for y in 0..n {
+                    for x in 0..n {
+                        let center_y = if y < n/2 { y } else { n - y };
+                        let center_x = if x < n/2 { x } else { n - x };
+                        let radius = ((center_y * center_y + center_x * center_x) as f32).sqrt();
+                        
+                        if radius < low_radius as f32 || radius > high_radius as f32 {
+                            data[y * n + x] = Complex64::new(0.0, 0.0);
+                        }
+                    }
+                }
+            }
+        }
+    }
     fn fft2d(&self, data: &mut [Complex64], n: usize) {
         for row in 0..n {
             let start = row * n;
