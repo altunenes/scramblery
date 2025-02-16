@@ -56,7 +56,7 @@ impl VideoProcessor {
         
         // Create encoder with optimal settings
         let x264enc = gst::ElementFactory::make("x264enc")
-            .property_from_str("speed-preset", "ultrafast")
+            .property_from_str("speed-preset", "ultrafast")  // Changed to ultrafast for better performance
             .property("bitrate", 2048u32)
             .property("key-int-max", 25u32)
             .property_from_str("tune", "zerolatency")
@@ -72,6 +72,15 @@ impl VideoProcessor {
             .property("sync", false)
             .property("async", false)
             .build()?;
+
+        // Create audio processing elements
+        let queue_audio = gst::ElementFactory::make("queue")
+            .property("max-size-buffers", 4u32)
+            .build()?;
+        let audioconvert = gst::ElementFactory::make("audioconvert").build()?;
+        let audioresample = gst::ElementFactory::make("audioresample").build()?;
+        let aacenc = gst::ElementFactory::make("avenc_aac").build()?;
+        let aacparse = gst::ElementFactory::make("aacparse").build()?;
 
         let appsrc = appsrc.dynamic_cast::<gst_app::AppSrc>().unwrap();
         appsrc.set_format(gst::Format::Time);
@@ -99,6 +108,11 @@ impl VideoProcessor {
             &x264enc,
             &h264parse,
             &queue3,
+            &queue_audio,
+            &audioconvert,
+            &audioresample,
+            &aacenc,
+            &aacparse,
             &muxer,
             &sink,
         ])?;
@@ -114,6 +128,15 @@ impl VideoProcessor {
             &queue3,
             &muxer,
             &sink,
+        ])?;
+
+        gst::Element::link_many(&[
+            &queue_audio,
+            &audioconvert,
+            &audioresample,
+            &aacenc,
+            &aacparse,
+            &muxer,
         ])?;
 
         gst::Element::link_many(&[&src, &decodebin])?;
@@ -201,8 +224,8 @@ impl VideoProcessor {
                 .build(),
         );
 
-        // Handle pad-added signal for decodebin
         let videoconvert1_weak = videoconvert1.downgrade();
+        let queue_audio_weak = queue_audio.downgrade();
         decodebin.connect_pad_added(move |_, pad| {
             let caps = pad.current_caps().unwrap();
             let structure = caps.structure(0).unwrap();
@@ -215,7 +238,16 @@ impl VideoProcessor {
                     if let Err(e) = pad.link(&sink_pad) {
                         error!("Failed to link decoder to converter: {}", e);
                     } else {
-                        info!("Linked decoder to converter successfully");
+                        info!("Linked decoder to video converter successfully");
+                    }
+                }
+            } else if name.starts_with("audio/") {
+                if let Some(queue) = queue_audio_weak.upgrade() {
+                    let sink_pad = queue.static_pad("sink").unwrap();
+                    if let Err(e) = pad.link(&sink_pad) {
+                        error!("Failed to link decoder to audio queue: {}", e);
+                    } else {
+                        info!("Linked decoder to audio queue successfully");
                     }
                 }
             }
