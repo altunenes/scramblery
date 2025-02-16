@@ -11,25 +11,211 @@ interface SelectedImage {
     height: number;
   };
 }
-interface ScrambleOptions {
-  intensity: number;
-  seed: number | null;
-  face_detection: {
-    confidence_threshold: number;
-    expansion_factor: number;
-    background_mode: 'Include' | 'Exclude';
-  } | null;
+interface FourierOptions {
+  frequency_range: FrequencyRange;
+  phase_scramble: boolean;
+  magnitude_scramble: boolean;
+  padding_mode: PaddingMode;
 }
+
+//to match Rust's enum structure
+type FrequencyRange = 
+  | 'All'
+  | { HighPass: { cutoff: number } }
+  | { LowPass: { cutoff: number } }
+  | { BandPass: { low: number, high: number } };
+
+type PaddingMode = 'Zero' | 'Reflect' | 'Wrap';
+
+function FourierControls({ 
+  options, 
+  onChange 
+}: {
+  options: FourierOptions;
+  onChange: (options: FourierOptions) => void;
+}) {
+  const getCurrentRangeType = (range: FrequencyRange): string => {
+    if (range === 'All') return 'All';
+    return Object.keys(range)[0];
+  };
+
+  const getCutoffValue = (range: FrequencyRange): number => {
+    if (range === 'All') return 0;
+    if ('HighPass' in range) return range.HighPass.cutoff;
+    if ('LowPass' in range) return range.LowPass.cutoff;
+    return 0;
+  };
+
+  return (
+    <div className="fourier-controls">
+      <div className="control-group">
+        <label>Frequency Range</label>
+        <select
+          value={getCurrentRangeType(options.frequency_range)}
+          onChange={(e) => {
+            const type = e.target.value;
+            let range: FrequencyRange;
+            
+            switch(type) {
+              case 'All':
+                range = 'All';
+                break;
+              case 'HighPass':
+                range = { HighPass: { cutoff: 0.5 } };
+                break;
+              case 'LowPass':
+                range = { LowPass: { cutoff: 0.5 } };
+                break;
+              case 'BandPass':
+                range = { BandPass: { low: 0.3, high: 0.7 } };
+                break;
+              default:
+                return;
+            }
+            
+            onChange({
+              ...options,
+              frequency_range: range
+            });
+          }}
+          className="select-input"
+        >
+          <option value="All">All Frequencies</option>
+          <option value="HighPass">High Pass Filter</option>
+          <option value="LowPass">Low Pass Filter</option>
+          <option value="BandPass">Band Pass Filter</option>
+        </select>
+      </div>
+
+      {options.frequency_range !== 'All' && (
+        <div className="control-group">
+{'BandPass' in options.frequency_range ? (
+  <>
+    <label>Low Cutoff: {(options.frequency_range as { BandPass: { low: number } }).BandPass.low}</label>
+    <input
+      type="range"
+      min="0"
+      max="1"
+      step="0.1"
+      value={(options.frequency_range as { BandPass: { low: number } }).BandPass.low}
+      onChange={(e) => onChange({
+        ...options,
+        frequency_range: {
+          BandPass: {
+            low: Number(e.target.value),
+            high: (options.frequency_range as { BandPass: { high: number } }).BandPass.high
+          }
+        }
+      })}
+      className="range-input"
+    />
+              <label>High Cutoff: {options.frequency_range.BandPass.high}</label>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.1"
+                value={options.frequency_range.BandPass.high}
+                onChange={(e) => onChange({
+                  ...options,
+                  frequency_range: {
+                    BandPass: {
+                      low: Number(e.target.value),
+                      high: (options.frequency_range as { BandPass: { high: number } }).BandPass.high
+                    }
+                  }
+                })}
+                className="range-input"
+              />
+            </>
+          ) : (
+            <div className="control-group">
+              <label>Cutoff Frequency: {getCutoffValue(options.frequency_range)}</label>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.1"
+                value={getCutoffValue(options.frequency_range)}
+                onChange={(e) => {
+                  const value = Number(e.target.value);
+                  const currentType = getCurrentRangeType(options.frequency_range);
+                  onChange({
+                    ...options,
+                    frequency_range: currentType === 'HighPass' 
+                      ? { HighPass: { cutoff: value } }
+                      : { LowPass: { cutoff: value } }
+                  });
+                }}
+                className="range-input"
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="checkbox-group">
+        <label>
+          <input
+            type="checkbox"
+            checked={options.phase_scramble}
+            onChange={(e) => onChange({
+              ...options,
+              phase_scramble: e.target.checked
+            })}
+          />
+          Scramble Phases
+        </label>
+      </div>
+
+      <div className="checkbox-group">
+        <label>
+          <input
+            type="checkbox"
+            checked={options.magnitude_scramble}
+            onChange={(e) => onChange({
+              ...options,
+              magnitude_scramble: e.target.checked
+            })}
+          />
+          Scramble Magnitudes
+        </label>
+      </div>
+
+      <div className="control-group">
+        <label>Padding Mode</label>
+        <select
+          value={options.padding_mode}
+          onChange={(e) => onChange({
+            ...options,
+            padding_mode: e.target.value as PaddingMode
+          })}
+          className="select-input"
+        >
+          <option value="Zero">Zero Padding</option>
+          <option value="Reflect">Reflect Padding</option>
+          <option value="Wrap">Wrap Padding</option>
+        </select>
+      </div>
+    </div>
+  );
+}
+
 function SingleImage() {
   const [selectedImage, setSelectedImage] = useState<SelectedImage | null>(null);
   const [scrambledImage, setScrambledImage] = useState<string | null>(null);
+  const [scrambleType, setScrambleType] = useState<'Pixel' | 'Fourier'>('Pixel');
   const [intensity, setIntensity] = useState(50);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [useFaceDetection, setUseFaceDetection] = useState(false);
   const [backgroundMode, setBackgroundMode] = useState<'Include' | 'Exclude'>('Include');
-
-
+  const [fourierOptions, setFourierOptions] = useState<FourierOptions>({
+    frequency_range: 'All',
+    phase_scramble: true,
+    magnitude_scramble: false,
+    padding_mode: 'Reflect',
+});
   const handleImageUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -73,18 +259,27 @@ function SingleImage() {
     setError(null);
 
     try {
-      const options: ScrambleOptions = {
-        intensity: intensity / 100,
-        seed: null,
-        face_detection: useFaceDetection ? {
-          confidence_threshold: 0.7,
-          expansion_factor: 1.0,
-          background_mode: backgroundMode,
-        } : null,
-      };
       const result = await invoke<string>('scramble_image', {
         imageData: selectedImage.data,
-        options,
+        options: {
+          scramble_type: scrambleType === 'Pixel' 
+            ? 'Pixel'
+            : {
+                Fourier: {
+                  frequency_range: formatFrequencyRange(fourierOptions.frequency_range),
+                  phase_scramble: fourierOptions.phase_scramble,
+                  magnitude_scramble: fourierOptions.magnitude_scramble,
+                  padding_mode: fourierOptions.padding_mode
+                }
+              },
+          intensity: intensity / 100,
+          seed: null,
+          face_detection: useFaceDetection ? {
+            confidence_threshold: 0.7,
+            expansion_factor: 1.0,
+            background_mode: backgroundMode,
+          } : null,
+        }
       });
       setScrambledImage(result);
     } catch (err) {
@@ -93,7 +288,17 @@ function SingleImage() {
     } finally {
       setIsProcessing(false);
     }
+};
+
+const formatFrequencyRange = (range: FrequencyRange) => {
+  if (range === 'All') return 'All';
+  if ('HighPass' in range) return { HighPass: range.HighPass.cutoff };
+  if ('LowPass' in range) return { LowPass: range.LowPass.cutoff };
+  if ('BandPass' in range) return { 
+    BandPass: { low: range.BandPass.low, high: range.BandPass.high } 
   };
+  return 'All';
+};
   const handleSaveScrambled = async () => {
     if (!scrambledImage || !selectedImage) return;
 
@@ -134,6 +339,26 @@ function SingleImage() {
             className="file-input"
           />
         </div>
+
+        <div className="scramble-type-control">
+          <label>Scramble Method:</label>
+          <select
+            value={scrambleType}
+            onChange={(e) => setScrambleType(e.target.value as 'Pixel' | 'Fourier')}
+            className="select-input"
+          >
+            <option value="Pixel">Pixel Scrambling</option>
+            <option value="Fourier">Fourier Scrambling</option>
+          </select>
+        </div>
+
+        {scrambleType === 'Fourier' && (
+          <FourierControls
+            options={fourierOptions}
+            onChange={setFourierOptions}
+          />
+        )}
+
         <div className="face-detection-control">
           <div className="checkbox-control">
             <input
@@ -159,6 +384,7 @@ function SingleImage() {
             </div>
           )}
         </div>
+
         <div className="intensity-control">
           <label>Intensity: {intensity}%</label>
           <input

@@ -404,3 +404,58 @@
   background-color: #9ca3af;
   cursor: not-allowed;
 }
+.controls-panel {
+  max-height: 50vh;
+  overflow-y: auto;
+  padding-right: 1rem;
+}
+
+.fourier-controls {
+  margin-top: 0.5rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 0.375rem;
+  background-color: #f9fafb;
+}
+
+.scramble-type-control {
+  margin-bottom: 1.25rem;
+}
+
+.control-group {
+  margin-bottom: 0.5rem;
+}
+
+.control-group label {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-weight: 500;
+  font-size: 0.75rem;
+}
+
+
+.range-input {
+  width: 100%;
+  margin-top: 0.25rem;
+  height: 0.5rem;
+}
+
+.checkbox-group {
+  display: flex;
+  align-items: center;
+  margin: 0.5rem 0;
+}
+
+.checkbox-group label {
+  margin-left: 0.5rem;
+  font-size: 0.75rem;
+}
+
+.select-input {
+  width: 100%;
+  padding: 0.375rem;
+  border: 1px solid var(--border-color);
+  border-radius: 0.375rem;
+  font-size: 0.75rem;
+  background-color: white;
+}
