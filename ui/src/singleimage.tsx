@@ -1,4 +1,4 @@
-import { useState, ChangeEvent } from 'react';
+import { useState, ChangeEvent, useEffect } from 'react';
 import { invoke } from "@tauri-apps/api/core";
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeFile } from '@tauri-apps/plugin-fs';
@@ -268,11 +268,18 @@ function SingleImage() {
       setError("Failed to load image");
     }
   };
+  useEffect(() => {
+    setFourierOptions(prev => ({
+      ...prev,
+      intensity: intensity / 100
+    }));
+  }, [intensity]);
   const handleScramble = async () => {
     if (!selectedImage) return;
     setIsProcessing(true);
     setError(null);
     try {
+      const sliderIntensity = intensity / 100;
       const result = await invoke<string>('scramble_image', {
         imageData: selectedImage.data,
         options: {
@@ -284,11 +291,11 @@ function SingleImage() {
                   phase_scramble: fourierOptions.phase_scramble,
                   magnitude_scramble: fourierOptions.magnitude_scramble,
                   padding_mode: fourierOptions.padding_mode,
-                  intensity: fourierOptions.intensity,
+                  intensity: sliderIntensity,
                   grayscale: fourierOptions.grayscale
                 }
               },
-          intensity: intensity / 100,
+          intensity: sliderIntensity,
           seed: null,
           face_detection: useFaceDetection ? {
             confidence_threshold: 0.7,
