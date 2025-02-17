@@ -1,0 +1,12 @@
+[workspace]
+members = ["engine", "face_detection", "video-processor", "onnx", "ui/src-tauri"]
+resolver = "2"
+
+[workspace.dependencies]
+serde = { version = "1.0.217", features = ["derive"] }
+serde_json = "1.0.138"
+image = "0.25.5"
+anyhow = "1.0.95"
+rand = "0.9.0"
+log = "0.4.25"
+ndarray = "0.16.1"

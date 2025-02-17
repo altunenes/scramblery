@@ -1,0 +1,461 @@
+:root {
+  font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 400;
+  color: #0f0f0f;
+  background-color: #f6f6f6;
+  
+  --panel-bg: #ffffff;
+  --border-color: #e5e7eb;
+  --primary-color: #2f2f2f;
+  --success-color: #10b981;
+  --error-color: #dc2626;
+}
+
+/* Base Styles */
+.app-container {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 1rem;
+  gap: 1rem;
+  background-color: #f6f6f6;
+}
+
+/* Controls Panel */
+.controls-panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  padding: 1.25rem;
+  box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.1);
+}
+
+.controls-panel h2 {
+  margin-bottom: 1.25rem;
+  font-size: 1.25rem;
+  color: #1f2937;
+}
+
+/* File Upload */
+.file-upload-container {
+  margin-bottom: 1.25rem;
+}
+
+.file-upload-container label {
+  font-weight: 500;
+  font-size: 0.875rem;
+}
+
+.file-input {
+  width: 100%;
+  margin-top: 0.375rem;
+  padding: 0.375rem;
+  border: 1px solid var(--border-color);
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+}
+
+/* Intensity Control */
+.intensity-control {
+  margin-bottom: 1.25rem;
+}
+
+.intensity-control label {
+  font-weight: 500;
+  font-size: 0.875rem;
+}
+
+.intensity-control input[type="range"] {
+  width: 100%;
+  margin-top: 0.375rem;
+  height: 0.25rem;
+}
+
+/* Buttons */
+.button-group {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.scramble-button, .save-button {
+  flex: 1;
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 0.375rem;
+  font-weight: 500;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.scramble-button {
+  background-color: var(--primary-color);
+  color: white;
+}
+
+.scramble-button:disabled {
+  background-color: #9ca3af;
+  cursor: not-allowed;
+}
+
+.save-button {
+  background-color: var(--success-color);
+  color: white;
+}
+
+/* Image Comparison */
+.image-comparison-container {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.image-panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.1);
+}
+
+.panel-header {
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--border-color);
+  background-color: #f9fafb;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.panel-header h3 {
+  font-size: 0.875rem;
+  color: #1f2937;
+  margin: 0;
+}
+
+.panel-header p {
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin: 0;
+}
+
+.image-container {
+  flex: 1;
+  min-height: 0;
+  padding: 0.5rem;
+  background-color: white;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: calc(100vh - 300px);
+}
+
+.image-container img {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
+/* Make the image comparison container take more vertical space */
+.image-comparison-container {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  min-height: 0;
+  overflow: hidden;
+  margin-top: 0.5rem;
+}
+
+/* Adjust the image panel to maximize available space */
+.image-panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.1);
+  height: 100%;
+}
+
+.placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #9ca3af;
+  font-style: italic;
+}
+
+/* Error Message */
+.error-message {
+  margin-top: 1rem;
+  padding: 1rem;
+  background-color: #fee2e2;
+  color: var(--error-color);
+  border-radius: 0.5rem;
+  border: 1px solid var(--error-color);
+}
+
+/* Main Menu Styles */
+.menu-container {
+  text-align: center;
+  padding: 2rem;
+  background-color: #f6f6f6;
+  color: #1f2937;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.menu-container h1 {
+  font-size: 1.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.menu-container p {
+  margin-bottom: 1.5rem;
+  font-size: 1rem;
+  color: #4b5563;
+}
+
+.button-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.menu-button {
+  display: block;
+  padding: 0.75rem 1.5rem;
+  background-color: #ffffff;
+  color: #1f2937;
+  text-decoration: none;
+  border-radius: 0.375rem;
+  transition: background-color 0.2s;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.menu-button:hover {
+  background-color: #f9fafb;
+}
+
+.container {
+  margin: 0 auto;
+  padding: 2rem;
+  max-width: 1200px;
+}
+.face-detection-control {
+  margin-bottom: 1.25rem;
+}
+
+.checkbox-control {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.background-mode-control {
+  margin-top: 0.75rem;
+}
+
+.select-input {
+  width: 100%;
+  padding: 0.375rem;
+  border: 1px solid var(--border-color);
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+}
+
+.directory-selection {
+  margin-bottom: 1.25rem;
+}
+
+.input-group {
+  margin-bottom: 1rem;
+}
+
+.directory-input {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.directory-path {
+  flex: 1;
+  padding: 0.375rem;
+  border: 1px solid var(--border-color);
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  background-color: #f9fafb;
+  cursor: default;
+}
+
+.select-dir-button {
+  padding: 0.375rem 1rem;
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.select-dir-button:hover {
+  opacity: 0.9;
+}
+
+/* Progress Bar Styles */
+.progress-bar {
+  height: 1.5rem;
+  background-color: #f3f4f6;
+  border-radius: 0.375rem;
+  overflow: hidden;
+  margin: 1rem 0;
+  position: relative;
+}
+
+.progress-fill {
+  height: 100%;
+  background-color: var(--success-color);
+  transition: width 0.3s ease;
+}
+
+.progress-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #1f2937;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+/* Results Panel */
+.results-panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  padding: 1.25rem;
+  margin-top: 1rem;
+}
+
+.results-summary {
+  display: flex;
+  gap: 2rem;
+  margin: 1rem 0;
+}
+
+.results-list {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.result-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.result-item.error {
+  background-color: #fee2e2;
+}
+
+.file-name {
+  font-size: 0.875rem;
+  color: #1f2937;
+}
+
+.process-button {
+  width: 100%;
+  padding: 0.5rem 1rem;
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 0.375rem;
+  font-weight: 500;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.process-button:disabled {
+  background-color: #9ca3af;
+  cursor: not-allowed;
+}
+.controls-panel {
+  max-height: 50vh;
+  overflow-y: auto;
+  padding-right: 1rem;
+}
+
+.fourier-controls {
+  margin-top: 0.5rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 0.375rem;
+  background-color: #f9fafb;
+}
+
+.scramble-type-control {
+  margin-bottom: 1.25rem;
+}
+
+.control-group {
+  margin-bottom: 0.5rem;
+}
+
+.control-group label {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-weight: 500;
+  font-size: 0.75rem;
+}
+
+
+.range-input {
+  width: 100%;
+  margin-top: 0.25rem;
+  height: 0.5rem;
+}
+
+.checkbox-group {
+  display: flex;
+  align-items: center;
+  margin: 0.5rem 0;
+}
+
+.checkbox-group label {
+  margin-left: 0.5rem;
+  font-size: 0.75rem;
+}
+
+.select-input {
+  width: 100%;
+  padding: 0.375rem;
+  border: 1px solid var(--border-color);
+  border-radius: 0.375rem;
+  font-size: 0.75rem;
+  background-color: white;
+}
