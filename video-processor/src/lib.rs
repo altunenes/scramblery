@@ -56,7 +56,7 @@ impl VideoProcessor {
         
         // Create encoder with optimal settings
         let x264enc = gst::ElementFactory::make("x264enc")
-            .property_from_str("speed-preset", "ultrafast")  // Changed to ultrafast for better performance
+            .property_from_str("speed-preset", "ultrafast")  //ultrafast for better performance
             .property("bitrate", 2048u32)
             .property("key-int-max", 25u32)
             .property_from_str("tune", "zerolatency")
