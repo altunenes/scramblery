@@ -459,3 +459,10 @@
   font-size: 0.75rem;
   background-color: white;
 }
+.back-button {
+  transition: all 0.2s ease-in-out;
+}
+
+.back-button:hover {
+  transform: translateX(-2px);
+}

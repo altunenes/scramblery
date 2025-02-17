@@ -2,6 +2,7 @@ import { useState, ChangeEvent, useEffect } from 'react';
 import { invoke } from "@tauri-apps/api/core";
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeFile } from '@tauri-apps/plugin-fs';
+import BackButton from './comp/BackButton';
 import { FourierControls, type FourierOptions, type FrequencyRange } from './FourierControls';
 interface SelectedImage {
   data: string;
@@ -146,6 +147,7 @@ const formatFrequencyRange = (range: FrequencyRange) => {
 
   return (
     <div className="app-container">
+      <BackButton />
       <div className="controls-panel">
         <h2>Image Scrambler</h2>
         

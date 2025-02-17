@@ -2,6 +2,7 @@ import { useState,useEffect } from 'react';
 import { invoke } from "@tauri-apps/api/core";
 import { open} from '@tauri-apps/plugin-dialog';
 import { FourierControls, type FourierOptions, type FrequencyRange } from './FourierControls';
+import BackButton from './comp/BackButton';
 
 interface ProcessingResult {
   input_path: string;
@@ -132,6 +133,7 @@ function FolderProcess() {
 
   return (
     <div className="app-container">
+      <BackButton />
       <div className="controls-panel">
         <h2>Batch Image Processing</h2>
         <div className="scramble-type-control">
