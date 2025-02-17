@@ -148,76 +148,80 @@ const formatFrequencyRange = (range: FrequencyRange) => {
   return (
     <div className="app-container">
       <BackButton />
-      <div className="controls-panel">
-        <h2>Image Scrambler</h2>
-        
-        <div className="file-upload-container">
-          <label>Select Image</label>
-          <input
-            type="file"
-            accept="image/*"
-            onChange={handleImageUpload}
-            className="file-input"
-          />
-        </div>
-
-        <div className="scramble-type-control">
-          <label>Scramble Method:</label>
-          <select
-            value={scrambleType}
-            onChange={(e) => setScrambleType(e.target.value as 'Pixel' | 'Fourier')}
-            className="select-input"
-          >
-            <option value="Pixel">Pixel Scrambling</option>
-            <option value="Fourier">Fourier Scrambling</option>
-          </select>
-        </div>
-
-        {scrambleType === 'Fourier' && (
-          <FourierControls
-            options={fourierOptions}
-            onChange={setFourierOptions}
-          />
-        )}
-
-        <div className="face-detection-control">
-          <div className="checkbox-control">
-            <input
-              type="checkbox"
-              id="face-detection"
-              checked={useFaceDetection}
-              onChange={(e) => setUseFaceDetection(e.target.checked)}
-            />
-            <label htmlFor="face-detection">Use Face Detection</label>
-          </div>
+      
+      {/* Main Content Area */}
+      <div className="flex flex-col gap-4">
+        {/* Top Control Panel */}
+        <div className="controls-panel">
+          <h2>Image Scrambler</h2>
           
-          {useFaceDetection && (
-            <div className="background-mode-control">
-              <label>Background Mode:</label>
-              <select
-                value={backgroundMode}
-                onChange={(e) => setBackgroundMode(e.target.value as 'Include' | 'Exclude')}
-                className="select-input"
-              >
-                <option value="Include">Keep Background (Scramble Faces Only)</option>
-                <option value="Exclude">Exclude Background (Faces Only)</option>
-              </select>
+          {/* File Upload Section */}
+          <div className="file-upload-container">
+            <label>Select Image</label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleImageUpload}
+              className="file-input"
+            />
+          </div>
+
+          {/* Core Controls */}
+          <div className="flex gap-4 mt-4">
+            {/* Left side - Basic Controls */}
+            <div className="flex-1">
+              <div className="scramble-type-control mb-4">
+                <label>Scramble Method:</label>
+                <select
+                  value={scrambleType}
+                  onChange={(e) => setScrambleType(e.target.value as 'Pixel' | 'Fourier')}
+                  className="select-input"
+                >
+                  <option value="Pixel">Pixel Scrambling</option>
+                  <option value="Fourier">Fourier Scrambling</option>
+                </select>
+              </div>
+
+              {/* Always Visible Important Controls */}
+              <div className="intensity-control mb-4">
+                <label>Intensity: {intensity}%</label>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={intensity}
+                  onChange={(e) => setIntensity(Number(e.target.value))}
+                />
+              </div>
+
+              <div className="face-detection-control">
+                <div className="checkbox-control">
+                  <input
+                    type="checkbox"
+                    id="face-detection"
+                    checked={useFaceDetection}
+                    onChange={(e) => setUseFaceDetection(e.target.checked)}
+                  />
+                  <label htmlFor="face-detection">Use Face Detection</label>
+                </div>
+              </div>
             </div>
-          )}
+
+            {/* Right side - Fourier Controls when selected */}
+            <div className="flex-1">
+              {scrambleType === 'Fourier' && (
+                <FourierControls
+                  options={fourierOptions}
+                  onChange={setFourierOptions}
+                />
+              )}
+            </div>
+          </div>
         </div>
 
-        <div className="intensity-control">
-          <label>Intensity: {intensity}%</label>
-          <input
-            type="range"
-            min="0"
-            max="100"
-            value={intensity}
-            onChange={(e) => setIntensity(Number(e.target.value))}
-          />
-        </div>
-
-        <div className="button-group">
+        {/* Action Buttons*/}
+        <div className="controls-panel py-3">
+        <div className="action-buttons">
           <button
             onClick={handleScramble}
             disabled={!selectedImage || isProcessing}
@@ -232,11 +236,10 @@ const formatFrequencyRange = (range: FrequencyRange) => {
             </button>
           )}
         </div>
-
-        {error && <div className="error-message">{error}</div>}
       </div>
+        {error && <div className="error-message">{error}</div>}
 
-      {/* Image Comparison Section */}
+      {/* Image Preview Section */}
       {selectedImage && (
         <div className="image-comparison-container">
           {/* Original Image Panel */}
@@ -275,6 +278,7 @@ const formatFrequencyRange = (range: FrequencyRange) => {
         </div>
       )}
     </div>
+  </div>
   );
 }
 
