@@ -3,8 +3,8 @@ use anyhow::Result;
 use video_processor::{VideoProcessor, VideoFrameExt, Writable};
 use image::{DynamicImage, RgbaImage};
 use serde::{Serialize, Deserialize};
+use crate::scramble::{ScrambleType, ScrambleOptions};
 
-use crate::scramble::ScrambleOptions;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct VideoProcessingOptions {
@@ -15,7 +15,6 @@ pub struct VideoProcessingOptions {
 
 pub fn process_video(options: &VideoProcessingOptions) -> Result<()> {
     let processor = VideoProcessor::new()?;
-    
     let scramble_options = options.scramble_options.clone();
     
     processor.process_video(
@@ -41,10 +40,31 @@ pub fn process_video(options: &VideoProcessingOptions) -> Result<()> {
                 }
             }
             
-            let processed = crate::scramble::scramble_pixels(
-                &DynamicImage::ImageRgba8(image),
-                &scramble_options,
-            )?;
+            let processed = match &scramble_options.scramble_type {
+                ScrambleType::Pixel => {
+                    crate::scramble::scramble_pixels(
+                        &DynamicImage::ImageRgba8(image),
+                        &scramble_options,
+                    )?
+                },
+                ScrambleType::Fourier(fourier_opts) => {
+                    let mut scrambler = crate::scramble::FourierScrambler::new(
+                        width as usize,
+                        height as usize,
+                        fourier_opts.clone(),
+                        scramble_options.seed,
+                    );
+                    
+                    if let Some(face_opts) = &scramble_options.face_detection {
+                        scrambler.scramble_with_face_detection(
+                            &DynamicImage::ImageRgba8(image),
+                            face_opts
+                        )?
+                    } else {
+                        scrambler.scramble(&DynamicImage::ImageRgba8(image))?
+                    }
+                }
+            };
             
             let processed = processed.to_rgba8();
             let data = frame.plane_data_mut(0).unwrap();

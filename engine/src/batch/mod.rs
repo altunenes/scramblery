@@ -5,6 +5,7 @@ use std::path::Path;
 use rayon::prelude::*;
 use anyhow::Context;
 use crate::Result;
+use crate::ScrambleType;
 use crate::ScrambleOptions;
 pub fn process_directory(options: &BatchProcessingOptions) -> Result<Vec<ProcessingResult>> {
 
@@ -59,7 +60,23 @@ fn process_single_image(
     let img = image::open(input_path)
         .with_context(|| format!("Failed to open image: {}", input_path.display()))?;
 
-    let scrambled = crate::scramble::scramble_pixels(&img, options)?;
+    let scrambled = match &options.scramble_type {
+        ScrambleType::Pixel => crate::scramble::scramble_pixels(&img, options)?,
+        ScrambleType::Fourier(fourier_opts) => {
+            let mut scrambler = crate::scramble::FourierScrambler::new(
+                img.width() as usize,
+                img.height() as usize,
+                fourier_opts.clone(),
+                options.seed,
+            );
+            
+            if let Some(face_opts) = &options.face_detection {
+                scrambler.scramble_with_face_detection(&img, face_opts)?
+            } else {
+                scrambler.scramble(&img)?
+            }
+        }
+    };
 
     scrambled.save(output_path)
         .with_context(|| format!("Failed to save image: {}", output_path.display()))?;

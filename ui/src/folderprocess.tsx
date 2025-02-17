@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState,useEffect } from 'react';
 import { invoke } from "@tauri-apps/api/core";
 import { open} from '@tauri-apps/plugin-dialog';
+import { FourierControls, type FourierOptions, type FrequencyRange } from './FourierControls';
 
 interface ProcessingResult {
   input_path: string;
@@ -25,7 +26,21 @@ function FolderProcess() {
   const [progress, setProgress] = useState<BatchProgress | null>(null);
   const [results, setResults] = useState<ProcessingResult[]>([]);
   const [error, setError] = useState<string | null>(null);
-
+  const [scrambleType, setScrambleType] = useState<'Pixel' | 'Fourier'>('Pixel');
+  const [fourierOptions, setFourierOptions] = useState<FourierOptions>({
+    frequency_range: 'All',
+    phase_scramble: true,
+    magnitude_scramble: false,
+    padding_mode: 'Reflect',
+    intensity: 0.5,
+    grayscale: false
+  });
+  useEffect(() => {
+    setFourierOptions(prev => ({
+      ...prev,
+      intensity: intensity / 100
+    }));
+  }, [intensity]);
   const handleSelectInputDir = async () => {
     try {
       const selected = await open({
@@ -57,7 +72,15 @@ function FolderProcess() {
       setError('Failed to select output directory');
     }
   };
-
+  const formatFrequencyRange = (range: FrequencyRange) => {
+    if (range === 'All') return 'All';
+    if ('HighPass' in range) return { HighPass: range.HighPass.cutoff };
+    if ('LowPass' in range) return { LowPass: range.LowPass.cutoff };
+    if ('BandPass' in range) return { 
+      BandPass: { low: range.BandPass.low, high: range.BandPass.high } 
+    };
+    return 'All';
+  };
   const handleProcess = async () => {
     if (!inputDir || !outputDir) return;
     
@@ -67,11 +90,24 @@ function FolderProcess() {
     setProgress(null);
 
     try {
+      const sliderIntensity = intensity / 100;
       const options = {
         input_dir: inputDir,
         output_dir: outputDir,
         scramble_options: {
-          intensity: intensity / 100,
+          scramble_type: scrambleType === 'Pixel' 
+            ? 'Pixel'
+            : {
+                Fourier: {
+                  frequency_range: formatFrequencyRange(fourierOptions.frequency_range),
+                  phase_scramble: fourierOptions.phase_scramble,
+                  magnitude_scramble: fourierOptions.magnitude_scramble,
+                  padding_mode: fourierOptions.padding_mode,
+                  intensity: sliderIntensity,
+                  grayscale: fourierOptions.grayscale
+                }
+              },
+          intensity: sliderIntensity,
           seed: null,
           face_detection: useFaceDetection ? {
             confidence_threshold: 0.7,
@@ -98,7 +134,24 @@ function FolderProcess() {
     <div className="app-container">
       <div className="controls-panel">
         <h2>Batch Image Processing</h2>
-        
+        <div className="scramble-type-control">
+          <label>Scramble Method:</label>
+          <select
+            value={scrambleType}
+            onChange={(e) => setScrambleType(e.target.value as 'Pixel' | 'Fourier')}
+            className="select-input"
+          >
+            <option value="Pixel">Pixel Scrambling</option>
+            <option value="Fourier">Fourier Scrambling</option>
+          </select>
+        </div>
+
+        {scrambleType === 'Fourier' && (
+          <FourierControls
+            options={fourierOptions}
+            onChange={setFourierOptions}
+          />
+        )}
         <div className="directory-selection">
           <div className="input-group">
             <label>Input Directory</label>
