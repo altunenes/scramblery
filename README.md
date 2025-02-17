@@ -32,3 +32,18 @@ Citation
     *   Error handling and reporting for individual image processing within a batch.
 *   **Video Scrambling:** Apply scrambling to video frames.
     *   Video processing pipeline using GStreamer for efficient decoding and encoding.
+
+
+Example for a video: 
+Pixel scramble-only facial area keep bg
+
+https://github.com/user-attachments/assets/75f6a369-0a81-4542-8c65-632aa70be8a2
+
+Pixel scramble-only facial area exclude bg
+
+https://github.com/user-attachments/assets/37fd72dc-e575-4de0-b910-94a42e81f0b2
+
+Phase-scramble only facial area keep bg (you can also exclude bg like pixel scramble video)
+
+https://github.com/user-attachments/assets/7e3921a5-b7c9-4159-8991-7c1d6d496840
+
