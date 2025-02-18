@@ -1,6 +1,6 @@
- # Scramblery
+ # Scramblery ![32x32](https://github.com/user-attachments/assets/77abf531-2e86-475a-8811-e81085e904ca)
+
 [![DOI](https://zenodo.org/badge/449034134.svg)](https://zenodo.org/badge/latestdoi/449034134)
-![sacasc](https://user-images.githubusercontent.com/54986652/227797464-3fc1fc88-a31b-4244-b99f-df0f77a6e282.png)
 
 
 **Please note: This project is currently under active development and is not yet feature-complete or production-ready.** Expect changes and potential instability.
