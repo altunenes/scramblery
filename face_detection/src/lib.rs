@@ -68,10 +68,10 @@ pub fn load_face_detector(model_path: Option<PathBuf>) -> Result<Session> {
                     .and_then(|p| p.parent())
                     .map(|p| p.join("Resources/models/version-RFB-640.onnx"))
             } else {
-                // Windows: resources are in the same directory as the executable
+                // Windows: model is directly in the models folder next to exe
                 exe_path
                     .parent()
-                    .map(|p| p.join("resources/models/version-RFB-640.onnx"))
+                    .map(|p| p.join("models/version-RFB-640.onnx"))
             }.expect("Failed to construct resource path");
                 
             info!("Constructed resource path: {:?}", resource_path);
