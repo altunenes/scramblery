@@ -50,11 +50,42 @@ impl FaceRegion {
 
 /// Loads the face detection model: This currently TODO.
 pub fn load_face_detector(model_path: Option<PathBuf>) -> Result<Session> {
-    let model_path = model_path.unwrap_or_else(|| PathBuf::from("../../models/version-RFB-640.onnx"));
+    let model_path = if let Some(path) = model_path {
+        path
+    } else {
+        #[cfg(debug_assertions)]
+        let path = PathBuf::from("resources/models/version-RFB-640.onnx");
+        
+        #[cfg(not(debug_assertions))]
+        let path = {
+            let exe_path = std::env::current_exe().expect("Failed to get executable path");
+            info!("Executable path: {:?}", exe_path);
+
+            let resource_path = if cfg!(target_os = "macos") {
+                // macOS: navigate from .app/Contents/MacOS/exe to .app/Contents/Resources
+                exe_path
+                    .parent() 
+                    .and_then(|p| p.parent())
+                    .map(|p| p.join("Resources/models/version-RFB-640.onnx"))
+            } else {
+                // Windows: resources are in the same directory as the executable
+                exe_path
+                    .parent()
+                    .map(|p| p.join("resources/models/version-RFB-640.onnx"))
+            }.expect("Failed to construct resource path");
+                
+            info!("Constructed resource path: {:?}", resource_path);
+            info!("Resource path exists: {}", resource_path.exists());
+            
+            resource_path
+        };
+        
+        path
+    };
+    
     info!("Loading face detection model from {:?}", model_path);
     new_session_from_path(model_path)
 }
-
 fn preprocess_image(image: &DynamicImage) -> Array4<f32> {
     let resized = image.resize_exact(TARGET_WIDTH, TARGET_HEIGHT, FilterType::CatmullRom);
     let (width, height) = resized.dimensions();
