@@ -53,7 +53,7 @@ impl VideoProcessor {
         let appsrc = gst::ElementFactory::make("appsrc").build()?;
         let videoconvert2 = gst::ElementFactory::make("videoconvert").build()?;
         let videoscale2 = gst::ElementFactory::make("videoscale").build()?;
-        
+        // maybe adding nvdec or vaapih264dec here would be better for performance? cfg!(feature = "hardware-acceleration") smth like that
         // Create encoder with optimal settings
         let x264enc = gst::ElementFactory::make("x264enc")
             .property_from_str("speed-preset", "ultrafast")  //ultrafast for better performance
