@@ -8,8 +8,13 @@ async fn scramble_image(image_data: String, options: ScrambleOptions) -> Result<
 }
 
 #[tauri::command]
-async fn process_directory(options: BatchProcessingOptions) -> Result<Vec<ProcessingResult>, String> {
-    engine::batch::process_directory(&options).map_err(|e| e.to_string())
+async fn process_directory(options: BatchProcessingOptions, window: tauri::Window) -> Result<Vec<ProcessingResult>, String> {
+    engine::batch::process_directory_with_progress(
+        &options,
+        move |progress| {
+            let _ = window.emit("batch-progress", progress);
+        }
+    ).map_err(|e| e.to_string())
 }
 
 #[tauri::command]

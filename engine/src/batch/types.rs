@@ -17,7 +17,7 @@ pub struct ProcessingResult {
     pub error: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct BatchProgress {
     pub total_files: usize,
     pub processed_files: usize,

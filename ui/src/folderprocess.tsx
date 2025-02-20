@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from '@tauri-apps/api/event';
 import { open } from '@tauri-apps/plugin-dialog';
 import { FourierControls, type FourierOptions, type FrequencyRange } from './FourierControls';
 import { BlockControls, type BlockOptions } from './BlockControls';
@@ -38,6 +39,60 @@ type ScrambleTypeOption =
       }
     };
 
+    const ProgressPanel = ({ progress, results }: { progress: BatchProgress | null, results: ProcessingResult[] }) => {
+      if (!progress && results.length === 0) return null;
+    
+      const successCount = results.filter(r => r.success).length;
+      const failCount = results.filter(r => !r.success).length;
+      const percentage = progress ? (progress.processed_files / progress.total_files) * 100 : 0;
+    
+      return (
+        <div className="results-panel">
+          <div className="progress-section">
+            {progress && (
+              <>
+                <div className="progress-header">
+                  <h3>Processing Progress</h3>
+                  {progress?.current_file && (
+                    <p className="current-file">
+                      Processing: {progress.processed_files} / {progress.total_files} images
+                    </p>
+                  )}
+                </div>
+                
+                <div className="progress-bar">
+                  <div 
+                    className="progress-fill"
+                    style={{ width: `${percentage}%` }}
+                  />
+                  <span className="progress-text">
+                    {Math.round(percentage)}% complete
+                  </span>
+                </div>
+              </>
+            )}
+    
+            {results.length > 0 && (
+              <div className="progress-stats">
+                <div className="stat-item">
+                  <span className="stat-label">Completed</span>
+                  <span className="stat-value">{results.length}</span>
+                </div>
+                <div className="stat-item">
+                  <span className="stat-label">Success</span>
+                  <span className="stat-value success">{successCount}</span>
+                </div>
+                <div className="stat-item">
+                  <span className="stat-label">Failed</span>
+                  <span className="stat-value error">{failCount}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    };
+
 function FolderProcess() {
   const [inputDir, setInputDir] = useState<string | null>(null);
   const [outputDir, setOutputDir] = useState<string | null>(null);
@@ -62,6 +117,16 @@ function FolderProcess() {
     interpolate_edges: true,
     padding_mode: 'Reflect'
   });
+
+  useEffect(() => {
+    const unlisten = listen<BatchProgress>('batch-progress', (event) => {
+      setProgress(event.payload);
+    });
+
+    return () => {
+      unlisten.then(unsubscribe => unsubscribe());
+    };
+  }, []);
 
   useEffect(() => {
     setFourierOptions(prev => ({
@@ -287,38 +352,9 @@ function FolderProcess() {
         {error && <div className="error-message">{error}</div>}
       </div>
 
-      {/* Progress and Results */}
+      {/* New Progress and Results Panel */}
       {(isProcessing || results.length > 0) && (
-        <div className="results-panel">
-          {progress && (
-            <div className="progress-bar">
-              <div 
-                className="progress-fill"
-                style={{ width: `${(progress.processed_files / progress.total_files) * 100}%` }}
-              />
-              <span className="progress-text">
-                {progress.processed_files} / {progress.total_files} images processed
-              </span>
-            </div>
-          )}
-
-          {results.length > 0 && (
-            <div className="results-list">
-              <h3>Processing Results</h3>
-              <div className="results-summary">
-                <p>Successfully processed: {results.filter(r => r.success).length}</p>
-                <p>Failed: {results.filter(r => !r.success).length}</p>
-              </div>
-              
-              {results.filter(r => !r.success).map((result, index) => (
-                <div key={index} className="result-item error">
-                  <span className="file-name">{result.input_path}</span>
-                  <span className="error-message">{result.error}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <ProgressPanel progress={progress} results={results} />
       )}
     </div>
   );

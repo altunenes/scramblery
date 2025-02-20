@@ -103,6 +103,7 @@ pub fn process_directory_with_progress<F>(
 where
     F: ProgressCallback,
 {
+    std::fs::create_dir_all(&options.output_dir)?;
     let entries: Vec<_> = std::fs::read_dir(&options.input_dir)?
         .filter_map(|entry| entry.ok())
         .filter(|entry| {
@@ -121,20 +122,18 @@ where
     let results: Vec<ProcessingResult> = entries.par_iter()
         .map(|entry| {
             let input_path = entry.path();
-            
-            progress_callback(BatchProgress {
-                total_files,
-                processed_files: processed.load(std::sync::atomic::Ordering::Relaxed),
-                current_file: Some(input_path.clone()),
-            });
-
             let result = process_single_image(
                 &input_path,
                 &options.output_dir.join(input_path.file_name().unwrap()),
                 &options.scramble_options,
             );
 
-            processed.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            let current_processed = processed.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+            progress_callback(BatchProgress {
+                total_files,
+                processed_files: current_processed,
+                current_file: Some(input_path.clone()),
+            });
 
             match result {
                 Ok(_) => ProcessingResult {
