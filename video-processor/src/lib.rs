@@ -194,7 +194,7 @@ impl VideoProcessor {
                     }
 
                     let info = video_info.as_ref().unwrap();
-                    let mut buffer = buffer.to_owned();
+                    let buffer = buffer.to_owned();
                     let mut frame = gst_video::VideoFrame::from_buffer_writable(buffer, info)
                         .map_err(|_| {
                             error!("Failed to create writable frame");

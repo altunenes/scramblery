@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 use anyhow::Result;
-use video_processor::{VideoProcessor, VideoFrameExt, Writable};
+use video_processor::{VideoProcessor, VideoFrameExt};
 use image::{DynamicImage, RgbaImage};
 use serde::{Serialize, Deserialize};
 use crate::scramble::{ScrambleType, ScrambleOptions};
@@ -29,7 +29,7 @@ pub fn process_video(options: &VideoProcessingOptions) -> Result<()> {
             let mut image = RgbaImage::new(width, height);
             for y in 0..height {
                 for x in 0..width {
-                    let offset = (y as usize * stride + x as usize * 4);
+                    let offset = y as usize * stride + x as usize * 4;
                     let pixel = image::Rgba([
                         data[offset],
                         data[offset + 1],
@@ -87,7 +87,7 @@ pub fn process_video(options: &VideoProcessingOptions) -> Result<()> {
             for y in 0..height {
                 for x in 0..width {
                     let pixel = processed.get_pixel(x, y);
-                    let offset = (y as usize * stride + x as usize * 4);
+                    let offset = y as usize * stride + x as usize * 4;
                     data[offset] = pixel[0];
                     data[offset + 1] = pixel[1];
                     data[offset + 2] = pixel[2];
