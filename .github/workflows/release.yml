@@ -26,6 +26,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
 
       - name: Install Node.js
         uses: actions/setup-node@v4
@@ -67,20 +70,32 @@ jobs:
         if: matrix.platform == 'macos-latest'
         run: |
           brew install pkg-config glib gstreamer gst-plugins-base gst-plugins-good gst-plugins-bad gst-plugins-ugly
-          echo "PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:/opt/homebrew/lib/pkgconfig" >> $GITHUB_ENV
-          echo "LIBRARY_PATH=/usr/local/lib:/opt/homebrew/lib" >> $GITHUB_ENV
+          echo "PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:/opt/homebrew/lib/pkgconfig:/opt/homebrew/Cellar/gstreamer/1.22.8/lib/pkgconfig" >> $GITHUB_ENV
+          echo "LIBRARY_PATH=/usr/local/lib:/opt/homebrew/lib:/opt/homebrew/Cellar/gstreamer/1.22.8/lib" >> $GITHUB_ENV
           echo "PKG_CONFIG_ALLOW_CROSS=1" >> $GITHUB_ENV
+          echo "DYLD_LIBRARY_PATH=/opt/homebrew/lib:/opt/homebrew/Cellar/gstreamer/1.22.8/lib" >> $GITHUB_ENV
+          echo "GST_PLUGIN_PATH=/opt/homebrew/lib/gstreamer-1.0" >> $GITHUB_ENV
 
       # Windows dependencies
       - name: Install Windows dependencies
         if: matrix.platform == 'windows-latest'
+        shell: pwsh
         run: |
-          choco install pkg-config
-          choco install mingw
-          choco install gstreamer
-          # Set pkg-config path for Windows
-          echo "PKG_CONFIG_PATH=C:\gstreamer\1.0\msvc_x86_64\lib\pkgconfig" >> $GITHUB_ENV
-          echo "GSTREAMER_1_0_ROOT_MSVC_X86_64=C:\gstreamer\1.0\msvc_x86_64" >> $GITHUB_ENV
+          choco install -y pkgconfiglite
+          choco install -y mingw
+          
+          # Download and extract GStreamer development and runtime installers
+          Invoke-WebRequest -Uri "https://gstreamer.freedesktop.org/data/pkg/windows/1.22.8/msvc/gstreamer-1.0-msvc-x86_64-1.22.8.msi" -OutFile "gstreamer.msi"
+          Invoke-WebRequest -Uri "https://gstreamer.freedesktop.org/data/pkg/windows/1.22.8/msvc/gstreamer-1.0-devel-msvc-x86_64-1.22.8.msi" -OutFile "gstreamer-devel.msi"
+          
+          # Install MSIs
+          Start-Process -Wait msiexec -ArgumentList "/i gstreamer.msi /quiet"
+          Start-Process -Wait msiexec -ArgumentList "/i gstreamer-devel.msi /quiet"
+          
+          # Set environment variables
+          echo "PKG_CONFIG_PATH=C:\gstreamer\1.0\msvc_x86_64\lib\pkgconfig" >> $env:GITHUB_ENV
+          echo "GSTREAMER_1_0_ROOT_MSVC_X86_64=C:\gstreamer\1.0\msvc_x86_64" >> $env:GITHUB_ENV
+          echo "PATH=C:\gstreamer\1.0\msvc_x86_64\bin;$env:PATH" >> $env:GITHUB_ENV
 
       - name: Install frontend dependencies
         run: |
