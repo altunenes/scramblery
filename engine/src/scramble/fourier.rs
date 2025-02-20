@@ -269,7 +269,7 @@ impl FourierScrambler {
                 let orig = data[idx];
                 let mag = orig.norm();
                 let orig_phase = orig.arg();
-                let random_phase = self.rng.gen_range(0.0..(2.0 * std::f64::consts::PI));
+                let random_phase = self.rng.random_range(0.0..(2.0 * std::f64::consts::PI));
                 let dphase = angle_difference(random_phase, orig_phase);
                 let new_phase = orig_phase + self.options.intensity as f64 * dphase;
                 let new_val = Complex64::from_polar(mag, new_phase);
