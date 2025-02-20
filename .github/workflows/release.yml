@@ -100,12 +100,15 @@ jobs:
         run: |
           Write-Host "Starting GStreamer installation process..."
           
-          # Set up paths
+          # Set up paths and timeouts
           $gstVer = "1.22.8"
           $tempDir = "C:\gst-temp"
+          $installDir = "C:\gstreamer"
+          $timeout = 300  # 5 minutes timeout
           
           Write-Host "Creating directories..."
           New-Item -ItemType Directory -Force -Path $tempDir
+          New-Item -ItemType Directory -Force -Path $installDir
           
           Write-Host "Downloading installers..."
           $baseUrl = "https://gstreamer.freedesktop.org/data/pkg/windows/$gstVer/msvc"
@@ -118,51 +121,38 @@ jobs:
           Invoke-WebRequest -Uri $develUrl -OutFile "$tempDir\gstreamer-devel.msi"
           
           Write-Host "Installing runtime..."
-          $process = Start-Process msiexec -ArgumentList "/i", "$tempDir\gstreamer.msi", "/qn" -Wait -PassThru -NoNewWindow
+          $process = Start-Process msiexec -ArgumentList "/i", "$tempDir\gstreamer.msi", "INSTALLDIR=$installDir", "/qn" -Wait -PassThru -NoNewWindow
           if ($process.ExitCode -ne 0) {
               Write-Host "Runtime installation failed with code: $($process.ExitCode)"
               exit 1
           }
           
           Write-Host "Installing development files..."
-          $process = Start-Process msiexec -ArgumentList "/i", "$tempDir\gstreamer-devel.msi", "/qn" -Wait -PassThru -NoNewWindow
+          $process = Start-Process msiexec -ArgumentList "/i", "$tempDir\gstreamer-devel.msi", "INSTALLDIR=$installDir", "/qn" -Wait -PassThru -NoNewWindow
           if ($process.ExitCode -ne 0) {
               Write-Host "Development installation failed with code: $($process.ExitCode)"
               exit 1
           }
           
-          Write-Host "Finding GStreamer installation..."
-          $possiblePaths = @(
-              "C:\gstreamer\1.0\msvc_x86_64",
-              "C:\Program Files\GStreamer\1.0\msvc_x86_64",
-              "C:\Program Files (x86)\GStreamer\1.0\msvc_x86_64"
-          )
+          Write-Host "Verifying installation..."
+          $expectedPath = "$installDir\1.0\msvc_x86_64"
           
-          $gstPath = $null
-          foreach ($path in $possiblePaths) {
-              if (Test-Path $path) {
-                  $gstPath = $path
-                  Write-Host "Found GStreamer at: $gstPath"
-                  break
+          # Wait for directory to be created with timeout
+          $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+          while (-not (Test-Path $expectedPath)) {
+              if ($stopwatch.Elapsed.TotalSeconds -gt 60) {
+                  Write-Host "Timeout waiting for installation directory"
+                  Write-Host "Current directory structure:"
+                  Get-ChildItem -Path $installDir -Recurse
+                  exit 1
               }
+              Start-Sleep -Seconds 5
+              Write-Host "Waiting for installation directory... (${stopwatch.Elapsed.TotalSeconds}s)"
           }
           
-          if (-not $gstPath) {
-              Write-Host "GStreamer installation not found. Searching in common locations..."
-              Get-ChildItem -Path "C:\" -Recurse -ErrorAction SilentlyContinue -Filter "gstreamer-1.0.dll" | ForEach-Object {
-                  Write-Host "Found GStreamer DLL at: $($_.FullName)"
-                  $gstPath = Split-Path (Split-Path $_.FullName -Parent) -Parent
-              }
-          }
+          Write-Host "Installation directory found. Setting environment variables..."
+          $gstPath = $expectedPath
           
-          if (-not $gstPath) {
-              Write-Host "Could not find GStreamer installation"
-              Write-Host "Directory contents of C:\:"
-              Get-ChildItem -Path "C:\" -Depth 2
-              exit 1
-          }
-          
-          Write-Host "Setting environment variables for GStreamer at: $gstPath"
           $env:GSTREAMER_1_0_ROOT_MSVC_X86_64 = $gstPath
           $env:PKG_CONFIG_PATH = "$gstPath\lib\pkgconfig"
           $env:Path = "$gstPath\bin;$env:Path"
@@ -172,16 +162,30 @@ jobs:
           "PKG_CONFIG_PATH=$gstPath\lib\pkgconfig" | Out-File -FilePath $env:GITHUB_ENV -Append
           "PATH=$gstPath\bin;$env:Path" | Out-File -FilePath $env:GITHUB_ENV -Append
           
-          Write-Host "Verifying GStreamer installation..."
-          if (Test-Path "$gstPath\bin\gstreamer-1.0.dll") {
-              Write-Host "GStreamer installation verified"
-              Get-ChildItem "$gstPath\bin" | Select-Object -First 5 | ForEach-Object {
-                  Write-Host "Found: $($_.Name)"
+          Write-Host "Environment variables set:"
+          Write-Host "GSTREAMER_1_0_ROOT_MSVC_X86_64=$gstPath"
+          Write-Host "PKG_CONFIG_PATH=$env:PKG_CONFIG_PATH"
+          Write-Host "PATH updated"
+          
+          Write-Host "Verifying critical files..."
+          $criticalFiles = @(
+              "bin\gstreamer-1.0.dll",
+              "lib\pkgconfig\gstreamer-1.0.pc"
+          )
+          
+          foreach ($file in $criticalFiles) {
+              $fullPath = Join-Path $gstPath $file
+              if (Test-Path $fullPath) {
+                  Write-Host "Found: $file"
+              } else {
+                  Write-Host "Missing critical file: $file"
+                  Write-Host "Directory contents:"
+                  Get-ChildItem -Path $gstPath -Recurse -Depth 2
+                  exit 1
               }
-          } else {
-              Write-Host "GStreamer installation verification failed"
-              exit 1
           }
+          
+          Write-Host "GStreamer installation completed successfully"
           Write-Host "Starting GStreamer installation process..."
           
           # Set up paths
