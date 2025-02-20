@@ -14,8 +14,6 @@ jobs:
         include:
           - platform: macos-latest
             args: '--target aarch64-apple-darwin'
-          - platform: macos-latest
-            args: '--target x86_64-apple-darwin'
           - platform: ubuntu-22.04
             args: ''
           - platform: windows-latest
@@ -28,7 +26,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Fix Cargo.toml case sensitivity
       - name: Fix workspace structure
         shell: bash
         run: |
@@ -50,7 +47,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin' || '' }}
 
       # Linux dependencies
       - name: Install Linux dependencies
@@ -94,52 +91,60 @@ jobs:
           echo "PKG_CONFIG_PATH=/Library/Frameworks/GStreamer.framework/Versions/Current/lib/pkgconfig" >> $GITHUB_ENV
           echo "GST_PLUGIN_PATH=/Library/Frameworks/GStreamer.framework/Versions/Current/lib" >> $GITHUB_ENV
           echo "DYLD_FALLBACK_LIBRARY_PATH=/Library/Frameworks/GStreamer.framework/Versions/Current/lib" >> $GITHUB_ENV
-          
-          # Debug information
-          pkg-config --list-all | grep gstreamer
-          ls -la /Library/Frameworks/GStreamer.framework/Versions/Current/lib/pkgconfig
-          pkg-config --modversion gstreamer-1.0 || true
 
       # Windows dependencies
       - name: Install Windows dependencies
         if: matrix.platform == 'windows-latest'
         shell: pwsh
         run: |
-          # Create necessary directories
-          New-Item -ItemType Directory -Force -Path "C:\gstreamer\1.0\msvc_x86_64" | Out-Null
+          Write-Host "Installing GStreamer..."
           
-          # Download GStreamer
+          # Set up paths
           $gstVer = "1.22.8"
           $tempDir = "C:\gst-temp"
+          $installDir = "C:\gstreamer\1.0\msvc_x86_64"
+          
+          # Create directories
           New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
+          New-Item -ItemType Directory -Force -Path $installDir | Out-Null
           
-          $gstUrl = "https://gstreamer.freedesktop.org/data/pkg/windows/$gstVer/msvc"
-          $msiPath = "$tempDir\gstreamer.msi"
-          $devMsiPath = "$tempDir\gstreamer-devel.msi"
+          # Download installers
+          $baseUrl = "https://gstreamer.freedesktop.org/data/pkg/windows/$gstVer/msvc"
+          Invoke-WebRequest -Uri "$baseUrl/gstreamer-1.0-msvc-x86_64-$gstVer.msi" -OutFile "$tempDir\gstreamer.msi"
+          Invoke-WebRequest -Uri "$baseUrl/gstreamer-1.0-devel-msvc-x86_64-$gstVer.msi" -OutFile "$tempDir\gstreamer-devel.msi"
           
-          Invoke-WebRequest -Uri "$gstUrl/gstreamer-1.0-msvc-x86_64-$gstVer.msi" -OutFile $msiPath
-          Invoke-WebRequest -Uri "$gstUrl/gstreamer-1.0-devel-msvc-x86_64-$gstVer.msi" -OutFile $devMsiPath
+          Write-Host "Installing runtime..."
+          $process = Start-Process msiexec -ArgumentList "/i", "$tempDir\gstreamer.msi", "ADDLOCAL=ALL", "INSTALLDIR=$installDir", "/qn" -Wait -PassThru -NoNewWindow
+          if ($process.ExitCode -ne 0) {
+              Write-Host "Runtime installation failed with code: $($process.ExitCode)"
+              exit 1
+          }
           
-          # Install MSIs with logging
-          $logPath = "$tempDir\gst-install.log"
-          $devLogPath = "$tempDir\gst-dev-install.log"
-          
-          Start-Process msiexec.exe -Wait -ArgumentList "/i `"$msiPath`" /quiet /l*v `"$logPath`" INSTALLDIR=C:\gstreamer\1.0\msvc_x86_64"
-          Start-Process msiexec.exe -Wait -ArgumentList "/i `"$devMsiPath`" /quiet /l*v `"$devLogPath`" INSTALLDIR=C:\gstreamer\1.0\msvc_x86_64"
+          Write-Host "Installing development files..."
+          $process = Start-Process msiexec -ArgumentList "/i", "$tempDir\gstreamer-devel.msi", "ADDLOCAL=ALL", "INSTALLDIR=$installDir", "/qn" -Wait -PassThru -NoNewWindow
+          if ($process.ExitCode -ne 0) {
+              Write-Host "Development installation failed with code: $($process.ExitCode)"
+              exit 1
+          }
           
           # Set environment variables
-          echo "GSTREAMER_1_0_ROOT_MSVC_X86_64=C:\gstreamer\1.0\msvc_x86_64" | Out-File -FilePath $env:GITHUB_ENV -Append
-          echo "PKG_CONFIG_PATH=C:\gstreamer\1.0\msvc_x86_64\lib\pkgconfig" | Out-File -FilePath $env:GITHUB_ENV -Append
-          echo "PATH=C:\gstreamer\1.0\msvc_x86_64\bin;$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Append
+          $env:GSTREAMER_1_0_ROOT_MSVC_X86_64 = $installDir
+          $env:PKG_CONFIG_PATH = "$installDir\lib\pkgconfig"
+          $env:Path = "$installDir\bin;$env:Path"
+          
+          # Write to GITHUB_ENV
+          echo "GSTREAMER_1_0_ROOT_MSVC_X86_64=$installDir" >> $env:GITHUB_ENV
+          echo "PKG_CONFIG_PATH=$installDir\lib\pkgconfig" >> $env:GITHUB_ENV
+          echo "PATH=$installDir\bin;$env:Path" >> $env:GITHUB_ENV
           
           # Verify installation
-          if (Test-Path "C:\gstreamer\1.0\msvc_x86_64\bin") {
-            Get-ChildItem "C:\gstreamer\1.0\msvc_x86_64\bin"
+          Write-Host "Verifying installation..."
+          if (Test-Path "$installDir\bin\gstreamer-1.0.dll") {
+              Write-Host "GStreamer installation successful"
+              Get-ChildItem "$installDir\bin" | Select-Object Name
           } else {
-            Write-Host "Installation failed. Log contents:"
-            Get-Content $logPath
-            Get-Content $devLogPath
-            exit 1
+              Write-Host "GStreamer installation failed - DLL not found"
+              exit 1
           }
 
       - name: Install frontend dependencies
