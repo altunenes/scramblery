@@ -1,3 +1,4 @@
+#based on the: https://github.com/tauri-apps/tauri-action
 name: Release
 on:
   push:
@@ -14,7 +15,7 @@ jobs:
         include:
           # macOS builds
           - platform: macos-latest
-            args: '--target aarch64-apple-darwin' # M1/M2/M3 Macs
+            args: '--target aarch64-apple-darwin'  # M1/M2/M3 Macs
           - platform: macos-latest
             args: '--target x86_64-apple-darwin' # Intel Macs
           
@@ -48,13 +49,29 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.0-dev libwebkit2gtk-4.1-dev \
-            libappindicator3-dev librsvg2-dev patchelf
+            libappindicator3-dev librsvg2-dev patchelf \
+            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+            gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
+            gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly
+
+      - name: Install macOS dependencies
+        if: matrix.platform == 'macos-latest'
+        run: |
+          brew install gstreamer gst-plugins-base gst-plugins-good gst-plugins-bad gst-plugins-ugly pkg-config
+          echo "PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:/opt/homebrew/lib/pkgconfig" >> $GITHUB_ENV
+          echo "LIBRARY_PATH=/usr/local/lib:/opt/homebrew/lib" >> $GITHUB_ENV
 
       - name: Install frontend dependencies
         run: |
           cd ui
           npm install
 
+      - name: Check GStreamer installation
+        run: |
+          pkg-config --list-all | grep gstreamer || true
+          pkg-config --modversion gstreamer-1.0 || true
+          echo "PKG_CONFIG_PATH=$PKG_CONFIG_PATH"
+          
       - name: Build the app
         uses: tauri-apps/tauri-action@v0
         env:
