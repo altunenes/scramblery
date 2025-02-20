@@ -73,7 +73,7 @@ jobs:
             gstreamer1.0-plugins-bad \
             gstreamer1.0-plugins-ugly
 
-      # macOS dependencies
+      # macOS dependencies and disable Gatekeeper (for testing only)
       - name: Install macOS dependencies
         if: matrix.platform == 'macos-latest'
         run: |
@@ -88,6 +88,8 @@ jobs:
           echo "PKG_CONFIG_PATH=/Library/Frameworks/GStreamer.framework/Versions/Current/lib/pkgconfig" >> $GITHUB_ENV
           echo "GST_PLUGIN_PATH=/Library/Frameworks/GStreamer.framework/Versions/Current/lib" >> $GITHUB_ENV
           echo "DYLD_FALLBACK_LIBRARY_PATH=/Library/Frameworks/GStreamer.framework/Versions/Current/lib" >> $GITHUB_ENV
+          # Disable Gatekeeper (for testing purposes only)
+          sudo spctl --master-disable
 
       # Windows dependencies (single, consolidated step)
       - name: Install Windows dependencies
@@ -183,3 +185,14 @@ jobs:
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
+
+      # Self-sign the macOS app using ad-hoc signing (for testing)
+      - name: Self-sign macOS app
+        if: matrix.platform == 'macos-latest'
+        run: |
+          # Adjust the path below to point to your built app bundle
+          APP_PATH="./ui/target/release/bundle/macos/scramblery.app"
+          echo "Signing app at $APP_PATH"
+          codesign --force --deep --sign - "$APP_PATH"
+          echo "Verifying signature:"
+          spctl --assess --verbose "$APP_PATH"
