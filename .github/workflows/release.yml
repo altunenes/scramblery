@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v*' # Will trigger for every tag that starts with v (v1.0, v0.1.0, etc)
+      - 'v*'
 
 jobs:
   release:
@@ -13,17 +13,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # macOS builds
           - platform: macos-latest
-            args: '--target aarch64-apple-darwin'  # M1/M2/M3 Macs
+            args: '--target aarch64-apple-darwin'
           - platform: macos-latest
-            args: '--target x86_64-apple-darwin' # Intel Macs
-          
-          # Linux build
+            args: '--target x86_64-apple-darwin'
           - platform: ubuntu-22.04
             args: ''
-          
-          # Windows build  
           - platform: windows-latest
             args: ''
 
@@ -44,38 +39,65 @@ jobs:
         with:
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
+      # Linux dependencies
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.0-dev libwebkit2gtk-4.1-dev \
-            libappindicator3-dev librsvg2-dev patchelf \
-            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
-            gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
-            gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly
+          sudo apt-get install -y \
+            libwebkit2gtk-4.0-dev \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libunwind-dev \
+            pkg-config \
+            cmake \
+            build-essential \
+            libglib2.0-dev \
+            libgstreamer1.0-dev \
+            libgstreamer-plugins-base1.0-dev \
+            gstreamer1.0-plugins-base \
+            gstreamer1.0-plugins-good \
+            gstreamer1.0-plugins-bad \
+            gstreamer1.0-plugins-ugly
 
+      # macOS dependencies
       - name: Install macOS dependencies
         if: matrix.platform == 'macos-latest'
         run: |
-          brew install gstreamer gst-plugins-base gst-plugins-good gst-plugins-bad gst-plugins-ugly pkg-config
+          brew install pkg-config glib gstreamer gst-plugins-base gst-plugins-good gst-plugins-bad gst-plugins-ugly
           echo "PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:/opt/homebrew/lib/pkgconfig" >> $GITHUB_ENV
           echo "LIBRARY_PATH=/usr/local/lib:/opt/homebrew/lib" >> $GITHUB_ENV
+          echo "PKG_CONFIG_ALLOW_CROSS=1" >> $GITHUB_ENV
+
+      # Windows dependencies
+      - name: Install Windows dependencies
+        if: matrix.platform == 'windows-latest'
+        run: |
+          choco install pkg-config
+          choco install mingw
+          choco install gstreamer
+          # Set pkg-config path for Windows
+          echo "PKG_CONFIG_PATH=C:\gstreamer\1.0\msvc_x86_64\lib\pkgconfig" >> $GITHUB_ENV
+          echo "GSTREAMER_1_0_ROOT_MSVC_X86_64=C:\gstreamer\1.0\msvc_x86_64" >> $GITHUB_ENV
 
       - name: Install frontend dependencies
         run: |
           cd ui
           npm install
 
-      - name: Check GStreamer installation
+      - name: Check environment
         run: |
-          pkg-config --list-all | grep gstreamer || true
-          pkg-config --modversion gstreamer-1.0 || true
+          pkg-config --version || echo "pkg-config not found"
+          pkg-config --list-all || echo "No packages found"
           echo "PKG_CONFIG_PATH=$PKG_CONFIG_PATH"
           
       - name: Build the app
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PKG_CONFIG_ALLOW_CROSS: 1
         with:
           projectPath: './ui'
           tagName: ${{ github.ref_name }}
