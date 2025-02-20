@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 pub enum ScrambleType {
     Pixel,
     Fourier(FourierOptions),
+    Block(BlockOptions),
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum BackgroundMode {
@@ -38,6 +39,13 @@ pub enum FrequencyRange {
         high: f32,
     },
 }
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct BlockOptions {
+    pub block_size: (u32, u32),    // Width and height of blocks
+    pub interpolate_edges: bool,    // Whether to smooth transitions between blocks
+    pub padding_mode: PaddingMode,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum PaddingMode {
     Zero,
@@ -80,6 +88,15 @@ impl Default for FourierOptions {
             padding_mode: PaddingMode::Reflect,
             intensity: 1.0,
             grayscale: false,
+        }
+    }
+}
+impl Default for BlockOptions {
+    fn default() -> Self {
+        Self {
+            block_size: (32, 32),
+            interpolate_edges: true,
+            padding_mode: PaddingMode::Reflect,
         }
     }
 }

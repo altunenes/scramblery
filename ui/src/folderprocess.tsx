@@ -1,7 +1,8 @@
-import { useState,useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { invoke } from "@tauri-apps/api/core";
-import { open} from '@tauri-apps/plugin-dialog';
+import { open } from '@tauri-apps/plugin-dialog';
 import { FourierControls, type FourierOptions, type FrequencyRange } from './FourierControls';
+import { BlockControls, type BlockOptions } from './BlockControls';
 import BackButton from './comp/BackButton';
 
 interface ProcessingResult {
@@ -17,6 +18,26 @@ interface BatchProgress {
   current_file?: string;
 }
 
+type ScrambleTypeOption = 
+  | 'Pixel'
+  | { 
+      Fourier: {
+        frequency_range: any;
+        phase_scramble: boolean;
+        magnitude_scramble: boolean;
+        padding_mode: string;
+        intensity: number;
+        grayscale: boolean;
+      }
+    }
+  | {
+      Block: {
+        block_size: [number, number];
+        interpolate_edges: boolean;
+        padding_mode: 'Zero' | 'Reflect' | 'Wrap';
+      }
+    };
+
 function FolderProcess() {
   const [inputDir, setInputDir] = useState<string | null>(null);
   const [outputDir, setOutputDir] = useState<string | null>(null);
@@ -27,7 +48,7 @@ function FolderProcess() {
   const [progress, setProgress] = useState<BatchProgress | null>(null);
   const [results, setResults] = useState<ProcessingResult[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [scrambleType, setScrambleType] = useState<'Pixel' | 'Fourier'>('Pixel');
+  const [scrambleType, setScrambleType] = useState<'Pixel' | 'Fourier' | 'Block'>('Pixel');
   const [fourierOptions, setFourierOptions] = useState<FourierOptions>({
     frequency_range: 'All',
     phase_scramble: true,
@@ -36,12 +57,19 @@ function FolderProcess() {
     intensity: 0.5,
     grayscale: false
   });
+  const [blockOptions, setBlockOptions] = useState<BlockOptions>({
+    block_size: [32, 32],
+    interpolate_edges: true,
+    padding_mode: 'Reflect'
+  });
+
   useEffect(() => {
     setFourierOptions(prev => ({
       ...prev,
       intensity: intensity / 100
     }));
   }, [intensity]);
+
   const handleSelectInputDir = async () => {
     try {
       const selected = await open({
@@ -73,6 +101,7 @@ function FolderProcess() {
       setError('Failed to select output directory');
     }
   };
+
   const formatFrequencyRange = (range: FrequencyRange) => {
     if (range === 'All') return 'All';
     if ('HighPass' in range) return { HighPass: range.HighPass.cutoff };
@@ -82,6 +111,7 @@ function FolderProcess() {
     };
     return 'All';
   };
+
   const handleProcess = async () => {
     if (!inputDir || !outputDir) return;
     
@@ -92,22 +122,36 @@ function FolderProcess() {
 
     try {
       const sliderIntensity = intensity / 100;
+      
+      let scrambleTypeOption: ScrambleTypeOption;
+      switch (scrambleType) {
+        case 'Pixel':
+          scrambleTypeOption = 'Pixel';
+          break;
+        case 'Fourier':
+          scrambleTypeOption = {
+            Fourier: {
+              frequency_range: formatFrequencyRange(fourierOptions.frequency_range),
+              phase_scramble: fourierOptions.phase_scramble,
+              magnitude_scramble: fourierOptions.magnitude_scramble,
+              padding_mode: fourierOptions.padding_mode,
+              intensity: sliderIntensity,
+              grayscale: fourierOptions.grayscale
+            }
+          };
+          break;
+        case 'Block':
+          scrambleTypeOption = {
+            Block: blockOptions
+          };
+          break;
+      }
+
       const options = {
         input_dir: inputDir,
         output_dir: outputDir,
         scramble_options: {
-          scramble_type: scrambleType === 'Pixel' 
-            ? 'Pixel'
-            : {
-                Fourier: {
-                  frequency_range: formatFrequencyRange(fourierOptions.frequency_range),
-                  phase_scramble: fourierOptions.phase_scramble,
-                  magnitude_scramble: fourierOptions.magnitude_scramble,
-                  padding_mode: fourierOptions.padding_mode,
-                  intensity: sliderIntensity,
-                  grayscale: fourierOptions.grayscale
-                }
-              },
+          scramble_type: scrambleTypeOption,
           intensity: sliderIntensity,
           seed: null,
           face_detection: useFaceDetection ? {
@@ -140,11 +184,12 @@ function FolderProcess() {
           <label>Scramble Method:</label>
           <select
             value={scrambleType}
-            onChange={(e) => setScrambleType(e.target.value as 'Pixel' | 'Fourier')}
+            onChange={(e) => setScrambleType(e.target.value as 'Pixel' | 'Fourier' | 'Block')}
             className="select-input"
           >
             <option value="Pixel">Pixel Scrambling</option>
             <option value="Fourier">Fourier Scrambling</option>
+            <option value="Block">Block Scrambling</option>
           </select>
         </div>
 
@@ -154,6 +199,14 @@ function FolderProcess() {
             onChange={setFourierOptions}
           />
         )}
+
+        {scrambleType === 'Block' && (
+          <BlockControls
+            options={blockOptions}
+            onChange={setBlockOptions}
+          />
+        )}
+
         <div className="directory-selection">
           <div className="input-group">
             <label>Input Directory</label>
@@ -186,7 +239,6 @@ function FolderProcess() {
           </div>
         </div>
 
-        {/* Reuse the same controls from SingleImage component */}
         <div className="face-detection-control">
           <div className="checkbox-control">
             <input

@@ -56,7 +56,6 @@ fn process_single_image(
     output_path: &Path,
     options: &ScrambleOptions,
 ) -> Result<()> {
-    // Load image
     let img = image::open(input_path)
         .with_context(|| format!("Failed to open image: {}", input_path.display()))?;
 
@@ -67,6 +66,19 @@ fn process_single_image(
                 img.width() as usize,
                 img.height() as usize,
                 fourier_opts.clone(),
+                options.seed,
+            );
+            
+            if let Some(face_opts) = &options.face_detection {
+                scrambler.scramble_with_face_detection(&img, face_opts)?
+            } else {
+                scrambler.scramble(&img)?
+            }
+        },
+        ScrambleType::Block(block_opts) => {
+            let mut scrambler = crate::scramble::BlockScrambler::new(
+
+                block_opts.clone(),
                 options.seed,
             );
             

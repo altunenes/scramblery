@@ -63,6 +63,21 @@ pub fn process_video(options: &VideoProcessingOptions) -> Result<()> {
                     } else {
                         scrambler.scramble(&DynamicImage::ImageRgba8(image))?
                     }
+                },
+                ScrambleType::Block(block_opts) => {
+                    let mut scrambler = crate::scramble::BlockScrambler::new(
+                        block_opts.clone(),
+                        scramble_options.seed,
+                    );
+                    
+                    if let Some(face_opts) = &scramble_options.face_detection {
+                        scrambler.scramble_with_face_detection(
+                            &DynamicImage::ImageRgba8(image),
+                            face_opts
+                        )?
+                    } else {
+                        scrambler.scramble(&DynamicImage::ImageRgba8(image))?
+                    }
                 }
             };
             

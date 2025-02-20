@@ -43,15 +43,25 @@ pub fn process_base64_image(
             } else {
                 scrambler.scramble(&img)?
             }
+        },
+        ScrambleType::Block(block_opts) => {
+            let mut scrambler = crate::scramble::BlockScrambler::new(
+
+                block_opts.clone(),
+                options.seed,
+            );
+            
+            if let Some(face_opts) = &options.face_detection {
+                scrambler.scramble_with_face_detection(&img, face_opts)?
+            } else {
+                scrambler.scramble(&img)?
+            }
         }
     };
-
-    // Convert the processed image back to binary data (PNG format)
     let mut buffer = Cursor::new(Vec::new());
     scrambled
         .write_to(&mut buffer, ImageFormat::Png)
         .map_err(|e| anyhow::anyhow!("Failed to encode scrambled image: {}", e))?;
 
-    // Convert binary data back to base64 text
     Ok(general_purpose::STANDARD.encode(buffer.into_inner()))
 }

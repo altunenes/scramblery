@@ -3,6 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeFile } from '@tauri-apps/plugin-fs';
 import BackButton from './comp/BackButton';
+import { BlockControls, type BlockOptions } from './BlockControls';
+
 import { FourierControls, type FourierOptions, type FrequencyRange } from './FourierControls';
 interface SelectedImage {
   data: string;
@@ -16,7 +18,7 @@ interface SelectedImage {
 function SingleImage() {
   const [selectedImage, setSelectedImage] = useState<SelectedImage | null>(null);
   const [scrambledImage, setScrambledImage] = useState<string | null>(null);
-  const [scrambleType, setScrambleType] = useState<'Pixel' | 'Fourier'>('Pixel');
+  const [scrambleType, setScrambleType] = useState<'Pixel' | 'Fourier' | 'Block'>('Pixel');
   const [intensity, setIntensity] = useState(50);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,6 +31,11 @@ function SingleImage() {
     padding_mode: 'Reflect',
     intensity: 0.5,
     grayscale: false
+  });
+  const [blockOptions, setBlockOptions] = useState<BlockOptions>({
+    block_size: [32, 32],
+    interpolate_edges: true,
+    padding_mode: 'Reflect'
   });
   const handleImageUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -78,21 +85,35 @@ function SingleImage() {
     setError(null);
     try {
       const sliderIntensity = intensity / 100;
+      let scrambleTypeOption;
+      
+      switch (scrambleType) {
+        case 'Pixel':
+          scrambleTypeOption = 'Pixel';
+          break;
+        case 'Fourier':
+          scrambleTypeOption = {
+            Fourier: {
+              frequency_range: formatFrequencyRange(fourierOptions.frequency_range),
+              phase_scramble: fourierOptions.phase_scramble,
+              magnitude_scramble: fourierOptions.magnitude_scramble,
+              padding_mode: fourierOptions.padding_mode,
+              intensity: sliderIntensity,
+              grayscale: fourierOptions.grayscale
+            }
+          };
+          break;
+        case 'Block':
+          scrambleTypeOption = {
+            Block: blockOptions
+          };
+          break;
+      }
+
       const result = await invoke<string>('scramble_image', {
         imageData: selectedImage.data,
         options: {
-          scramble_type: scrambleType === 'Pixel' 
-            ? 'Pixel'
-            : {
-                Fourier: {
-                  frequency_range: formatFrequencyRange(fourierOptions.frequency_range),
-                  phase_scramble: fourierOptions.phase_scramble,
-                  magnitude_scramble: fourierOptions.magnitude_scramble,
-                  padding_mode: fourierOptions.padding_mode,
-                  intensity: sliderIntensity,
-                  grayscale: fourierOptions.grayscale
-                }
-              },
+          scramble_type: scrambleTypeOption,
           intensity: sliderIntensity,
           seed: null,
           face_detection: useFaceDetection ? {
@@ -174,14 +195,21 @@ const formatFrequencyRange = (range: FrequencyRange) => {
                 <label>Scramble Method:</label>
                 <select
                   value={scrambleType}
-                  onChange={(e) => setScrambleType(e.target.value as 'Pixel' | 'Fourier')}
+                  onChange={(e) => setScrambleType(e.target.value as 'Pixel' | 'Fourier' | 'Block')}
                   className="select-input"
-                >
+                  >
                   <option value="Pixel">Pixel Scrambling</option>
                   <option value="Fourier">Fourier Scrambling</option>
+                  <option value="Block">Block Scrambling</option>
                 </select>
               </div>
-
+              {/*Block Controls */}
+              {scrambleType === 'Block' && (
+                <BlockControls
+                  options={blockOptions}
+                  onChange={setBlockOptions}
+                />
+              )}
               {/* Always Visible Important Controls */}
               <div className="intensity-control mb-4">
                 <label>Intensity: {intensity}%</label>
