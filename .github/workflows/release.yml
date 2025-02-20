@@ -73,7 +73,7 @@ jobs:
             gstreamer1.0-plugins-bad \
             gstreamer1.0-plugins-ugly
 
-      # macOS dependencies and disable Gatekeeper (for testing only)
+      # macOS dependencies and Gatekeeper workaround
       - name: Install macOS dependencies
         if: matrix.platform == 'macos-latest'
         run: |
@@ -88,10 +88,10 @@ jobs:
           echo "PKG_CONFIG_PATH=/Library/Frameworks/GStreamer.framework/Versions/Current/lib/pkgconfig" >> $GITHUB_ENV
           echo "GST_PLUGIN_PATH=/Library/Frameworks/GStreamer.framework/Versions/Current/lib" >> $GITHUB_ENV
           echo "DYLD_FALLBACK_LIBRARY_PATH=/Library/Frameworks/GStreamer.framework/Versions/Current/lib" >> $GITHUB_ENV
-          # Disable Gatekeeper (for testing purposes only)
+          # For testing purposes: disable Gatekeeper to bypass signature validation issues
           sudo spctl --master-disable
 
-      # Windows dependencies (single, consolidated step)
+      # Windows dependencies (consolidated step)
       - name: Install Windows dependencies
         if: matrix.platform == 'windows-latest'
         shell: pwsh
@@ -186,12 +186,41 @@ jobs:
           prerelease: false
           args: ${{ matrix.args }}
 
-      # Self-sign the macOS app using ad-hoc signing (for testing)
+      # macOS self-signing step
       - name: Self-sign macOS app
         if: matrix.platform == 'macos-latest'
         run: |
-          # Adjust the path below to point to your built app bundle
+          # First check if the app bundle already exists at the standard location.
           APP_PATH="./ui/target/release/bundle/macos/scramblery.app"
+          if [ -d "$APP_PATH" ]; then
+            echo "Found app bundle at $APP_PATH"
+          elif [ -f "scramblery_aarch64.app.tar.gz" ]; then
+            TARGET_DIR="./ui/target/release/bundle/macos"
+            mkdir -p "$TARGET_DIR"
+            echo "Extracting scramblery_aarch64.app.tar.gz to $TARGET_DIR"
+            tar -xzf "scramblery_aarch64.app.tar.gz" -C "$TARGET_DIR"
+            APP_PATH="$TARGET_DIR/scramblery.app"
+          elif [ -f "scramblery_0.1.0_aarch64.dmg" ]; then
+            echo "Found DMG file scramblery_0.1.0_aarch64.dmg. Mounting DMG..."
+            MOUNT_DIR=$(mktemp -d)
+            hdiutil attach "scramblery_0.1.0_aarch64.dmg" -mountpoint "$MOUNT_DIR" -nobrowse -quiet
+            APP_PATH=$(find "$MOUNT_DIR" -maxdepth 1 -name "*.app" | head -n 1)
+            if [ -z "$APP_PATH" ]; then
+              echo "No .app bundle found in DMG."
+              hdiutil detach "$MOUNT_DIR"
+              exit 1
+            fi
+            echo "Copying app bundle from DMG..."
+            TARGET_DIR="./ui/target/release/bundle/macos"
+            mkdir -p "$TARGET_DIR"
+            cp -R "$APP_PATH" "$TARGET_DIR"
+            APP_PATH="$TARGET_DIR/$(basename "$APP_PATH")"
+            hdiutil detach "$MOUNT_DIR"
+            rm -rf "$MOUNT_DIR"
+          else
+            echo "No app bundle found to sign."
+            exit 1
+          fi
           echo "Signing app at $APP_PATH"
           codesign --force --deep --sign - "$APP_PATH"
           echo "Verifying signature:"
