@@ -4,7 +4,7 @@ import { open} from '@tauri-apps/plugin-dialog';
 import { FourierControls, type FourierOptions, type FrequencyRange } from './FourierControls';
 import { BlockControls, type BlockOptions } from './BlockControls';
 import BackButton from './comp/BackButton';
-
+import { listen } from '@tauri-apps/api/event';
 type ScrambleTypeOption = 
   | 'Pixel'
   | { 
@@ -159,7 +159,15 @@ function VideoProcess() {
       setProgress(null);
     }
   };
-
+  useEffect(() => {
+    const unlisten = listen<number>('video-progress', (event) => {
+      setProgress(event.payload);
+    });
+  
+    return () => {
+      unlisten.then(unsubscribe => unsubscribe());
+    };
+  }, []);
   return (
     <div className="app-container">
       <BackButton />

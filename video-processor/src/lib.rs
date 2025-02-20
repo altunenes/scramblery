@@ -4,7 +4,7 @@ use gstreamer_video as gst_video;
 use gstreamer_app as gst_app;
 use std::path::Path;
 use log::{info, error, debug};
-
+use gst::MessageView;
 use gst::prelude::*;
 
 pub use gst_video::video_frame::{VideoFrame, Readable, Writable, VideoFrameExt};
@@ -27,10 +27,10 @@ impl VideoProcessor {
         input_path: P,
         output_path: P,
         frame_callback: impl Fn(&mut VideoFrame<Writable>) -> Result<()> + Send + 'static,
+        progress_callback: impl Fn(f32) + Send + Sync + 'static,
     ) -> Result<()> {
         let input_path = input_path.as_ref();
         let output_path = output_path.as_ref();
-
         info!("Setting up video processing pipeline");
         info!("Input path: {:?}", input_path);
         info!("Output path: {:?}", output_path);
@@ -149,11 +149,41 @@ impl VideoProcessor {
         let mut video_info: Option<gst_video::VideoInfo> = None;
         let appsrc_weak = appsrc.downgrade();
         let frame_count = std::sync::atomic::AtomicUsize::new(0);
+        let total_frames = {
+            // a temporary pipeline for frame estimation
+            let pipeline_str = format!(
+                "filesrc location=\"{}\" ! decodebin ! videoconvert ! fakesink",
+                input_path.to_str().unwrap()
+            );
+            let temp_pipeline = gst::parse::launch(&pipeline_str)?;
+            let temp_pipeline = temp_pipeline.downcast::<gst::Pipeline>().unwrap();
+            temp_pipeline.set_state(gst::State::Playing)?;
+            
+            // on here, wait for pipeline to process the file
+            let bus = temp_pipeline.bus().unwrap();
+            let mut frames = 0;
+            for msg in bus.iter_timed(gst::ClockTime::from_seconds(5)) {
+                if let MessageView::Eos(..) = msg.view() {
+                    if let Some(duration) = temp_pipeline.query_duration::<gst::ClockTime>() {
+                        // Estimate frames based on duration. Most videos are 30 fps, but we can adjust this later
+                        frames = (duration.seconds() * 30) as usize;
+                    }
+                    break;
+                }
+            }
+            temp_pipeline.set_state(gst::State::Null)?;
+            frames
+        };
         
+        info!("Estimated total frames: {}", total_frames); 
         // Clone for new_sample closure
         let appsrc_weak_cb = appsrc_weak.clone();
         // Clone for eos closure
         let appsrc_weak_eos = appsrc_weak.clone();
+
+        let progress_callback = std::sync::Arc::new(progress_callback);
+        let progress_callback_sample = progress_callback.clone();
+        let progress_callback_eos = progress_callback.clone();
 
         // Setup callbacks
         appsink.set_callbacks(
@@ -161,6 +191,12 @@ impl VideoProcessor {
                 .new_sample(move |appsink| {
                     let count = frame_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                     debug!("Processing frame {}", count);
+    
+                    // Calculate and send progress
+                    if total_frames > 0 {
+                        let progress = (count as f32 / total_frames as f32) * 100.0;
+                        progress_callback_sample(progress);
+                    }
 
                     let sample = appsink.pull_sample().map_err(|_| {
                         debug!("No more samples, sending EOS");
@@ -220,6 +256,7 @@ impl VideoProcessor {
                     if let Some(appsrc) = appsrc_weak_eos.upgrade() {
                         let _ = appsrc.end_of_stream();
                     }
+                    progress_callback_eos(100.0);
                 })
                 .build(),
         );

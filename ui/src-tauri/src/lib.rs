@@ -1,7 +1,7 @@
 use engine::scramble::ScrambleOptions;
 use engine::batch::{BatchProcessingOptions, ProcessingResult};
 use engine::video::VideoProcessingOptions;
-
+use tauri::Emitter;
 #[tauri::command]
 async fn scramble_image(image_data: String, options: ScrambleOptions) -> Result<String, String> {
     engine::process_base64_image(&image_data, &options).map_err(|e| e.to_string())
@@ -13,8 +13,11 @@ async fn process_directory(options: BatchProcessingOptions) -> Result<Vec<Proces
 }
 
 #[tauri::command]
-async fn process_video(options: VideoProcessingOptions) -> Result<(), String> {
-    engine::video::process_video(&options).map_err(|e| e.to_string())
+async fn process_video(options: VideoProcessingOptions, window: tauri::Window) -> Result<(), String> {
+    engine::video::process_video(&options, move |progress| {
+        let _ = window.emit("video-progress", progress);
+    })
+    .map_err(|e| e.to_string())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

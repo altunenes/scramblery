@@ -5,7 +5,6 @@ use image::{DynamicImage, RgbaImage};
 use serde::{Serialize, Deserialize};
 use crate::scramble::{ScrambleType, ScrambleOptions};
 
-
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct VideoProcessingOptions {
     pub input_path: PathBuf,
@@ -13,7 +12,7 @@ pub struct VideoProcessingOptions {
     pub scramble_options: ScrambleOptions,
 }
 
-pub fn process_video(options: &VideoProcessingOptions) -> Result<()> {
+pub fn process_video(options: &VideoProcessingOptions, progress_callback: impl Fn(f32) + Send + Sync + 'static) -> Result<()> {
     let processor = VideoProcessor::new()?;
     let scramble_options = options.scramble_options.clone();
     
@@ -96,6 +95,9 @@ pub fn process_video(options: &VideoProcessingOptions) -> Result<()> {
             }
             
             Ok(())
+        },
+        move |progress| {
+            progress_callback(progress);
         },
     )?;
     
