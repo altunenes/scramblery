@@ -104,6 +104,7 @@ jobs:
           $gstVer = "1.22.8"
           $tempDir = "C:\gst-temp"
           $installDir = "C:\gstreamer"
+          $finalDir = "C:\gstreamer\1.0\msvc_x86_64"
           
           Write-Host "Creating directories..."
           New-Item -ItemType Directory -Force -Path $tempDir
@@ -119,63 +120,59 @@ jobs:
           Write-Host "Downloading from: $develUrl"
           Invoke-WebRequest -Uri $develUrl -OutFile "$tempDir\gstreamer-devel.msi"
           
-          Write-Host "Files in temp directory:"
-          Get-ChildItem $tempDir
-          
           Write-Host "Installing runtime..."
-          $logFile = "$tempDir\gstreamer-install.log"
-          $process = Start-Process msiexec -ArgumentList "/i", "$tempDir\gstreamer.msi", "/L*v", $logFile, "INSTALLDIR=$installDir", "ADDLOCAL=ALL", "/qn" -Wait -PassThru
-          
-          Write-Host "Runtime installation completed with exit code: $($process.ExitCode)"
-          Write-Host "Runtime installation log:"
-          Get-Content $logFile | Select-Object -Last 20
-          
+          $process = Start-Process msiexec -ArgumentList "/i", "$tempDir\gstreamer.msi", "ADDLOCAL=ALL", "/qn" -Wait -PassThru
           if ($process.ExitCode -ne 0) {
-              Write-Host "Runtime installation failed"
+              Write-Host "Runtime installation failed with code: $($process.ExitCode)"
               exit 1
           }
           
           Write-Host "Installing development files..."
-          $logFile = "$tempDir\gstreamer-devel-install.log"
-          $process = Start-Process msiexec -ArgumentList "/i", "$tempDir\gstreamer-devel.msi", "/L*v", $logFile, "INSTALLDIR=$installDir", "ADDLOCAL=ALL", "/qn" -Wait -PassThru
-          
-          Write-Host "Development installation completed with exit code: $($process.ExitCode)"
-          Write-Host "Development installation log:"
-          Get-Content $logFile | Select-Object -Last 20
-          
+          $process = Start-Process msiexec -ArgumentList "/i", "$tempDir\gstreamer-devel.msi", "ADDLOCAL=ALL", "/qn" -Wait -PassThru
           if ($process.ExitCode -ne 0) {
-              Write-Host "Development installation failed"
+              Write-Host "Development installation failed with code: $($process.ExitCode)"
               exit 1
           }
           
-          Write-Host "Searching for GStreamer files..."
-          $gstFiles = Get-ChildItem -Path $installDir -Recurse -Include "gstreamer-1.0.dll"
-          foreach ($file in $gstFiles) {
-              Write-Host "Found GStreamer DLL at: $($file.FullName)"
-              $actualBinPath = Split-Path $file.FullName -Parent
-              Write-Host "Using bin directory: $actualBinPath"
-              
-              # Set the correct paths based on where files were actually installed
-              $actualInstallDir = Split-Path $actualBinPath -Parent
-              $env:GSTREAMER_1_0_ROOT_MSVC_X86_64 = $actualInstallDir
-              $env:PKG_CONFIG_PATH = Join-Path $actualInstallDir "lib\pkgconfig"
-              $env:Path = "$actualBinPath;$env:Path"
-              
-              # Set for GitHub Actions environment
-              "GSTREAMER_1_0_ROOT_MSVC_X86_64=$actualInstallDir" | Out-File -FilePath $env:GITHUB_ENV -Append
-              "PKG_CONFIG_PATH=$env:PKG_CONFIG_PATH" | Out-File -FilePath $env:GITHUB_ENV -Append
-              "PATH=$env:Path" | Out-File -FilePath $env:GITHUB_ENV -Append
-              
-              Write-Host "Environment variables set:"
-              Write-Host "GSTREAMER_1_0_ROOT_MSVC_X86_64=$actualInstallDir"
-              Write-Host "PKG_CONFIG_PATH=$env:PKG_CONFIG_PATH"
-              break
+          Write-Host "Setting environment variables..."
+          
+          Write-Host "Checking installation directory contents:"
+          Get-ChildItem -Path $finalDir -Recurse -Include *.dll | Select-Object -First 10 | ForEach-Object {
+              Write-Host $_.FullName
           }
           
-          if (-not $gstFiles) {
-              Write-Host "No GStreamer DLL found. Directory contents:"
-              Get-ChildItem -Path $installDir -Recurse | Format-Table FullName
-              exit 1
+          # Set environment variables using the known final directory
+          $env:GSTREAMER_1_0_ROOT_MSVC_X86_64 = $finalDir
+          $env:PKG_CONFIG_PATH = "$finalDir\lib\pkgconfig"
+          $env:Path = "$finalDir\bin;$env:Path"
+          
+          # Set for GitHub Actions environment
+          "GSTREAMER_1_0_ROOT_MSVC_X86_64=$finalDir" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "PKG_CONFIG_PATH=$finalDir\lib\pkgconfig" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "PATH=$finalDir\bin;$env:Path" | Out-File -FilePath $env:GITHUB_ENV -Append
+          
+          Write-Host "Environment variables set to:"
+          Write-Host "GSTREAMER_1_0_ROOT_MSVC_X86_64=$finalDir"
+          Write-Host "PKG_CONFIG_PATH=$env:PKG_CONFIG_PATH"
+          Write-Host "PATH=$env:Path"
+          
+          # Verify critical paths
+          $paths = @(
+              "$finalDir\bin",
+              "$finalDir\lib",
+              "$finalDir\lib\pkgconfig"
+          )
+          
+          foreach ($path in $paths) {
+              if (Test-Path $path) {
+                  Write-Host "Found directory: $path"
+                  Get-ChildItem $path | Select-Object -First 3 | ForEach-Object {
+                      Write-Host "  - $($_.Name)"
+                  }
+              } else {
+                  Write-Host "Missing directory: $path"
+                  exit 1
+              }
           }
           
           Write-Host "GStreamer installation completed successfully"
