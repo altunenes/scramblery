@@ -100,6 +100,155 @@ jobs:
         run: |
           Write-Host "Starting GStreamer installation process..."
           
+          # Set up paths with latest version
+          $gstVer = "1.24.12"
+          $tempDir = "C:\gst-temp"
+          $installDir = "C:\gstreamer"
+          $finalDir = "C:\gstreamer\1.0\msvc_x86_64"
+          
+          Write-Host "Creating directories..."
+          New-Item -ItemType Directory -Force -Path $tempDir
+          New-Item -ItemType Directory -Force -Path $installDir
+          
+          Write-Host "Downloading installers..."
+          $baseUrl = "https://gstreamer.freedesktop.org/data/pkg/windows/$gstVer/msvc"
+          $runtimeUrl = "$baseUrl/gstreamer-1.0-msvc-x86_64-$gstVer.msi"
+          $develUrl = "$baseUrl/gstreamer-1.0-devel-msvc-x86_64-$gstVer.msi"
+          
+          Write-Host "Downloading MSVC 64-bit runtime installer..."
+          Invoke-WebRequest -Uri $runtimeUrl -OutFile "$tempDir\gstreamer.msi"
+          Write-Host "Downloading MSVC 64-bit development installer..."
+          Invoke-WebRequest -Uri $develUrl -OutFile "$tempDir\gstreamer-devel.msi"
+          
+          Write-Host "Installing runtime package..."
+          $process = Start-Process msiexec -ArgumentList "/i", "$tempDir\gstreamer.msi", "/qn", "ADDLOCAL=ALL" -Wait -PassThru
+          if ($process.ExitCode -ne 0) {
+              Write-Host "Runtime installation failed with code: $($process.ExitCode)"
+              exit 1
+          }
+          
+          Write-Host "Installing development package..."
+          $process = Start-Process msiexec -ArgumentList "/i", "$tempDir\gstreamer-devel.msi", "/qn", "ADDLOCAL=ALL" -Wait -PassThru
+          if ($process.ExitCode -ne 0) {
+              Write-Host "Development installation failed with code: $($process.ExitCode)"
+              exit 1
+          }
+          
+          Write-Host "Verifying installation..."
+          
+          # Set environment variables for MSVC toolchain
+          $env:GSTREAMER_1_0_ROOT_MSVC_X86_64 = $finalDir
+          $env:GST_PLUGIN_PATH = "$finalDir\lib\gstreamer-1.0"
+          $env:PKG_CONFIG_PATH = "$finalDir\lib\pkgconfig"
+          $env:Path = "$finalDir\bin;$env:Path"
+          
+          # Set for GitHub Actions environment
+          "GSTREAMER_1_0_ROOT_MSVC_X86_64=$finalDir" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "GST_PLUGIN_PATH=$finalDir\lib\gstreamer-1.0" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "PKG_CONFIG_PATH=$finalDir\lib\pkgconfig" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "PATH=$finalDir\bin;$env:Path" | Out-File -FilePath $env:GITHUB_ENV -Append
+          
+          Write-Host "Checking installation directories..."
+          $requiredDirs = @(
+              "$finalDir\bin",
+              "$finalDir\lib",
+              "$finalDir\lib\gstreamer-1.0",
+              "$finalDir\lib\pkgconfig"
+          )
+          
+          foreach ($dir in $requiredDirs) {
+              if (Test-Path $dir) {
+                  Write-Host "Found directory: $dir"
+                  Write-Host "Contents:"
+                  Get-ChildItem $dir | Select-Object -First 3 | ForEach-Object {
+                      Write-Host "  - $($_.Name)"
+                  }
+              } else {
+                  Write-Host "Missing required directory: $dir"
+                  Write-Host "Current directory structure:"
+                  Get-ChildItem $finalDir -Recurse -Depth 2
+                  exit 1
+              }
+          }
+          
+          Write-Host "GStreamer installation completed successfully"
+          Write-Host "Starting GStreamer installation process..."
+          
+          # Set up paths
+          $gstVer = "1.22.8"
+          $tempDir = "C:\gst-temp"
+          $installDir = "C:\gstreamer"
+          $finalDir = "C:\gstreamer\1.0\msvc_x86_64"
+          
+          Write-Host "Creating directories..."
+          New-Item -ItemType Directory -Force -Path $tempDir
+          New-Item -ItemType Directory -Force -Path $installDir
+          
+          Write-Host "Downloading installers..."
+          $baseUrl = "https://gstreamer.freedesktop.org/data/pkg/windows/$gstVer/msvc"
+          $runtimeUrl = "$baseUrl/gstreamer-1.0-msvc-x86_64-$gstVer.msi"
+          $develUrl = "$baseUrl/gstreamer-1.0-devel-msvc-x86_64-$gstVer.msi"
+          
+          Write-Host "Downloading installers..."
+          Invoke-WebRequest -Uri $runtimeUrl -OutFile "$tempDir\gstreamer.msi"
+          Invoke-WebRequest -Uri $develUrl -OutFile "$tempDir\gstreamer-devel.msi"
+          
+          Write-Host "Installing runtime..."
+          $process = Start-Process msiexec -ArgumentList "/i", "$tempDir\gstreamer.msi", "/qn" -Wait -PassThru
+          if ($process.ExitCode -ne 0) {
+              Write-Host "Runtime installation failed with code: $($process.ExitCode)"
+              exit 1
+          }
+          
+          Write-Host "Installing development files..."
+          $process = Start-Process msiexec -ArgumentList "/i", "$tempDir\gstreamer-devel.msi", "/qn" -Wait -PassThru
+          if ($process.ExitCode -ne 0) {
+              Write-Host "Development installation failed with code: $($process.ExitCode)"
+              exit 1
+          }
+          
+          Write-Host "Verifying installation..."
+          Write-Host "Directory contents of $finalDir\bin:"
+          if (Test-Path "$finalDir\bin") {
+              Get-ChildItem "$finalDir\bin" | Where-Object { $_.Name -like "gst*.dll" } | ForEach-Object {
+                  Write-Host "Found DLL: $($_.Name)"
+              }
+          }
+          
+          # Set environment variables
+          $env:GSTREAMER_1_0_ROOT_MSVC_X86_64 = $finalDir
+          $env:GST_PLUGIN_PATH = "$finalDir\lib\gstreamer-1.0"
+          $env:PKG_CONFIG_PATH = "$finalDir\lib\pkgconfig"
+          $env:Path = "$finalDir\bin;$env:Path"
+          
+          # Set for GitHub Actions environment
+          "GSTREAMER_1_0_ROOT_MSVC_X86_64=$finalDir" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "GST_PLUGIN_PATH=$finalDir\lib\gstreamer-1.0" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "PKG_CONFIG_PATH=$finalDir\lib\pkgconfig" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "PATH=$finalDir\bin;$env:Path" | Out-File -FilePath $env:GITHUB_ENV -Append
+          
+          Write-Host "Environment variables set:"
+          Write-Host "GSTREAMER_1_0_ROOT_MSVC_X86_64=$finalDir"
+          Write-Host "GST_PLUGIN_PATH=$env:GST_PLUGIN_PATH"
+          Write-Host "PKG_CONFIG_PATH=$env:PKG_CONFIG_PATH"
+          
+          Write-Host "Checking pkg-config files..."
+          if (Test-Path "$finalDir\lib\pkgconfig") {
+              Get-ChildItem "$finalDir\lib\pkgconfig" -Filter "*.pc" | ForEach-Object {
+                  Write-Host "Found pkg-config file: $($_.Name)"
+              }
+          }
+          
+          Write-Host "Checking GStreamer plugins..."
+          if (Test-Path "$finalDir\lib\gstreamer-1.0") {
+              Get-ChildItem "$finalDir\lib\gstreamer-1.0" -Filter "*.dll" | ForEach-Object {
+                  Write-Host "Found plugin: $($_.Name)"
+              }
+          }
+          
+          Write-Host "GStreamer installation completed"
+          Write-Host "Starting GStreamer installation process..."
+          
           # Set up paths and timeouts
           $gstVer = "1.22.8"
           $tempDir = "C:\gst-temp"
