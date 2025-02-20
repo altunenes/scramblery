@@ -28,17 +28,14 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Fix workspace path
+      # Fix Cargo.toml case sensitivity
+      - name: Fix workspace structure
         shell: bash
         run: |
-          pwd
-          ls -la
-          # Create symbolic links if engine is in a different location
-          if [ ! -d "engine" ] && [ -d "../engine" ]; then
-            ln -s ../engine engine
+          if [ -f "cargo.toml" ] && [ ! -f "Cargo.toml" ]; then
+            mv cargo.toml Cargo.toml
           fi
-          # Show workspace structure
-          echo "Current directory structure:"
+          echo "Workspace contents:"
           ls -la
           echo "Cargo.toml contents:"
           cat Cargo.toml
@@ -82,64 +79,67 @@ jobs:
       - name: Install macOS dependencies
         if: matrix.platform == 'macos-latest'
         run: |
-          brew install pkg-config glib gstreamer gst-plugins-base gst-plugins-good gst-plugins-bad gst-plugins-ugly
+          brew install gstreamer gst-plugins-base gst-plugins-good gst-plugins-bad gst-plugins-ugly pkg-config glib
           
-          # Set GStreamer environment variables
+          # Create GStreamer framework directory
+          sudo mkdir -p /Library/Frameworks/GStreamer.framework/Versions/Current/lib
+          sudo mkdir -p /Library/Frameworks/GStreamer.framework/Versions/Current/lib/pkgconfig
+          
+          # Get Homebrew prefix and copy files
           BREW_PREFIX=$(brew --prefix)
-          GST_PREFIX="$BREW_PREFIX/opt/gstreamer"
-          
-          # Create pkgconfig directory if it doesn't exist
-          sudo mkdir -p /usr/local/lib/pkgconfig
+          sudo cp -R $BREW_PREFIX/opt/gstreamer/lib/* /Library/Frameworks/GStreamer.framework/Versions/Current/lib/
+          sudo cp -R $BREW_PREFIX/opt/gstreamer/lib/pkgconfig/* /Library/Frameworks/GStreamer.framework/Versions/Current/lib/pkgconfig/
           
           # Set environment variables
-          echo "PKG_CONFIG_PATH=$BREW_PREFIX/lib/pkgconfig:$GST_PREFIX/lib/pkgconfig:/usr/local/lib/pkgconfig" >> $GITHUB_ENV
-          echo "LIBRARY_PATH=$BREW_PREFIX/lib:/usr/local/lib" >> $GITHUB_ENV
-          echo "DYLD_LIBRARY_PATH=$BREW_PREFIX/lib:/usr/local/lib" >> $GITHUB_ENV
-          echo "GST_PLUGIN_PATH=$BREW_PREFIX/lib/gstreamer-1.0" >> $GITHUB_ENV
-          echo "PKG_CONFIG_ALLOW_CROSS=1" >> $GITHUB_ENV
+          echo "PKG_CONFIG_PATH=/Library/Frameworks/GStreamer.framework/Versions/Current/lib/pkgconfig" >> $GITHUB_ENV
+          echo "GST_PLUGIN_PATH=/Library/Frameworks/GStreamer.framework/Versions/Current/lib" >> $GITHUB_ENV
+          echo "DYLD_FALLBACK_LIBRARY_PATH=/Library/Frameworks/GStreamer.framework/Versions/Current/lib" >> $GITHUB_ENV
           
           # Debug information
-          ls -la $BREW_PREFIX/lib/pkgconfig
           pkg-config --list-all | grep gstreamer
-          echo "PKG_CONFIG_PATH=$PKG_CONFIG_PATH"
+          ls -la /Library/Frameworks/GStreamer.framework/Versions/Current/lib/pkgconfig
+          pkg-config --modversion gstreamer-1.0 || true
 
       # Windows dependencies
       - name: Install Windows dependencies
         if: matrix.platform == 'windows-latest'
         shell: pwsh
         run: |
-          # Install pkg-config
-          choco install -y pkgconfiglite
+          # Create necessary directories
+          New-Item -ItemType Directory -Force -Path "C:\gstreamer\1.0\msvc_x86_64" | Out-Null
           
           # Download GStreamer
           $gstVer = "1.22.8"
+          $tempDir = "C:\gst-temp"
+          New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
+          
           $gstUrl = "https://gstreamer.freedesktop.org/data/pkg/windows/$gstVer/msvc"
+          $msiPath = "$tempDir\gstreamer.msi"
+          $devMsiPath = "$tempDir\gstreamer-devel.msi"
           
-          Write-Host "Downloading GStreamer..."
-          Invoke-WebRequest -Uri "$gstUrl/gstreamer-1.0-msvc-x86_64-$gstVer.msi" -OutFile "gstreamer.msi"
-          Invoke-WebRequest -Uri "$gstUrl/gstreamer-1.0-devel-msvc-x86_64-$gstVer.msi" -OutFile "gstreamer-devel.msi"
+          Invoke-WebRequest -Uri "$gstUrl/gstreamer-1.0-msvc-x86_64-$gstVer.msi" -OutFile $msiPath
+          Invoke-WebRequest -Uri "$gstUrl/gstreamer-1.0-devel-msvc-x86_64-$gstVer.msi" -OutFile $devMsiPath
           
-          Write-Host "Installing GStreamer..."
-          Start-Process msiexec.exe -Wait -ArgumentList "/i gstreamer.msi /quiet /qn /norestart ADDLOCAL=CompleteInstall"
-          Start-Process msiexec.exe -Wait -ArgumentList "/i gstreamer-devel.msi /quiet /qn /norestart ADDLOCAL=CompleteInstall"
+          # Install MSIs with logging
+          $logPath = "$tempDir\gst-install.log"
+          $devLogPath = "$tempDir\gst-dev-install.log"
           
-          $gstRoot = "C:\gstreamer\1.0\msvc_x86_64"
+          Start-Process msiexec.exe -Wait -ArgumentList "/i `"$msiPath`" /quiet /l*v `"$logPath`" INSTALLDIR=C:\gstreamer\1.0\msvc_x86_64"
+          Start-Process msiexec.exe -Wait -ArgumentList "/i `"$devMsiPath`" /quiet /l*v `"$devLogPath`" INSTALLDIR=C:\gstreamer\1.0\msvc_x86_64"
           
-          Write-Host "Setting environment variables..."
-          echo "GSTREAMER_1_0_ROOT_MSVC_X86_64=$gstRoot" >> $env:GITHUB_ENV
-          echo "PKG_CONFIG_PATH=$gstRoot\lib\pkgconfig" >> $env:GITHUB_ENV
-          echo "PATH=$gstRoot\bin;$env:PATH" >> $env:GITHUB_ENV
+          # Set environment variables
+          echo "GSTREAMER_1_0_ROOT_MSVC_X86_64=C:\gstreamer\1.0\msvc_x86_64" | Out-File -FilePath $env:GITHUB_ENV -Append
+          echo "PKG_CONFIG_PATH=C:\gstreamer\1.0\msvc_x86_64\lib\pkgconfig" | Out-File -FilePath $env:GITHUB_ENV -Append
+          echo "PATH=C:\gstreamer\1.0\msvc_x86_64\bin;$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Append
           
           # Verify installation
-          Write-Host "Verifying installation..."
-          $env:PATH = "$gstRoot\bin;$env:PATH"
-          Get-ChildItem "$gstRoot\bin"
-          
-          if (Test-Path "$gstRoot\bin\gst-launch-1.0.exe") {
-              Write-Host "GStreamer installation verified"
+          if (Test-Path "C:\gstreamer\1.0\msvc_x86_64\bin") {
+            Get-ChildItem "C:\gstreamer\1.0\msvc_x86_64\bin"
           } else {
-              Write-Host "GStreamer installation failed"
-              exit 1
+            Write-Host "Installation failed. Log contents:"
+            Get-Content $logPath
+            Get-Content $devLogPath
+            exit 1
           }
 
       - name: Install frontend dependencies
