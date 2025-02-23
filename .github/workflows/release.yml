@@ -77,12 +77,22 @@ jobs:
       - name: Install macOS dependencies
         if: matrix.platform == 'macos-latest'
         run: |
-          brew install gstreamer gst-plugins-base gst-plugins-good gst-plugins-bad gst-plugins-ugly pkg-config glib
+          # Download and install official GStreamer packages
+          GSTREAMER_VERSION="1.24.12"
+          curl -L "https://gstreamer.freedesktop.org/data/pkg/osx/$GSTREAMER_VERSION/gstreamer-1.0-$GSTREAMER_VERSION-universal.pkg" -o gstreamer.pkg
+          curl -L "https://gstreamer.freedesktop.org/data/pkg/osx/$GSTREAMER_VERSION/gstreamer-1.0-devel-$GSTREAMER_VERSION-universal.pkg" -o gstreamer-devel.pkg
+          
+          sudo installer -pkg gstreamer.pkg -target /
+          sudo installer -pkg gstreamer-devel.pkg -target /
+          
+          # Create necessary directories
           sudo mkdir -p /Library/Frameworks/GStreamer.framework/Versions/Current/lib
           sudo mkdir -p /Library/Frameworks/GStreamer.framework/Versions/Current/lib/pkgconfig
-          BREW_PREFIX=$(brew --prefix)
-          sudo cp -R $BREW_PREFIX/opt/gstreamer/lib/* /Library/Frameworks/GStreamer.framework/Versions/Current/lib/
-          sudo cp -R $BREW_PREFIX/opt/gstreamer/lib/pkgconfig/* /Library/Frameworks/GStreamer.framework/Versions/Current/lib/pkgconfig/
+          
+          # Copy GStreamer files to expected locations
+          sudo cp -R /Library/Frameworks/GStreamer.framework/Libraries/* /Library/Frameworks/GStreamer.framework/Versions/Current/lib/
+          sudo cp -R /Library/Frameworks/GStreamer.framework/Headers/pkgconfig/* /Library/Frameworks/GStreamer.framework/Versions/Current/lib/pkgconfig/
+          
           # Set environment variables for later steps
           echo "PKG_CONFIG_PATH=/Library/Frameworks/GStreamer.framework/Versions/Current/lib/pkgconfig" >> $GITHUB_ENV
           echo "GST_PLUGIN_PATH=/Library/Frameworks/GStreamer.framework/Versions/Current/lib" >> $GITHUB_ENV
