@@ -25,11 +25,15 @@ Scramblery is a tool designed to scramble images and videos for scientific, priv
 
 ---
 
+<div align="center">
+
 | Video | GIF Preview |
 |:-----:|:-----------:|
 | [Video](https://github.com/user-attachments/assets/affb7333-231d-4773-bfa4-44c4c05fd815) <br><sub>Block scramble-only facial area exclude bg</sub> | <img src="https://github.com/user-attachments/assets/a6ca6476-e940-46c7-a9f4-b549e6bfa503" width="200" alt="block" /> |
-| [Video](https://github.com/user-attachments/assets/0a57b9a9-859d-4a4f-96cf-a4fe39f98637) <br><sub>Pixel scramble-only facial area exclude bg </sub> | <img src="https://github.com/user-attachments/assets/ebdcf320-9e1a-4ebd-b5a2-64b29c00146d" width="200" alt="exc_bg" /> |
-| [Video 1](https://github.com/user-attachments/assets/37fd72dc-e575-4de0-b910-94a42e81f0b2) <br>[Video 2](https://github.com/user-attachments/assets/a0f47a62-7867-4fb1-ae6f-bff893225d47) <br><sub> Fourier Phase: Colorful/Gray options</sub> | <img src="https://github.com/user-attachments/assets/6d011ce0-7cfc-429d-8d2e-93f3c5f19c5d" width="200" alt="fft" /> |
+| [Video](https://github.com/user-attachments/assets/0a57b9a9-859d-4a4f-96cf-a4fe39f98637) <br><sub>Pixel scramble-only facial area exclude bg</sub> | <img src="https://github.com/user-attachments/assets/ebdcf320-9e1a-4ebd-b5a2-64b29c00146d" width="200" alt="exc_bg" /> |
+| [Video 1](https://github.com/user-attachments/assets/37fd72dc-e575-4de0-b910-94a42e81f0b2) <br>[Video 2](https://github.com/user-attachments/assets/a0f47a62-7867-4fb1-ae6f-bff893225d47) <br><sub>Fourier Phase: Colorful/Gray options</sub> | <img src="https://github.com/user-attachments/assets/6d011ce0-7cfc-429d-8d2e-93f3c5f19c5d" width="200" alt="fft" /> |
+
+</div>
 
 
 ---
