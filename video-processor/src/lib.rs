@@ -72,7 +72,14 @@ impl VideoProcessor {
             .property("sync", false)
             .property("async", false)
             .build()?;
-
+        let capsfilter = gst::ElementFactory::make("capsfilter")
+        .property(
+            "caps",
+            gst::Caps::builder("video/x-raw")
+                .field("format", "I420")
+                .build(),
+        )
+        .build()?;
         // Create audio processing elements
         let queue_audio = gst::ElementFactory::make("queue")
             .property("max-size-buffers", 4u32)
@@ -105,6 +112,7 @@ impl VideoProcessor {
             &queue2,
             &videoconvert2,
             &videoscale2,
+            &capsfilter,
             &x264enc,
             &h264parse,
             &queue3,
@@ -123,6 +131,7 @@ impl VideoProcessor {
             &queue2,
             &videoconvert2,
             &videoscale2,
+            &capsfilter,
             &x264enc,
             &h264parse,
             &queue3,
