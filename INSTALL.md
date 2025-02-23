@@ -16,14 +16,15 @@ Installing "runtime installer" should be enough, but if you want to develop and 
 - In macOS, you probably need to give permission to the app to run. For this please go to System Preferences -> Security & Privacy -> General -> Open Anyway
 
 ### Potential Questions
-    **Q: Why do I need GStreamer?**  
-    *A: GStreamer is a multimedia framework that allows you to process multimedia data. Scramblery uses GStreamer to process video files.*
 
-    **Q: Why don't you include GStreamer in the app?**  
-    *A: GStreamer is a large library and including it in the app would make the app size very large. Also, it would be hard to maintain the GStreamer version in the app.*
+**Q: Why do I need GStreamer?**  
+*A: GStreamer is a multimedia framework that allows you to process multimedia data. Scramblery uses GStreamer to process video files.*
 
-    **Q: But you included GStreamer in the macOS version?**  
-    *A: Yes, I included GStreamer in the macOS version to avoid potential code sign problems. But still, to avoid potential problems, installing GStreamer wouldn't hurt.*
+**Q: Why don't you include GStreamer in the app?**  
+*A: GStreamer is a large library and including it in the app would make the app size very large. Also, it would be hard to maintain the GStreamer version in the app.*
+
+**Q: But you included GStreamer in the macOS version?**  
+*A: Yes, I included GStreamer in the macOS version to avoid potential code sign problems. But still, to avoid potential problems, installing GStreamer wouldn't hurt.*
 
 ### Ubuntu
 
