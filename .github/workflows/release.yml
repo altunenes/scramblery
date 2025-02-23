@@ -85,17 +85,9 @@ jobs:
           sudo installer -pkg gstreamer.pkg -target /
           sudo installer -pkg gstreamer-devel.pkg -target /
           
-          # Create necessary directories
-          sudo mkdir -p /Library/Frameworks/GStreamer.framework/Versions/Current/lib
-          sudo mkdir -p /Library/Frameworks/GStreamer.framework/Versions/Current/lib/pkgconfig
-          
-          # Copy GStreamer files to expected locations
-          sudo cp -R /Library/Frameworks/GStreamer.framework/Libraries/* /Library/Frameworks/GStreamer.framework/Versions/Current/lib/
-          sudo cp -R /Library/Frameworks/GStreamer.framework/Headers/pkgconfig/* /Library/Frameworks/GStreamer.framework/Versions/Current/lib/pkgconfig/
-          
           # Set environment variables for later steps
           echo "PKG_CONFIG_PATH=/Library/Frameworks/GStreamer.framework/Versions/Current/lib/pkgconfig" >> $GITHUB_ENV
-          echo "GST_PLUGIN_PATH=/Library/Frameworks/GStreamer.framework/Versions/Current/lib" >> $GITHUB_ENV
+          echo "GST_PLUGIN_PATH=/Library/Frameworks/GStreamer.framework/Versions/Current/lib/gstreamer-1.0" >> $GITHUB_ENV
           echo "DYLD_FALLBACK_LIBRARY_PATH=/Library/Frameworks/GStreamer.framework/Versions/Current/lib" >> $GITHUB_ENV
           sudo spctl --master-disable
 
