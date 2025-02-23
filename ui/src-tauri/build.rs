@@ -9,6 +9,7 @@ fn main() {
         let lib = "/Library/Frameworks/GStreamer.framework/Versions/Current/lib";
         env::set_var("GST_PLUGIN_PATH", lib);
         env::set_var("DYLD_FALLBACK_LIBRARY_PATH", lib);
+        println!("cargo:rustc-link-search=framework=/Library/Frameworks");
         println!("cargo:rustc-link-arg=-Wl,-rpath,/Library/Frameworks/GStreamer.framework/Versions/Current/lib");
     }
     tauri_build::build()

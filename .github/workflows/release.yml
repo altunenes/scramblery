@@ -89,9 +89,9 @@ jobs:
           sudo codesign --force --sign - /Library/Frameworks/GStreamer.framework
           
           # Set environment variables for later steps
-          echo "PKG_CONFIG_PATH=/Library/Frameworks/GStreamer.framework/Versions/Current/lib/pkgconfig" >> $GITHUB_ENV
-          echo "GST_PLUGIN_PATH=/Library/Frameworks/GStreamer.framework/Versions/Current/lib/gstreamer-1.0" >> $GITHUB_ENV
-          echo "DYLD_FALLBACK_LIBRARY_PATH=/Library/Frameworks/GStreamer.framework/Versions/Current/lib" >> $GITHUB_ENV
+          echo "PKG_CONFIG_PATH=/Library/Frameworks/GStreamer.framework/Versions/1.0/lib/pkgconfig" >> $GITHUB_ENV
+          echo "GST_PLUGIN_PATH=/Library/Frameworks/GStreamer.framework/Versions/1.0/lib/gstreamer-1.0" >> $GITHUB_ENV
+          echo "DYLD_FALLBACK_LIBRARY_PATH=/Library/Frameworks/GStreamer.framework/Versions/1.0/lib" >> $GITHUB_ENV
           
           # Create a symbolic link to ensure library paths are correct
           sudo ln -sf /Library/Frameworks/GStreamer.framework/Versions/1.0/lib /Library/Frameworks/GStreamer.framework/Versions/Current/lib
