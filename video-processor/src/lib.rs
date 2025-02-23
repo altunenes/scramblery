@@ -4,10 +4,10 @@ use gstreamer_video as gst_video;
 use gstreamer_app as gst_app;
 use std::path::Path;
 use log::{info, error, debug};
-use gst::MessageView;
 use gst::prelude::*;
-
+use gstreamer_pbutils::Discoverer;
 pub use gst_video::video_frame::{VideoFrame, Readable, Writable, VideoFrameExt};
+use gstreamer_pbutils::prelude::*;
 
 pub struct VideoProcessor {
     pipeline: gst::Pipeline,
@@ -159,32 +159,117 @@ impl VideoProcessor {
         let appsrc_weak = appsrc.downgrade();
         let frame_count = std::sync::atomic::AtomicUsize::new(0);
         let total_frames = {
-            // a temporary pipeline for frame estimation
-            let pipeline_str = format!(
-                "filesrc location=\"{}\" ! decodebin ! videoconvert ! fakesink",
-                input_path.to_str().unwrap()
-            );
-            let temp_pipeline = gst::parse::launch(&pipeline_str)?;
-            let temp_pipeline = temp_pipeline.downcast::<gst::Pipeline>().unwrap();
-            temp_pipeline.set_state(gst::State::Playing)?;
-            
-            // on here, wait for pipeline to process the file
-            let bus = temp_pipeline.bus().unwrap();
             let mut frames = 0;
-            for msg in bus.iter_timed(gst::ClockTime::from_seconds(5)) {
-                if let MessageView::Eos(..) = msg.view() {
-                    if let Some(duration) = temp_pipeline.query_duration::<gst::ClockTime>() {
-                        // Estimate frames based on duration. Most videos are 30 fps, but we can adjust this later
-                        frames = (duration.seconds() * 30) as usize;
+            //a discoverer with 5 second timeout
+            let timeout = gst::ClockTime::from_seconds(5);
+            match Discoverer::new(timeout) {
+                Ok(discoverer) => {
+                    // Win Path
+                    let path_str = input_path.to_str().unwrap();
+                    let uri = if path_str.starts_with("file://") {
+                        path_str.to_string()
+                    } else {
+                        // Convert win path to URI
+                        let absolute_path = std::fs::canonicalize(&input_path)
+                            .unwrap_or(input_path.to_path_buf());
+                        let path_str = absolute_path.to_str().unwrap()
+                            .trim_start_matches("\\?\\")
+                            .replace("\\", "/");
+                        format!("file:///{}", path_str)
+                    };
+                    
+                    info!("Trying to discover URI: {}", uri);
+                    match discoverer.discover_uri(&uri) {
+                        Ok(info) => {
+                            //at this point, we will get the video info from the discoverer things going ugly in terms of code
+                            if let Some(video_info) = info.video_streams().get(0) {
+                                if let Some(caps) = video_info.caps() {
+                                    if let Some(s) = caps.structure(0) {
+                                        if let Ok(framerate) = s.get::<gst::Fraction>("framerate") {
+                                            let duration = info.duration();
+                                            let duration_secs = duration.unwrap_or(gst::ClockTime::ZERO).seconds();
+                                            let fps = framerate.numer() as f64 / framerate.denom() as f64;
+                                            frames = (duration_secs as f64 * fps) as usize;
+                                            info!("Got exact framerate {}/{} fps, duration {}s, calculated frames: {}", 
+                                                 framerate.numer(), framerate.denom(), 
+                                                 duration_secs, frames);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            info!("Failed to discover video: {}", e);
+                        }
                     }
-                    break;
+                }
+                Err(e) => {
+                    info!("Failed to create discoverer: {}", e);
                 }
             }
-            temp_pipeline.set_state(gst::State::Null)?;
+        
+            // If we still couldn't get frames, try the pipeline method as fallback
+            if frames == 0 {
+                info!("Falling back to pipeline method");
+                let input_str = input_path.to_str().unwrap().replace("\\", "\\\\");
+                let pipeline_str = format!(
+                    "filesrc location=\"{}\" ! decodebin ! video/x-raw ! fakesink",
+                    input_str
+                );
+                
+                match gst::parse::launch(&pipeline_str) {
+                    Ok(temp_element) => {
+                        let temp_pipeline = temp_element.dynamic_cast::<gst::Pipeline>().unwrap();
+                        
+                        // Set pipeline to PAUSED and wait a bit
+                        if temp_pipeline.set_state(gst::State::Paused).is_ok() {
+                            // Give some time for the pipeline to settle
+                            std::thread::sleep(std::time::Duration::from_secs(1));
+                                    
+                            if let Some(duration) = temp_pipeline.query_duration::<gst::ClockTime>() {
+                                // Try to get framerate from the decoder pad
+                                if let Some(sink) = temp_pipeline.by_name("fakesink0") {
+                                    if let Some(sink_pad) = sink.static_pad("sink") {
+                                        if let Some(caps) = sink_pad.current_caps() {
+                                            if let Some(s) = caps.structure(0) {
+                                                if let Ok(framerate) = s.get::<gst::Fraction>("framerate") {
+                                                    let duration_secs = duration.seconds();
+                                                    frames = ((duration_secs as f64) * 
+                                                            (framerate.numer() as f64 / 
+                                                             framerate.denom() as f64)) as usize;
+                                                    info!("Got framerate from pipeline: {}/{} fps", 
+                                                         framerate.numer(), framerate.denom());
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                // If still no frames, use 30fps estimate
+                                if frames == 0 {
+                                    frames = (duration.seconds() * 30) as usize;
+                                    info!("Using estimated 30fps - duration: {}s, frames: {}", 
+                                         duration.seconds(), frames);
+                                }
+                            }
+                            
+                            let _ = temp_pipeline.set_state(gst::State::Null);
+                        }
+                    }
+                    Err(e) => {
+                        info!("Failed to create pipeline: {}", e);
+                    }
+                }
+            }
+            // still no luck?
+            if frames == 0 {
+                frames = 1000;
+                info!("Using default frame count: {}", frames);
+            }
+            
             frames
         };
         
-        info!("Estimated total frames: {}", total_frames); 
+        info!("Final total frames: {}", total_frames);
         // Clone for new_sample closure
         let appsrc_weak_cb = appsrc_weak.clone();
         // Clone for eos closure

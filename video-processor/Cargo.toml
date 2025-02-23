@@ -7,6 +7,7 @@ edition = "2021"
 gstreamer = "0.23.4"
 gstreamer-video = "0.23.4"
 gstreamer-app = "0.23.4"
+gstreamer-pbutils = "0.23.4"
 anyhow = { workspace = true }
 log = {workspace = true}
 image = { workspace = true }
