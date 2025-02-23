@@ -25,3 +25,17 @@
     ```bash
     npm run tauri dev
     ```
+
+
+### Extras
+
+**Q: For development, how can I embed GStreamer in the app?**
+*A: In tauri-conf.json, you can include the path to the GStreamer. Tauri will include the library in the final app. For example, in macOS, you can include the following code:*
+
+```json
+    "macOS": {
+      "frameworks": [
+        "/Library/Frameworks/GStreamer.framework"
+      ],
+    }
+```

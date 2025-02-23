@@ -2,7 +2,6 @@
 
 Before running Scramblery, you need to install GStreamer:
 
-Note: To avoid potential code sign problems, I included GStreamer into the macOS version, but still, to avoid potential problems, installing GStreamer wouldn't hurt.
 
 1. Download and install GStreamer from the official website: https://gstreamer.freedesktop.org/download/#macos 
 I built GStreamer 1.24.12 (see: https://github.com/altunenes/scramblery/blob/main/.github/workflows/release.yml#L81C1-L82C1), but I don't think the version matters, download the latest version.
@@ -23,16 +22,11 @@ Installing "runtime installer" should be enough, but if you want to develop and 
 **Q: Why don't you include GStreamer in the app?**  
 *A: GStreamer is a large library and including it in the app would make the app size very large. Also, it would be hard to maintain the GStreamer version in the app.*
 
-**Q: For development, how can I embed GStreamer in the app?**
-*A: In tauri-conf.json, you can include the path to the GStreamer. Tauri will include the library in the app. For example, in macOS, you can include the following code:*
+**Q: Why don't you include GPU support for face detection?**
+*A: Two reason. First, face detection model already very small.
+Second, creating different installers for each different onnx execution provider is rather pointless for such a simple face detection task in my opinion. *
 
-```json
-    "macOS": {
-      "frameworks": [
-        "/Library/Frameworks/GStreamer.framework"
-      ],
-    }
-```
+
 
 ### Ubuntu
 
