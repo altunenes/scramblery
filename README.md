@@ -8,6 +8,9 @@
 
 **Scramblery** is a simple tool designed to scramble images and videos for scientific, privacy or artistic purposes. It offers various scrambling techniques, including pixel shuffling and frequency domain manipulation using Fourier transforms.  This application is built using Rust for the backend to ensure performance and safety. 
 
+### Installation
+Please see the [installation instructions](https://github.com/altunenes/scramblery/blob/main/INSTALL.md)
+
 Citation
 
 `Altun, E. (2025). altunenes/scramblery: Scramblery v2.0.0 (v2.0.0). Zenodo. https://doi.org/10.5281/zenodo.7484576`
