@@ -23,7 +23,7 @@ Installing "runtime installer" should be enough, but if you want to develop and 
 **Q: Why don't you include GStreamer in the app?**  
 *A: GStreamer is a large library and including it in the app would make the app size very large. Also, it would be hard to maintain the GStreamer version in the app.*
 
-** Q: For development, how can I embed GStreamer in the app?**
+**Q: For development, how can I embed GStreamer in the app?**
 *A: In tauri-conf.json, you can include the path to the GStreamer. Tauri will include the library in the app. For example, in macOS, you can include the following code:
 
 ```json
