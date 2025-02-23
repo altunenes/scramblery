@@ -85,15 +85,23 @@ jobs:
           sudo installer -pkg gstreamer.pkg -target /
           sudo installer -pkg gstreamer-devel.pkg -target /
           
-          # Sign GStreamer libraries with the same identity as the app
-          sudo codesign --force --sign - /Library/Frameworks/GStreamer.framework
+          # Remove existing signatures from GStreamer libraries
+          sudo codesign --remove-signature /Library/Frameworks/GStreamer.framework/Versions/1.0/lib/*.dylib
+          
+          # Sign each dylib individually with ad-hoc signature
+          for file in /Library/Frameworks/GStreamer.framework/Versions/1.0/lib/*.dylib; do
+            sudo codesign --force --sign - --deep --preserve-metadata=identifier,entitlements,flags --timestamp "$file"
+          done
+          
+          # Sign the framework itself
+          sudo codesign --force --sign - --deep --preserve-metadata=identifier,entitlements,flags --timestamp /Library/Frameworks/GStreamer.framework
           
           # Set environment variables for later steps
           echo "PKG_CONFIG_PATH=/Library/Frameworks/GStreamer.framework/Versions/1.0/lib/pkgconfig" >> $GITHUB_ENV
           echo "GST_PLUGIN_PATH=/Library/Frameworks/GStreamer.framework/Versions/1.0/lib/gstreamer-1.0" >> $GITHUB_ENV
           echo "DYLD_FALLBACK_LIBRARY_PATH=/Library/Frameworks/GStreamer.framework/Versions/1.0/lib" >> $GITHUB_ENV
           
-          # Create a symbolic link to ensure library paths are correct
+          # Create symbolic link to ensure library paths are correct
           sudo ln -sf /Library/Frameworks/GStreamer.framework/Versions/1.0/lib /Library/Frameworks/GStreamer.framework/Versions/Current/lib
           
           sudo spctl --master-disable
