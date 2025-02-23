@@ -10,7 +10,7 @@
 
 Citation
 
-`Altun, E. (2023). altunenes/scramblery: 1.2.5 (1.2.5). Zenodo. https://doi.org/10.5281/zenodo.10028991`
+`Altun, E. (2025). altunenes/scramblery: Scramblery v2.0.0 (v2.0.0). Zenodo. https://doi.org/10.5281/zenodo.7484576`
 
 ## Features (Currently Implemented or Planned)
 
