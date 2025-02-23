@@ -35,6 +35,10 @@
       "icons/icon.ico"
     ],
     "macOS": {
+      "frameworks": [
+        "/Library/Frameworks/GStreamer.framework"
+      ],
+      "hardenedRuntime": false,
       "signingIdentity": "-"
     }
   }
