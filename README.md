@@ -3,7 +3,7 @@
 ---
 
 <p align="center">
-<img src="https://github.com/user-attachments/assets/77abf531-2e86-475a-8811-e81085e904ca" width="32" alt="App Icon">
+<img src="https://github.com/user-attachments/assets/3d81b541-8bb3-4414-9b77-501fe608041f" width="64" alt="App Icon">
 </p>
 
 Scramblery is a tool designed to scramble images and videos for scientific, privacy, or artistic purposes. It offers various scrambling techniques, including pixel shuffling and frequency domain manipulation using Fourier transforms.
