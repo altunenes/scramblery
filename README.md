@@ -1,4 +1,4 @@
-# Scramblery  [![DOI](https://zenodo.org/badge/449034134.svg)](https://zenodo.org/badge/latestdoi/449034134)
+# Scramblery  [![DOI](https://zenodo.org/badge/449034134.svg)](https://zenodo.org/badge/latestdoi/449034134) [![Release](https://github.com/altunenes/scramblery/actions/workflows/release.yml/badge.svg)](https://github.com/altunenes/scramblery/actions/workflows/release.yml)
 
 ---
 
