@@ -1,6 +1,6 @@
-# Scramblery  
+# Scramblery  [![DOI](https://zenodo.org/badge/449034134.svg)](https://zenodo.org/badge/latestdoi/449034134)
 
-[![DOI](https://zenodo.org/badge/449034134.svg)](https://zenodo.org/badge/latestdoi/449034134)
+---
 
 <p align="center">
 <img src="https://github.com/user-attachments/assets/77abf531-2e86-475a-8811-e81085e904ca" width="32" alt="App Icon">
@@ -9,6 +9,8 @@
 Scramblery is a tool designed to scramble images and videos for scientific, privacy, or artistic purposes. It offers various scrambling techniques, including pixel shuffling and frequency domain manipulation using Fourier transforms.
 
 ---
+*Preview of the main menu*
+
 <p align="center">
   <img src="https://github.com/user-attachments/assets/1137f7f2-9169-4e4c-a14d-5dddaf5a3647" width="400" alt="Main Menu Preview"/>
 </p>
