@@ -17,12 +17,15 @@ Installing "runtime installer" should be enough, but if you want to develop and 
 ### Potential Questions
 
 **Q: Why do I need GStreamer?**  
+
 *A: GStreamer is a multimedia framework that allows you to process multimedia data. Scramblery uses GStreamer to process video files.*
 
 **Q: Why don't you include GStreamer in the app?**  
+
 *A: GStreamer is a large library and including it in the app would make the app size very large. Also, it would be hard to maintain the GStreamer version in the app.*
 
 **Q: But can't we just embed the necessary dlls/libs?**
+
 *A: Yes, we can. But installing Gstreamer is not a big deal like installing CUDA or something. It's just a few clicks and a few MBs. So, I think it's not worth the effort to embed the necessary dlls/libs also it would make the app size larger and harder to maintain.*
 
 **Q: Why don't you include GPU support for face detection?**
