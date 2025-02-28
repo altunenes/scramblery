@@ -50,4 +50,4 @@ For installation instructions, please refer to the [INSTALLATION GUIDE](https://
 
 ## Citation
 
-Altun, E. (2025). altunenes/scramblery: Scramblery v2.0.0 (v2.0.0). Zenodo. https://doi.org/10.5281/zenodo.14913017
+Altun, E. (2025). altunenes/scramblery: Scramblery v2.0.0 (v2.0.0). Zenodo. https://doi.org/10.5281/zenodo.7484576
