@@ -7,6 +7,11 @@ use log::info;
 use onnx::Session;
 use onnx::Value;
 use ndarray::ArrayViewD;
+use std::sync::OnceLock;
+
+
+static FACE_DETECTOR_SESSION: OnceLock<Session> = OnceLock::new();
+
 /// Target dimensions for the face detection model (please see: https://github.com/onnx/models/tree/main/validated/vision/body_analysis/ultraface)
 pub const TARGET_WIDTH: u32 = 640;
 pub const TARGET_HEIGHT: u32 = 480;
@@ -48,8 +53,11 @@ impl FaceRegion {
     }
 }
 
-/// Loads the face detection model: This currently TODO.
-pub fn load_face_detector(model_path: Option<PathBuf>) -> Result<Session> {
+/// Loads the face detection model, using a cached version if available
+pub fn load_face_detector(model_path: Option<PathBuf>) -> Result<&'static Session> {
+    if let Some(session) = FACE_DETECTOR_SESSION.get() {
+        return Ok(session);
+    }
     let model_path = if let Some(path) = model_path {
         path
     } else {
@@ -84,7 +92,11 @@ pub fn load_face_detector(model_path: Option<PathBuf>) -> Result<Session> {
     };
     
     info!("Loading face detection model from {:?}", model_path);
-    new_session_from_path(model_path)
+    let session = new_session_from_path(model_path)?;
+    if let Err(_) = FACE_DETECTOR_SESSION.set(session) {
+        info!("Warning: Face detection session was already initialized by another thread");
+    }
+    Ok(FACE_DETECTOR_SESSION.get().unwrap())
 }
 fn preprocess_image(image: &DynamicImage) -> Array4<f32> {
     let resized = image.resize_exact(TARGET_WIDTH, TARGET_HEIGHT, FilterType::CatmullRom);
