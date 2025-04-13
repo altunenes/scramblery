@@ -5,6 +5,7 @@ pub enum ScrambleType {
     Pixel,
     Fourier(FourierOptions),
     Block(BlockOptions),
+    Blur(BlurOptions),
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum BackgroundMode {
@@ -97,6 +98,19 @@ impl Default for BlockOptions {
             block_size: (32, 32),
             interpolate_edges: true,
             padding_mode: PaddingMode::Reflect,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct BlurOptions {
+    pub sigma: f32,
+}
+
+impl Default for BlurOptions {
+    fn default() -> Self {
+        Self {
+            sigma: 5.0,
         }
     }
 }
