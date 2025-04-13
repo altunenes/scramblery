@@ -5,6 +5,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { FourierControls, type FourierOptions, type FrequencyRange } from './FourierControls';
 import { BlockControls, type BlockOptions } from './BlockControls';
 import BackButton from './comp/BackButton';
+import { BlurControls, type BlurOptions } from './BlurControls';
 
 interface ProcessingResult {
   input_path: string;
@@ -36,6 +37,11 @@ type ScrambleTypeOption =
         block_size: [number, number];
         interpolate_edges: boolean;
         padding_mode: 'Zero' | 'Reflect' | 'Wrap';
+      }
+    }
+  | {
+      Blur: {
+        sigma: number;
       }
     };
 
@@ -103,7 +109,7 @@ function FolderProcess() {
   const [progress, setProgress] = useState<BatchProgress | null>(null);
   const [results, setResults] = useState<ProcessingResult[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [scrambleType, setScrambleType] = useState<'Pixel' | 'Fourier' | 'Block'>('Pixel');
+  const [scrambleType, setScrambleType] = useState<'Pixel' | 'Fourier' | 'Block' | 'Blur'>('Pixel');
   const [fourierOptions, setFourierOptions] = useState<FourierOptions>({
     frequency_range: 'All',
     phase_scramble: true,
@@ -117,7 +123,10 @@ function FolderProcess() {
     interpolate_edges: true,
     padding_mode: 'Reflect'
   });
-
+  const [blurOptions, setBlurOptions] = useState<BlurOptions>({
+    sigma: 5.0,
+  });
+  
   useEffect(() => {
     const unlisten = listen<BatchProgress>('batch-progress', (event) => {
       setProgress(event.payload);
@@ -184,7 +193,7 @@ function FolderProcess() {
     setError(null);
     setResults([]);
     setProgress(null);
-
+  
     try {
       const sliderIntensity = intensity / 100;
       
@@ -210,8 +219,13 @@ function FolderProcess() {
             Block: blockOptions
           };
           break;
+        case 'Blur':
+          scrambleTypeOption = {
+            Blur: blurOptions
+          };
+          break;
       }
-
+  
       const options = {
         input_dir: inputDir,
         output_dir: outputDir,
@@ -226,11 +240,11 @@ function FolderProcess() {
           } : null,
         },
       };
-
+  
       const results = await invoke<ProcessingResult[]>('process_directory', {
         options,
       });
-
+  
       setResults(results);
     } catch (err) {
       console.error('Processing error:', err);
@@ -249,12 +263,13 @@ function FolderProcess() {
           <label>Scramble Method:</label>
           <select
             value={scrambleType}
-            onChange={(e) => setScrambleType(e.target.value as 'Pixel' | 'Fourier' | 'Block')}
+            onChange={(e) => setScrambleType(e.target.value as 'Pixel' | 'Fourier' | 'Block' | 'Blur')}
             className="select-input"
           >
             <option value="Pixel">Pixel Scrambling</option>
             <option value="Fourier">Fourier Scrambling</option>
             <option value="Block">Block Scrambling</option>
+            <option value="Blur">Gaussian Blur</option>
           </select>
         </div>
 
@@ -272,6 +287,12 @@ function FolderProcess() {
           />
         )}
 
+        {scrambleType === 'Blur' && (
+          <BlurControls
+            options={blurOptions}
+            onChange={setBlurOptions}
+          />
+        )}
         <div className="directory-selection">
           <div className="input-group">
             <label>Input Directory</label>

@@ -5,6 +5,8 @@ import { FourierControls, type FourierOptions, type FrequencyRange } from './Fou
 import { BlockControls, type BlockOptions } from './BlockControls';
 import BackButton from './comp/BackButton';
 import { listen } from '@tauri-apps/api/event';
+import { BlurControls, type BlurOptions } from './BlurControls';
+
 type ScrambleTypeOption = 
   | 'Pixel'
   | { 
@@ -22,6 +24,11 @@ type ScrambleTypeOption =
         block_size: [number, number];
         interpolate_edges: boolean;
         padding_mode: 'Zero' | 'Reflect' | 'Wrap';
+      }
+    }
+  | {
+      Blur: {
+        sigma: number;
       }
     };
 
@@ -48,7 +55,7 @@ function VideoProcess() {
   const [useFaceDetection, setUseFaceDetection] = useState(false);
   const [backgroundMode, setBackgroundMode] = useState<'Include' | 'Exclude'>('Include');
   const [progress, setProgress] = useState<number | null>(null);
-  const [scrambleType, setScrambleType] = useState<'Pixel' | 'Fourier' | 'Block'>('Pixel');
+  const [scrambleType, setScrambleType] = useState<'Pixel' | 'Fourier' | 'Block' | 'Blur'>('Pixel');
   const [fourierOptions, setFourierOptions] = useState<FourierOptions>({
     frequency_range: 'All',
     phase_scramble: true,
@@ -62,7 +69,9 @@ function VideoProcess() {
     interpolate_edges: true,
     padding_mode: 'Reflect'
   });
-
+  const [blurOptions, setBlurOptions] = useState<BlurOptions>({
+    sigma: 5.0,
+  });
   useEffect(() => {
     setFourierOptions(prev => ({
       ...prev,
@@ -105,7 +114,7 @@ function VideoProcess() {
     setIsProcessing(true);
     setError(null);
     setProgress(0);
-
+  
     try {
       const outputPath = inputPath.replace(/\.[^/.]+$/, "") + '_scrambled.mp4';
       const sliderIntensity = intensity / 100;
@@ -132,8 +141,13 @@ function VideoProcess() {
             Block: blockOptions
           };
           break;
+        case 'Blur':
+          scrambleTypeOption = {
+            Blur: blurOptions
+          };
+          break;
       }
-
+  
       const options: VideoProcessingOptions = {
         input_path: inputPath,
         output_path: outputPath,
@@ -148,7 +162,7 @@ function VideoProcess() {
           } : null,
         },
       };
-
+  
       await invoke('process_video', { options });
       
     } catch (err) {
@@ -178,12 +192,13 @@ function VideoProcess() {
           <label>Scramble Method:</label>
           <select
             value={scrambleType}
-            onChange={(e) => setScrambleType(e.target.value as 'Pixel' | 'Fourier' | 'Block')}
+            onChange={(e) => setScrambleType(e.target.value as 'Pixel' | 'Fourier' | 'Block' | 'Blur')}
             className="select-input"
           >
             <option value="Pixel">Pixel Scrambling</option>
             <option value="Fourier">Fourier Scrambling</option>
             <option value="Block">Block Scrambling</option>
+            <option value="Blur">Gaussian Blur</option>
           </select>
         </div>
 
@@ -200,7 +215,13 @@ function VideoProcess() {
             onChange={setBlockOptions}
           />
         )}
-        
+
+        {scrambleType === 'Blur' && (
+          <BlurControls
+            options={blurOptions}
+            onChange={setBlurOptions}
+          />
+        )}
         <div className="file-selection">
           <div className="input-group">
             <label>Input Video</label>
