@@ -4,6 +4,7 @@ import { save } from '@tauri-apps/plugin-dialog';
 import { writeFile } from '@tauri-apps/plugin-fs';
 import BackButton from './comp/BackButton';
 import { BlockControls, type BlockOptions } from './BlockControls';
+import { BlurControls, type BlurOptions } from './BlurControls';
 
 import { FourierControls, type FourierOptions, type FrequencyRange } from './FourierControls';
 interface SelectedImage {
@@ -18,7 +19,7 @@ interface SelectedImage {
 function SingleImage() {
   const [selectedImage, setSelectedImage] = useState<SelectedImage | null>(null);
   const [scrambledImage, setScrambledImage] = useState<string | null>(null);
-  const [scrambleType, setScrambleType] = useState<'Pixel' | 'Fourier' | 'Block'>('Pixel');
+  const [scrambleType, setScrambleType] = useState<'Pixel' | 'Fourier' | 'Block' | 'Blur'>('Pixel');
   const [intensity, setIntensity] = useState(50);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,6 +37,9 @@ function SingleImage() {
     block_size: [32, 32],
     interpolate_edges: true,
     padding_mode: 'Reflect'
+  });
+  const [blurOptions, setBlurOptions] = useState<BlurOptions>({
+    sigma: 5.0,
   });
   const handleImageUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -108,8 +112,13 @@ function SingleImage() {
             Block: blockOptions
           };
           break;
+        case 'Blur':
+          scrambleTypeOption = {
+            Blur: blurOptions
+          };
+          break;
       }
-
+  
       const result = await invoke<string>('scramble_image', {
         imageData: selectedImage.data,
         options: {
@@ -195,12 +204,13 @@ const formatFrequencyRange = (range: FrequencyRange) => {
                 <label>Scramble Method:</label>
                 <select
                   value={scrambleType}
-                  onChange={(e) => setScrambleType(e.target.value as 'Pixel' | 'Fourier' | 'Block')}
+                  onChange={(e) => setScrambleType(e.target.value as 'Pixel' | 'Fourier' | 'Block' | 'Blur')}
                   className="select-input"
                   >
                   <option value="Pixel">Pixel Scrambling</option>
                   <option value="Fourier">Fourier Scrambling</option>
                   <option value="Block">Block Scrambling</option>
+                  <option value="Blur">Gaussian Blur</option>
                 </select>
               </div>
               {/*Block Controls */}
@@ -209,6 +219,12 @@ const formatFrequencyRange = (range: FrequencyRange) => {
                   options={blockOptions}
                   onChange={setBlockOptions}
                 />
+              )}
+              {scrambleType === 'Blur' && (
+              <BlurControls
+                options={blurOptions}
+                onChange={setBlurOptions}
+              />
               )}
               {/* Always Visible Important Controls */}
               <div className="intensity-control mb-4">
