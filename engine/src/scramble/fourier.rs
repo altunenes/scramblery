@@ -87,7 +87,7 @@ impl FourierScrambler {
         let session = load_face_detector(None)?;
         let face_regions = detect_face_regions(
             image,
-            &session,
+            session,
             face_opts.confidence_threshold,
             Some(face_opts.expansion_factor),
         )?;

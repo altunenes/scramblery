@@ -1,4 +1,4 @@
-echo "# Dependencies
+# Dependencies
 node_modules/
 */node_modules/
 **/node_modules/
@@ -21,7 +21,6 @@ yarn-debug.log*
 yarn-error.log*
 
 # Editor
-.DS_Store
 .vscode/*
 !.vscode/extensions.json
 *.suo
@@ -30,5 +29,9 @@ yarn-error.log*
 *.sln
 *.sw?
 
+# OS
+.DS_Store
+**/.DS_Store
+
 # Tauri
-**/gen/schemas" > .gitignore
+**/gen/schemas
