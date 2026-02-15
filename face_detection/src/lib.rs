@@ -8,9 +8,10 @@ use onnx::Session;
 use onnx::Value;
 use ndarray::ArrayViewD;
 use std::sync::OnceLock;
+use std::sync::Mutex;
 
 
-static FACE_DETECTOR_SESSION: OnceLock<Session> = OnceLock::new();
+static FACE_DETECTOR_SESSION: OnceLock<Mutex<Session>> = OnceLock::new();
 
 /// Target dimensions for the face detection model (please see: https://github.com/onnx/models/tree/main/validated/vision/body_analysis/ultraface)
 pub const TARGET_WIDTH: u32 = 640;
@@ -35,7 +36,7 @@ impl FaceRegion {
     pub fn dimensions(&self) -> (u32, u32) {
         (self.x2 - self.x1, self.y2 - self.y1)
     }
-    
+
     /// Expands the region by a factor to ensure we capture the full face
     pub fn expand(&self, factor: f32, max_width: u32, max_height: u32) -> Self {
         let width = (self.x2 - self.x1) as f32;
@@ -54,7 +55,7 @@ impl FaceRegion {
 }
 
 /// Loads the face detection model, using a cached version if available
-pub fn load_face_detector(model_path: Option<PathBuf>) -> Result<&'static Session> {
+pub fn load_face_detector(model_path: Option<PathBuf>) -> Result<&'static Mutex<Session>> {
     if let Some(session) = FACE_DETECTOR_SESSION.get() {
         return Ok(session);
     }
@@ -63,7 +64,7 @@ pub fn load_face_detector(model_path: Option<PathBuf>) -> Result<&'static Sessio
     } else {
         #[cfg(debug_assertions)]
         let path = PathBuf::from("resources/models/version-RFB-640.onnx");
-        
+
         #[cfg(not(debug_assertions))]
         let path = {
             let exe_path = std::env::current_exe().expect("Failed to get executable path");
@@ -72,7 +73,7 @@ pub fn load_face_detector(model_path: Option<PathBuf>) -> Result<&'static Sessio
             let resource_path = if cfg!(target_os = "macos") {
                 // macOS: navigate from .app/Contents/MacOS/exe to .app/Contents/Resources
                 exe_path
-                    .parent() 
+                    .parent()
                     .and_then(|p| p.parent())
                     .map(|p| p.join("Resources/models/version-RFB-640.onnx"))
             } else {
@@ -81,19 +82,19 @@ pub fn load_face_detector(model_path: Option<PathBuf>) -> Result<&'static Sessio
                     .parent()
                     .map(|p| p.join("models/version-RFB-640.onnx"))
             }.expect("Failed to construct resource path");
-                
+
             info!("Constructed resource path: {:?}", resource_path);
             info!("Resource path exists: {}", resource_path.exists());
-            
+
             resource_path
         };
-        
+
         path
     };
-    
+
     info!("Loading face detection model from {:?}", model_path);
     let session = new_session_from_path(model_path)?;
-    if let Err(_) = FACE_DETECTOR_SESSION.set(session) {
+    if let Err(_) = FACE_DETECTOR_SESSION.set(Mutex::new(session)) {
         info!("Warning: Face detection session was already initialized by another thread");
     }
     Ok(FACE_DETECTOR_SESSION.get().unwrap())
@@ -102,7 +103,7 @@ fn preprocess_image(image: &DynamicImage) -> Array4<f32> {
     let resized = image.resize_exact(TARGET_WIDTH, TARGET_HEIGHT, FilterType::CatmullRom);
     let (width, height) = resized.dimensions();
     let mut tensor = Array4::<f32>::zeros((1, 3, height as usize, width as usize));
-    
+
     for (x, y, pixel) in resized.pixels() {
         let [r, g, b, _] = pixel.0;
         tensor[[0, 0, y as usize, x as usize]] = (r as f32 - 127.0) / 128.0;
@@ -115,22 +116,23 @@ fn preprocess_image(image: &DynamicImage) -> Array4<f32> {
 /// Detects face regions in an image that can be used for selective scrambling
 /// expansion_factor: How much to expand detected regions?
 pub fn detect_face_regions(
-    image: &DynamicImage, 
-    session: &Session, 
+    image: &DynamicImage,
+    session: &Mutex<Session>,
     confidence_threshold: f32,
     expansion_factor: Option<f32>,
 ) -> Result<Vec<FaceRegion>> {
+    let mut session = session.lock().map_err(|e| anyhow::anyhow!("Session mutex poisoned: {}", e))?;
     let input_tensor = preprocess_image(image);
-    let input_name = &session.inputs[0].name;
+    let input_name = session.inputs()[0].name().to_string();
+    let output_names: Vec<String> = session.outputs().iter().map(|o| o.name().to_string()).collect();
     let input_values = std::collections::HashMap::from([(
         input_name.as_str(),
-        Value::from_array(input_tensor.view())?
+        Value::from_array(input_tensor)?
     )]);
     let outputs = session.run(input_values)?;
-    let output_names: Vec<_> = session.outputs.iter().map(|o| o.name.as_str()).collect();
-    let confidences: ArrayViewD<f32> = outputs[output_names[0]].try_extract_tensor()?;
-    let boxes: ArrayViewD<f32> = outputs[output_names[1]].try_extract_tensor()?;
-    info!("Processing detections... Confidence shape: {:?}, Boxes shape: {:?}", 
+    let confidences: ArrayViewD<f32> = outputs[output_names[0].as_str()].try_extract_array()?;
+    let boxes: ArrayViewD<f32> = outputs[output_names[1].as_str()].try_extract_array()?;
+    info!("Processing detections... Confidence shape: {:?}, Boxes shape: {:?}",
           confidences.shape(), boxes.shape());
     let num_detections = confidences.shape()[1];
     let (orig_width, orig_height) = image.dimensions();
@@ -140,14 +142,14 @@ pub fn detect_face_regions(
         if face_confidence < confidence_threshold {
             continue;
         }
-        
+
         // corner coordinates
         let x1 = boxes[[0, i, 0]];
         let y1 = boxes[[0, i, 1]];
         let x2 = boxes[[0, i, 2]];
         let y2 = boxes[[0, i, 3]];
-        
-        info!("Raw detection: x1={}, y1={}, x2={}, y2={}, conf={}", 
+
+        info!("Raw detection: x1={}, y1={}, x2={}, y2={}, conf={}",
               x1, y1, x2, y2, face_confidence);
         // Scale to image dimensions
         let mut region = FaceRegion {
@@ -181,40 +183,40 @@ fn calculate_iou(a: &FaceRegion, b: &FaceRegion) -> f32 {
     let y_top = a.y1.max(b.y1) as f32;
     let x_right = a.x2.min(b.x2) as f32;
     let y_bottom = a.y2.min(b.y2) as f32;
-    
+
     if x_right < x_left || y_bottom < y_top {
         return 0.0;
     }
-    
+
     let intersection = (x_right - x_left) * (y_bottom - y_top);
     let area_a = (a.x2 - a.x1) as f32 * (a.y2 - a.y1) as f32;
     let area_b = (b.x2 - b.x1) as f32 * (b.y2 - b.y1) as f32;
-    
+
     intersection / (area_a + area_b - intersection)
 }
 
 fn apply_nms(boxes: Vec<FaceRegion>, iou_threshold: f32) -> Result<Vec<FaceRegion>> {
     let mut keep = vec![true; boxes.len()];
     let mut result = Vec::new();
-    
+
     for i in 0..boxes.len() {
         if !keep[i] {
             continue;
         }
-        
+
         result.push(boxes[i].clone());
-        
+
         for j in (i + 1)..boxes.len() {
             if !keep[j] {
                 continue;
             }
-            
+
             let iou = calculate_iou(&boxes[i], &boxes[j]);
             if iou > iou_threshold {
                 keep[j] = false;
             }
         }
     }
-    
+
     Ok(result)
 }
