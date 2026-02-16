@@ -1071,8 +1071,10 @@ dependencies = [
  "face_detection",
  "image",
  "itertools 0.14.0",
+ "log",
  "ndarray",
  "num-complex",
+ "optical_flow",
  "rand 0.9.0",
  "rayon",
  "rustfft",
@@ -3325,6 +3327,17 @@ dependencies = [
  "libc",
  "pkg-config",
  "vcpkg",
+]
+
+[[package]]
+name = "optical_flow"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "image",
+ "log",
+ "ndarray",
+ "onnx",
 ]
 
 [[package]]
