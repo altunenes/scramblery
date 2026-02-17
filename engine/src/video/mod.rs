@@ -57,6 +57,17 @@ fn scramble_frame(image: &RgbaImage, scramble_options: &ScrambleOptions) -> Resu
                 scrambler.scramble(&dyn_image)
             }
         }
+        ScrambleType::Diffeomorphic(diff_opts) => {
+            let mut scrambler = crate::scramble::DiffeomorphicScrambler::new(
+                diff_opts.clone(),
+                scramble_options.seed,
+            );
+            if let Some(face_opts) = &scramble_options.face_detection {
+                scrambler.scramble_with_face_detection(&dyn_image, face_opts)
+            } else {
+                scrambler.scramble(&dyn_image)
+            }
+        }
     }
 }
 
