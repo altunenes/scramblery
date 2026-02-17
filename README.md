@@ -26,6 +26,8 @@ This is a "byproduct" of my research for my master's [thesis](https://www.tandfo
 - **Video Scrambling:** Efficient frame processing via GStreamer's pipeline.
 - **Batch Processing & Face Detection:** Process image directories and optionally target faces.
 - **Face Detection:** Detect facial area and scramble facial area (options for: exclude/include bg).
+- **Diffeomorphic Scrambling:** Smooth, topology-preserving spatial warping based on random DCT flow fields. See [acknowledgements](#acknowledgements).
+- **Temporal Coherence (Optical Flow):** Preserve original motion in scrambled video output using SEA-RAFT optical flow. See [acknowledgements](#acknowledgements).
 
 ## Examples
 
@@ -47,6 +49,20 @@ This is a "byproduct" of my research for my master's [thesis](https://www.tandfo
 ## Installation
 
 For installation instructions, please refer to the [INSTALLATION GUIDE](https://github.com/altunenes/scramblery/blob/main/INSTALL.md).
+
+---
+
+## Acknowledgements
+
+Scramblery uses the following methods. If you use these features in your research, please cite the original authors also:
+
+**Diffeomorphic Scrambling:**
+
+> Stojanoski, B., & Cusack, R. (2014). Time to wave good-bye to phase scrambling: Creating controlled scrambled images using diffeomorphic transformations. *Journal of Vision*, 14(12):6, 1–16. doi:[10.1167/14.12.6](https://doi.org/10.1167/14.12.6)
+
+**SEA-RAFT Optical Flow (Temporal Coherence):**
+
+> Wang, Y., Lipson, L., & Deng, J. (2024). SEA-RAFT: Simple, Efficient, Accurate RAFT for Optical Flow. *European Conference on Computer Vision (ECCV)*. Princeton Vision & Learning Lab.
 
 ---
 
