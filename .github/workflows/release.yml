@@ -129,20 +129,37 @@ jobs:
             Write-Host "Installation failed with exit code: $($proc.ExitCode)"; exit 1
           }
 
-          Write-Host "Looking for GStreamer installation..."
-          # NSIS installer places files under C:\gstreamer\1.0\msvc_x86_64
-          $expectedPath = "$installDir\1.0\msvc_x86_64"
-          $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-          while (-not (Test-Path $expectedPath)) {
-            if ($stopwatch.Elapsed.TotalSeconds -gt 60) {
-              Write-Host "Timeout waiting for installation directory. Current structure:"
-              Get-ChildItem -Path $installDir -Recurse | Format-List
-              exit 1
-            }
-            Start-Sleep -Seconds 5
-            Write-Host "Waiting for installation directory... ($([int]$stopwatch.Elapsed.TotalSeconds)s)"
+          Write-Host "Searching for GStreamer installation..."
+          # Dump directory tree to find where Inno Setup actually installed
+          Write-Host "=== Contents of C:\ ==="
+          Get-ChildItem "C:\" | Select-Object Name | Format-Table
+          if (Test-Path $installDir) {
+            Write-Host "=== Contents of $installDir (3 levels) ==="
+            Get-ChildItem $installDir -Recurse -Depth 3 | Select-Object FullName | Format-Table
           }
-          Write-Host "Installation directory found: $expectedPath"
+          Write-Host "=== Checking Program Files ==="
+          Get-ChildItem "C:\Program Files" | Where-Object { $_.Name -like "*gstreamer*" -or $_.Name -like "*GStreamer*" } | Format-Table
+
+          # Try known possible paths
+          $possiblePaths = @(
+            "$installDir\1.0\msvc_x86_64",
+            "$installDir\msvc_x86_64",
+            $installDir,
+            "C:\Program Files\GStreamer\1.0\msvc_x86_64",
+            "C:\Program Files (x86)\GStreamer\1.0\msvc_x86_64"
+          )
+          $expectedPath = $null
+          foreach ($p in $possiblePaths) {
+            if (Test-Path "$p\bin") {
+              Write-Host "Found GStreamer at: $p"
+              $expectedPath = $p
+              break
+            }
+          }
+          if ($null -eq $expectedPath) {
+            Write-Host "ERROR: Could not find GStreamer installation"
+            exit 1
+          }
 
           # Verify core GStreamer DLL is present
           $dllToCheck = "bin\gstreamer-1.0-0.dll"
