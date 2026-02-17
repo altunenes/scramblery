@@ -122,11 +122,13 @@ jobs:
           Write-Host "Downloading GStreamer installer..."
           Invoke-WebRequest -Uri $installerUrl -OutFile "$tempDir\gstreamer.exe"
 
-          # NSIS silent install: /S = silent, /D= sets install root (must be last arg, no quotes)
+          # NSIS silent install via direct call — more reliable than Start-Process in CI
+          # /S = silent, /D= sets install root (must be last, unquoted)
           Write-Host "Installing GStreamer..."
-          $proc = Start-Process "$tempDir\gstreamer.exe" "/S /D=$installDir" -Wait -PassThru -NoNewWindow
-          if ($proc.ExitCode -ne 0) {
-            Write-Host "Installation failed with code: $($proc.ExitCode)"
+          $env:__COMPAT_LAYER = "RunAsInvoker"
+          & "$tempDir\gstreamer.exe" /S /D=$installDir
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "Installation failed with exit code: $LASTEXITCODE"
             exit 1
           }
 
