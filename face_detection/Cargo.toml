@@ -3,6 +3,10 @@ name = "face_detection"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+cuda = ["onnx/cuda"]
+migraphx = ["onnx/migraphx"]
+
 [dependencies]
 image = { workspace = true }
 ndarray = { workspace = true }

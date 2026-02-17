@@ -6,39 +6,32 @@ use anyhow::Result;
 use ort::session::builder::GraphOptimizationLevel;
 use ort::ep::CPU;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum ExecutionProvider {
     CPU,
     #[cfg(target_os = "macos")]
     CoreML,
-    #[cfg(any(target_os = "windows", target_os = "linux"))]
-    CUDA,
     #[cfg(target_os = "windows")]
     DirectML,
+    #[cfg(feature = "cuda")]
+    CUDA,
+    #[cfg(feature = "migraphx")]
+    MIGraphX,
 }
 
 impl Default for ExecutionProvider {
     fn default() -> Self {
+        // Priority: platform-native GPU first, then CUDA/ROCm, then CPU fallback
         #[cfg(target_os = "macos")]
-        { ExecutionProvider::CoreML }
-        #[cfg(all(not(target_os = "macos"), any(target_os = "windows", target_os = "linux")))]
-        { ExecutionProvider::CUDA }
-        #[cfg(all(not(target_os = "macos"), not(any(target_os = "windows", target_os = "linux"))))]
-        { ExecutionProvider::CPU }
-    }
-}
-
-impl fmt::Debug for ExecutionProvider {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ExecutionProvider::CPU => write!(f, "CPU"),
-            #[cfg(target_os = "macos")]
-            ExecutionProvider::CoreML => write!(f, "CoreML"),
-            #[cfg(any(target_os = "windows", target_os = "linux"))]
-            ExecutionProvider::CUDA => write!(f, "CUDA"),
-            #[cfg(target_os = "windows")]
-            ExecutionProvider::DirectML => write!(f, "DirectML"),
-        }
+        { return ExecutionProvider::CoreML; }
+        #[cfg(target_os = "windows")]
+        { return ExecutionProvider::DirectML; }
+        #[cfg(feature = "cuda")]
+        { return ExecutionProvider::CUDA; }
+        #[cfg(feature = "migraphx")]
+        { return ExecutionProvider::MIGraphX; }
+        #[allow(unreachable_code)]
+        ExecutionProvider::CPU
     }
 }
 
@@ -94,14 +87,19 @@ pub static ENV: Lazy<()> = Lazy::new(|| {
         );
     }
 
-    #[cfg(any(target_os = "windows", target_os = "linux"))]
+    #[cfg(feature = "cuda")]
     {
         providers.push(ort::ep::CUDA::default().build());
     }
 
-    #[cfg(target_os = "windows")]
+    #[cfg(all(target_os = "windows", not(feature = "cuda")))]
     {
         providers.push(ort::ep::DirectML::default().build());
+    }
+
+    #[cfg(feature = "migraphx")]
+    {
+        providers.push(ort::ep::MIGraphX::default().build());
     }
 
     providers.push(CPU::default().build().error_on_failure());

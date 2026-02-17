@@ -15,10 +15,23 @@ jobs:
         include:
           - platform: macos-latest
             args: '--target aarch64-apple-darwin'
-          - platform: ubuntu-22.04
-            args: ''
+            features: ''
+
           - platform: windows-latest
             args: ''
+            features: ''
+
+          - platform: windows-latest
+            args: ''
+            features: 'cuda'
+
+          - platform: ubuntu-22.04
+            args: ''
+            features: 'cuda'
+
+          - platform: ubuntu-22.04
+            args: ''
+            features: 'migraphx'
     runs-on: ${{ matrix.platform }}
     steps:
       - name: Checkout repository
@@ -166,6 +179,12 @@ jobs:
           
           Write-Host "GStreamer installation completed successfully."
 
+      - name: Patch product name for GPU variant
+        if: matrix.features != ''
+        shell: bash
+        run: |
+          sed -i 's/"productName": "scramblery"/"productName": "scramblery-${{ matrix.features }}"/' ui/src-tauri/tauri.conf.json
+
       - name: Install frontend dependencies
         run: |
           cd ui
@@ -183,7 +202,7 @@ jobs:
           releaseBody: 'See the assets to download and install this version.'
           releaseDraft: false
           prerelease: false
-          args: ${{ matrix.args }}
+          args: ${{ matrix.args }}${{ matrix.features != '' && format(' --features {0}', matrix.features) || '' }}
 
       # macOS self-signing step
       - name: Self-sign macOS app
