@@ -117,11 +117,14 @@ jobs:
           New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
 
           $installerUrl = "https://github.com/altunenes/scramblery/releases/download/dependencies/gstreamer-1.0-msvc-x86_64-$gstVer.exe"
-          Write-Host "Downloading GStreamer installer..."
+          Write-Host "Downloading GStreamer $gstVer installer..."
           Invoke-WebRequest -Uri $installerUrl -OutFile "$tempDir\gstreamer.exe"
 
+          # Inno Setup silent flags (GStreamer 1.28.0 switched from NSIS/MSI to Inno Setup)
           Write-Host "Installing GStreamer..."
-          $proc = Start-Process -FilePath "$tempDir\gstreamer.exe" -ArgumentList "/S /D=$installDir" -Wait -PassThru
+          $proc = Start-Process -FilePath "$tempDir\gstreamer.exe" `
+            -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/DIR=$installDir" `
+            -Wait -PassThru
           if ($proc.ExitCode -ne 0) {
             Write-Host "Installation failed with exit code: $($proc.ExitCode)"; exit 1
           }
