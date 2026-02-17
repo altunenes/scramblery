@@ -110,26 +110,20 @@ jobs:
         shell: pwsh
         run: |
           Write-Host "Starting GStreamer installation process..."
-          # 1.28.0+ uses NSIS .exe installers instead of .msi
           $gstVer = "1.28.0"
           $tempDir = "C:\gst-temp"
           $installDir = "C:\gstreamer"
 
           New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
 
-          Write-Host "Downloading installers..."
           $installerUrl = "https://github.com/altunenes/scramblery/releases/download/dependencies/gstreamer-1.0-msvc-x86_64-$gstVer.exe"
           Write-Host "Downloading GStreamer installer..."
           Invoke-WebRequest -Uri $installerUrl -OutFile "$tempDir\gstreamer.exe"
 
-          # NSIS silent install via direct call — more reliable than Start-Process in CI
-          # /S = silent, /D= sets install root (must be last, unquoted)
           Write-Host "Installing GStreamer..."
-          $env:__COMPAT_LAYER = "RunAsInvoker"
-          & "$tempDir\gstreamer.exe" /S /D=$installDir
-          if ($LASTEXITCODE -ne 0) {
-            Write-Host "Installation failed with exit code: $LASTEXITCODE"
-            exit 1
+          $proc = Start-Process -FilePath "$tempDir\gstreamer.exe" -ArgumentList "/S /D=$installDir" -Wait -PassThru
+          if ($proc.ExitCode -ne 0) {
+            Write-Host "Installation failed with exit code: $($proc.ExitCode)"; exit 1
           }
 
           Write-Host "Looking for GStreamer installation..."
