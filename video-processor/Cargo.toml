@@ -4,10 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-gstreamer = "0.23.4"
-gstreamer-video = "0.23.4"
-gstreamer-app = "0.23.4"
-gstreamer-pbutils = "0.23.4"
+gstreamer = "0.24.4"
+gstreamer-video = "0.24.4"
+gstreamer-app = "0.24.4"
+gstreamer-pbutils = "0.24.4"
 anyhow = { workspace = true }
 log = {workspace = true}
 image = { workspace = true }
