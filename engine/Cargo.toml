@@ -3,6 +3,10 @@ name = "engine"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+cuda = ["face_detection/cuda", "optical_flow/cuda"]
+migraphx = ["face_detection/migraphx", "optical_flow/migraphx"]
+
 [dependencies]
 base64 = "0.22.1"
 rayon = "1.10.0"

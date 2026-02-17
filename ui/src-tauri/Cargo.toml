@@ -5,6 +5,10 @@ description = "Scramblery"
 authors = ["@altunenes"]
 edition = "2021"
 
+[features]
+cuda = ["engine/cuda"]
+migraphx = ["engine/migraphx"]
+
 [build-dependencies]
 tauri-build = { version = "2.0.5", features = [] }
 
