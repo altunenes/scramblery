@@ -25,7 +25,8 @@
     "active": true,
     "targets": "all",
     "resources": {
-      "resources/models/version-RFB-640.onnx": "models/version-RFB-640.onnx"
+      "resources/models/version-RFB-640.onnx": "models/version-RFB-640.onnx",
+      "resources/models/searaft_flow.onnx": "models/searaft_flow.onnx"
     },
     "icon": [
       "icons/32x32.png",

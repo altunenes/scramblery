@@ -45,6 +45,12 @@ interface VideoProcessingOptions {
       background_mode: 'Include' | 'Exclude';
     } | null;
   };
+  temporal_coherence: {
+    export_flow: boolean;
+    flow_output_dir: string | null;
+    keyframe_interval: number;
+    blend_frames: number;
+  } | null;
 }
 
 function VideoProcess() {
@@ -72,6 +78,11 @@ function VideoProcess() {
   const [blurOptions, setBlurOptions] = useState<BlurOptions>({
     sigma: 5.0,
   });
+  const [useTemporalCoherence, setUseTemporalCoherence] = useState(false);
+  const [exportFlow, setExportFlow] = useState(false);
+  const [flowOutputDir, setFlowOutputDir] = useState<string | null>(null);
+  const [keyframeInterval, setKeyframeInterval] = useState(30);
+  const [blendFrames, setBlendFrames] = useState(0);
   useEffect(() => {
     setFourierOptions(prev => ({
       ...prev,
@@ -161,6 +172,12 @@ function VideoProcess() {
             background_mode: backgroundMode,
           } : null,
         },
+        temporal_coherence: useTemporalCoherence ? {
+          export_flow: exportFlow,
+          flow_output_dir: exportFlow ? flowOutputDir : null,
+          keyframe_interval: keyframeInterval,
+          blend_frames: blendFrames,
+        } : null,
       };
   
       await invoke('process_video', { options });
@@ -261,6 +278,87 @@ function VideoProcess() {
                 <option value="Include">Keep Background (Scramble Faces Only)</option>
                 <option value="Exclude">Exclude Background (Faces Only)</option>
               </select>
+            </div>
+          )}
+        </div>
+
+        <div className="temporal-coherence-control">
+          <div className="checkbox-control">
+            <input
+              type="checkbox"
+              id="temporal-coherence"
+              checked={useTemporalCoherence}
+              onChange={(e) => setUseTemporalCoherence(e.target.checked)}
+            />
+            <label htmlFor="temporal-coherence">Temporal Coherence (Optical Flow)</label>
+          </div>
+
+          {useTemporalCoherence && (
+            <div className="temporal-coherence-options">
+              <p className="info-note">
+                Uses SEA-RAFT to preserve original motion in scrambled output. Keyframes are scrambled fresh; frames in between are warped to follow original motion.
+              </p>
+              <div className="keyframe-interval-control">
+                <label>Keyframe Interval: {keyframeInterval} frames</label>
+                <input
+                  type="range"
+                  min="0"
+                  max="120"
+                  value={keyframeInterval}
+                  onChange={(e) => setKeyframeInterval(Number(e.target.value))}
+                />
+                <p className="info-note">
+                  Lower = more frequent fresh scrambles (less drift, less motion smoothness). Higher = longer warping runs (smoother motion, more accumulation artifacts).
+                </p>
+              </div>
+              <div className="keyframe-blend-control">
+                <label>Keyframe Blend: {blendFrames} frames</label>
+                <input
+                  type="range"
+                  min="0"
+                  max="10"
+                  value={blendFrames}
+                  onChange={(e) => setBlendFrames(Number(e.target.value))}
+                />
+                <p className="info-note">
+                  Crossfade between warped and fresh scramble at keyframe boundaries. 0 = abrupt switch. Higher = smoother transitions.
+                </p>
+              </div>
+              <div className="checkbox-control">
+                <input
+                  type="checkbox"
+                  id="export-flow"
+                  checked={exportFlow}
+                  onChange={(e) => setExportFlow(e.target.checked)}
+                />
+                <label htmlFor="export-flow">Export Flow Files (.flo)</label>
+              </div>
+              {exportFlow && (
+                <div className="flow-output-dir">
+                  <label>Flow Output Directory:</label>
+                  <div className="file-input">
+                    <input
+                      type="text"
+                      value={flowOutputDir || ''}
+                      readOnly
+                      className="file-path"
+                    />
+                    <button
+                      onClick={async () => {
+                        try {
+                          const selected = await open({ directory: true });
+                          if (selected) setFlowOutputDir(selected as string);
+                        } catch (err) {
+                          console.error('Error selecting directory:', err);
+                        }
+                      }}
+                      className="select-file-button"
+                    >
+                      Select Directory
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

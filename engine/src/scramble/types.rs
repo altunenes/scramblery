@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum ScrambleType {
@@ -113,4 +114,18 @@ impl Default for BlurOptions {
             sigma: 5.0,
         }
     }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct TemporalCoherenceOptions {
+    pub export_flow: bool,
+    pub flow_output_dir: Option<PathBuf>,
+    /// Insert a freshly scrambled keyframe every N frames to prevent error accumulation.
+    /// Frame 0 is always a keyframe. Frames between keyframes are warped from the previous frame.
+    /// E.g. keyframe_interval=30 means frames 0, 30, 60, ... are freshly scrambled.
+    pub keyframe_interval: usize,
+    /// Number of frames over which to crossfade between the warped result and a fresh scramble
+    /// at keyframe boundaries. 0 = disabled (abrupt switch). E.g. blend_frames=3 means frames
+    /// K-1, K, K+1 around each keyframe K are blended for a smooth transition.
+    pub blend_frames: usize,
 }
