@@ -28,7 +28,7 @@ pub fn load_optical_flow_model(model_path: Option<PathBuf>) -> Result<&'static M
         path
     } else {
         #[cfg(debug_assertions)]
-        let path = PathBuf::from("resources/models/searaft_warping.onnx");
+        let path = PathBuf::from("resources/models/searaft_flow.onnx");
 
         #[cfg(not(debug_assertions))]
         let path = {
@@ -39,11 +39,11 @@ pub fn load_optical_flow_model(model_path: Option<PathBuf>) -> Result<&'static M
                 exe_path
                     .parent()
                     .and_then(|p| p.parent())
-                    .map(|p| p.join("Resources/models/searaft_warping.onnx"))
+                    .map(|p| p.join("Resources/models/searaft_flow.onnx"))
             } else {
                 exe_path
                     .parent()
-                    .map(|p| p.join("models/searaft_warping.onnx"))
+                    .map(|p| p.join("models/searaft_flow.onnx"))
             }
             .expect("Failed to construct resource path");
 
