@@ -25,11 +25,12 @@ jobs:
             args: ''
             features: 'cuda'
 
-          - platform: ubuntu-22.04
+          # ubuntu-24.04 required: ORT CUDA/MIGraphX binaries need glibc 2.38+ (22.04 only has 2.35)
+          - platform: ubuntu-24.04
             args: ''
             features: 'cuda'
 
-          - platform: ubuntu-22.04
+          - platform: ubuntu-24.04
             args: ''
             features: 'migraphx'
     runs-on: ${{ matrix.platform }}
@@ -102,7 +103,7 @@ jobs:
           echo "PKG_CONFIG_PATH=/Library/Frameworks/GStreamer.framework/Versions/1.0/lib/pkgconfig" >> $GITHUB_ENV
           echo "GST_PLUGIN_PATH=/Library/Frameworks/GStreamer.framework/Versions/1.0/lib/gstreamer-1.0" >> $GITHUB_ENV
           
-          sudo spctl --master-disable
+          sudo spctl --master-disable || true
 
       # Windows dependencies (consolidated step)
       - name: Install Windows dependencies
