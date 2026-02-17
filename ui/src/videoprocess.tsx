@@ -6,6 +6,7 @@ import { BlockControls, type BlockOptions } from './BlockControls';
 import BackButton from './comp/BackButton';
 import { listen } from '@tauri-apps/api/event';
 import { BlurControls, type BlurOptions } from './BlurControls';
+import { DiffeomorphicControls, type DiffeomorphicOptions } from './DiffeomorphicControls';
 
 type ScrambleTypeOption =
   | 'Pixel'
@@ -29,6 +30,13 @@ type ScrambleTypeOption =
   | {
       Blur: {
         sigma: number;
+      }
+    }
+  | {
+      Diffeomorphic: {
+        max_distortion: number;
+        n_steps: number;
+        n_comp: number;
       }
     };
 
@@ -61,7 +69,7 @@ function VideoProcess() {
   const [useFaceDetection, setUseFaceDetection] = useState(false);
   const [backgroundMode, setBackgroundMode] = useState<'Include' | 'Exclude'>('Include');
   const [progress, setProgress] = useState<number | null>(null);
-  const [scrambleType, setScrambleType] = useState<'Pixel' | 'Fourier' | 'Block' | 'Blur'>('Pixel');
+  const [scrambleType, setScrambleType] = useState<'Pixel' | 'Fourier' | 'Block' | 'Blur' | 'Diffeomorphic'>('Pixel');
   const [fourierOptions, setFourierOptions] = useState<FourierOptions>({
     frequency_range: 'All',
     phase_scramble: true,
@@ -77,6 +85,11 @@ function VideoProcess() {
   });
   const [blurOptions, setBlurOptions] = useState<BlurOptions>({
     sigma: 5.0,
+  });
+  const [diffeomorphicOptions, setDiffeomorphicOptions] = useState<DiffeomorphicOptions>({
+    max_distortion: 5.0,
+    n_steps: 20,
+    n_comp: 5,
   });
   const [useTemporalCoherence, setUseTemporalCoherence] = useState(false);
   const [exportFlow, setExportFlow] = useState(false);
@@ -158,6 +171,11 @@ function VideoProcess() {
             Blur: blurOptions
           };
           break;
+        case 'Diffeomorphic':
+          scrambleTypeOption = {
+            Diffeomorphic: diffeomorphicOptions
+          };
+          break;
       }
 
       const options: VideoProcessingOptions = {
@@ -213,13 +231,14 @@ function VideoProcess() {
           <label>Scramble Method</label>
           <select
             value={scrambleType}
-            onChange={(e) => setScrambleType(e.target.value as 'Pixel' | 'Fourier' | 'Block' | 'Blur')}
+            onChange={(e) => setScrambleType(e.target.value as 'Pixel' | 'Fourier' | 'Block' | 'Blur' | 'Diffeomorphic')}
             className="select-input"
           >
             <option value="Pixel">Pixel Scrambling</option>
             <option value="Fourier">Fourier Phase Scrambling</option>
             <option value="Block">Block Scrambling</option>
             <option value="Blur">Gaussian Blur</option>
+            <option value="Diffeomorphic">Diffeomorphic Warp</option>
           </select>
         </div>
 
@@ -242,6 +261,13 @@ function VideoProcess() {
           <BlurControls
             options={blurOptions}
             onChange={setBlurOptions}
+          />
+        )}
+
+        {scrambleType === 'Diffeomorphic' && (
+          <DiffeomorphicControls
+            options={diffeomorphicOptions}
+            onChange={setDiffeomorphicOptions}
           />
         )}
 

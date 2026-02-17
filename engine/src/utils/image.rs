@@ -60,7 +60,19 @@ pub fn process_base64_image(
             let scrambler = crate::scramble::BlurScrambler::new(
                 blur_opts.clone(),
             );
-            
+
+            if let Some(face_opts) = &options.face_detection {
+                scrambler.scramble_with_face_detection(&img, face_opts)?
+            } else {
+                scrambler.scramble(&img)?
+            }
+        }
+        ScrambleType::Diffeomorphic(diff_opts) => {
+            let mut scrambler = crate::scramble::DiffeomorphicScrambler::new(
+                diff_opts.clone(),
+                options.seed,
+            );
+
             if let Some(face_opts) = &options.face_detection {
                 scrambler.scramble_with_face_detection(&img, face_opts)?
             } else {

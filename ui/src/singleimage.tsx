@@ -5,6 +5,7 @@ import { writeFile } from '@tauri-apps/plugin-fs';
 import BackButton from './comp/BackButton';
 import { BlockControls, type BlockOptions } from './BlockControls';
 import { BlurControls, type BlurOptions } from './BlurControls';
+import { DiffeomorphicControls, type DiffeomorphicOptions } from './DiffeomorphicControls';
 
 import { FourierControls, type FourierOptions, type FrequencyRange } from './FourierControls';
 interface SelectedImage {
@@ -19,7 +20,7 @@ interface SelectedImage {
 function SingleImage() {
   const [selectedImage, setSelectedImage] = useState<SelectedImage | null>(null);
   const [scrambledImage, setScrambledImage] = useState<string | null>(null);
-  const [scrambleType, setScrambleType] = useState<'Pixel' | 'Fourier' | 'Block' | 'Blur'>('Pixel');
+  const [scrambleType, setScrambleType] = useState<'Pixel' | 'Fourier' | 'Block' | 'Blur' | 'Diffeomorphic'>('Pixel');
   const [intensity, setIntensity] = useState(50);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,6 +41,11 @@ function SingleImage() {
   });
   const [blurOptions, setBlurOptions] = useState<BlurOptions>({
     sigma: 5.0,
+  });
+  const [diffeomorphicOptions, setDiffeomorphicOptions] = useState<DiffeomorphicOptions>({
+    max_distortion: 5.0,
+    n_steps: 20,
+    n_comp: 5,
   });
   const handleImageUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -117,6 +123,11 @@ function SingleImage() {
             Blur: blurOptions
           };
           break;
+        case 'Diffeomorphic':
+          scrambleTypeOption = {
+            Diffeomorphic: diffeomorphicOptions
+          };
+          break;
       }
   
       const result = await invoke<string>('scramble_image', {
@@ -178,93 +189,76 @@ const formatFrequencyRange = (range: FrequencyRange) => {
   return (
     <div className="app-container">
       <BackButton />
-      
-      {/* Main Content Area */}
-      <div className="flex flex-col gap-4">
-        {/* Top Control Panel */}
-        <div className="controls-panel">
-          <h2>Image Scrambler</h2>
-          
-          {/* File Upload Section */}
-          <div className="file-upload-container">
-            <label>Select Image</label>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleImageUpload}
-              className="file-input"
-            />
-          </div>
 
-          {/* Core Controls */}
-          <div className="flex gap-4 mt-4">
-            {/* Left side - Basic Controls */}
-            <div className="flex-1">
-              <div className="scramble-type-control mb-4">
-                <label>Scramble Method:</label>
-                <select
-                  value={scrambleType}
-                  onChange={(e) => setScrambleType(e.target.value as 'Pixel' | 'Fourier' | 'Block' | 'Blur')}
-                  className="select-input"
-                  >
-                  <option value="Pixel">Pixel Scrambling</option>
-                  <option value="Fourier">Fourier Scrambling</option>
-                  <option value="Block">Block Scrambling</option>
-                  <option value="Blur">Gaussian Blur</option>
-                </select>
-              </div>
-              {/*Block Controls */}
-              {scrambleType === 'Block' && (
-                <BlockControls
-                  options={blockOptions}
-                  onChange={setBlockOptions}
-                />
-              )}
-              {scrambleType === 'Blur' && (
-              <BlurControls
-                options={blurOptions}
-                onChange={setBlurOptions}
+      {/* Controls Panel */}
+      <div className="controls-panel" style={{ flex: 'none' }}>
+        <h2>Image Scrambler</h2>
+
+        <div className="scramble-type-control">
+          <label>Scramble Method</label>
+          <select
+            value={scrambleType}
+            onChange={(e) => setScrambleType(e.target.value as 'Pixel' | 'Fourier' | 'Block' | 'Blur' | 'Diffeomorphic')}
+            className="select-input"
+          >
+            <option value="Pixel">Pixel Scrambling</option>
+            <option value="Fourier">Fourier Scrambling</option>
+            <option value="Block">Block Scrambling</option>
+            <option value="Blur">Gaussian Blur</option>
+            <option value="Diffeomorphic">Diffeomorphic Warp</option>
+          </select>
+        </div>
+
+        {scrambleType === 'Fourier' && (
+          <FourierControls options={fourierOptions} onChange={setFourierOptions} />
+        )}
+        {scrambleType === 'Block' && (
+          <BlockControls options={blockOptions} onChange={setBlockOptions} />
+        )}
+        {scrambleType === 'Blur' && (
+          <BlurControls options={blurOptions} onChange={setBlurOptions} />
+        )}
+        {scrambleType === 'Diffeomorphic' && (
+          <DiffeomorphicControls options={diffeomorphicOptions} onChange={setDiffeomorphicOptions} />
+        )}
+
+        {(scrambleType === 'Pixel' || scrambleType === 'Fourier') && (
+          <div className="intensity-control">
+            <label>Intensity</label>
+            <div className="slider-row">
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={intensity}
+                onChange={(e) => setIntensity(Number(e.target.value))}
               />
-              )}
-              {/* Always Visible Important Controls */}
-              <div className="intensity-control mb-4">
-                <label>Intensity: {intensity}%</label>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={intensity}
-                  onChange={(e) => setIntensity(Number(e.target.value))}
-                />
-              </div>
-
-              <div className="face-detection-control">
-                <div className="checkbox-control">
-                  <input
-                    type="checkbox"
-                    id="face-detection"
-                    checked={useFaceDetection}
-                    onChange={(e) => setUseFaceDetection(e.target.checked)}
-                  />
-                  <label htmlFor="face-detection">Use Face Detection</label>
-                </div>
-              </div>
+              <span className="slider-value">{intensity}%</span>
             </div>
+          </div>
+        )}
 
-            {/* Right side - Fourier Controls when selected */}
-            <div className="flex-1">
-              {scrambleType === 'Fourier' && (
-                <FourierControls
-                  options={fourierOptions}
-                  onChange={setFourierOptions}
-                />
-              )}
-            </div>
+        <div className="file-upload-container">
+          <label>Select Image</label>
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleImageUpload}
+          />
+        </div>
+
+        <div className="face-detection-control">
+          <div className="checkbox-control">
+            <input
+              type="checkbox"
+              id="face-detection"
+              checked={useFaceDetection}
+              onChange={(e) => setUseFaceDetection(e.target.checked)}
+            />
+            <label htmlFor="face-detection">Face Detection</label>
           </div>
         </div>
 
-        {/* Action Buttons*/}
-        <div className="controls-panel py-3">
         <div className="action-buttons">
           <button
             onClick={handleScramble}
@@ -273,23 +267,23 @@ const formatFrequencyRange = (range: FrequencyRange) => {
           >
             {isProcessing ? "Processing..." : "Scramble Image"}
           </button>
-          
+
           {scrambledImage && (
             <button onClick={handleSaveScrambled} className="save-button">
               Save Result
             </button>
           )}
         </div>
-      </div>
+
         {error && <div className="error-message">{error}</div>}
+      </div>
 
       {/* Image Preview Section */}
       {selectedImage && (
         <div className="image-comparison-container">
-          {/* Original Image Panel */}
           <div className="image-panel original-panel">
             <div className="panel-header">
-              <h3>Original Image</h3>
+              <h3>Original</h3>
               <p>{selectedImage.originalSize.width}x{selectedImage.originalSize.height}</p>
             </div>
             <div className="image-container">
@@ -300,10 +294,9 @@ const formatFrequencyRange = (range: FrequencyRange) => {
             </div>
           </div>
 
-          {/* Scrambled Image Panel */}
           <div className="image-panel scrambled-panel">
             <div className="panel-header">
-              <h3>Scrambled Result</h3>
+              <h3>Scrambled</h3>
               <p>{selectedImage.originalSize.width}x{selectedImage.originalSize.height}</p>
             </div>
             <div className="image-container">
@@ -322,7 +315,6 @@ const formatFrequencyRange = (range: FrequencyRange) => {
         </div>
       )}
     </div>
-  </div>
   );
 }
 

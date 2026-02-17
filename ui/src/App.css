@@ -586,3 +586,13 @@ input[type="number"]:focus {
 .flow-output-dir {
   margin-top: 0.5rem;
 }
+
+/* ── File Upload ── */
+.file-upload-container {
+  margin-bottom: 0.875rem;
+}
+
+.file-upload-container input[type="file"] {
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+}

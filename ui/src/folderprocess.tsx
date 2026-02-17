@@ -6,6 +6,7 @@ import { FourierControls, type FourierOptions, type FrequencyRange } from './Fou
 import { BlockControls, type BlockOptions } from './BlockControls';
 import BackButton from './comp/BackButton';
 import { BlurControls, type BlurOptions } from './BlurControls';
+import { DiffeomorphicControls, type DiffeomorphicOptions } from './DiffeomorphicControls';
 
 interface ProcessingResult {
   input_path: string;
@@ -42,6 +43,13 @@ type ScrambleTypeOption =
   | {
       Blur: {
         sigma: number;
+      }
+    }
+  | {
+      Diffeomorphic: {
+        max_distortion: number;
+        n_steps: number;
+        n_comp: number;
       }
     };
 
@@ -109,7 +117,7 @@ function FolderProcess() {
   const [progress, setProgress] = useState<BatchProgress | null>(null);
   const [results, setResults] = useState<ProcessingResult[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [scrambleType, setScrambleType] = useState<'Pixel' | 'Fourier' | 'Block' | 'Blur'>('Pixel');
+  const [scrambleType, setScrambleType] = useState<'Pixel' | 'Fourier' | 'Block' | 'Blur' | 'Diffeomorphic'>('Pixel');
   const [fourierOptions, setFourierOptions] = useState<FourierOptions>({
     frequency_range: 'All',
     phase_scramble: true,
@@ -126,7 +134,12 @@ function FolderProcess() {
   const [blurOptions, setBlurOptions] = useState<BlurOptions>({
     sigma: 5.0,
   });
-  
+  const [diffeomorphicOptions, setDiffeomorphicOptions] = useState<DiffeomorphicOptions>({
+    max_distortion: 5.0,
+    n_steps: 20,
+    n_comp: 5,
+  });
+
   useEffect(() => {
     const unlisten = listen<BatchProgress>('batch-progress', (event) => {
       setProgress(event.payload);
@@ -224,6 +237,11 @@ function FolderProcess() {
             Blur: blurOptions
           };
           break;
+        case 'Diffeomorphic':
+          scrambleTypeOption = {
+            Diffeomorphic: diffeomorphicOptions
+          };
+          break;
       }
   
       const options = {
@@ -263,13 +281,14 @@ function FolderProcess() {
           <label>Scramble Method:</label>
           <select
             value={scrambleType}
-            onChange={(e) => setScrambleType(e.target.value as 'Pixel' | 'Fourier' | 'Block' | 'Blur')}
+            onChange={(e) => setScrambleType(e.target.value as 'Pixel' | 'Fourier' | 'Block' | 'Blur' | 'Diffeomorphic')}
             className="select-input"
           >
             <option value="Pixel">Pixel Scrambling</option>
             <option value="Fourier">Fourier Scrambling</option>
             <option value="Block">Block Scrambling</option>
             <option value="Blur">Gaussian Blur</option>
+            <option value="Diffeomorphic">Diffeomorphic Warp</option>
           </select>
         </div>
 
@@ -291,6 +310,13 @@ function FolderProcess() {
           <BlurControls
             options={blurOptions}
             onChange={setBlurOptions}
+          />
+        )}
+
+        {scrambleType === 'Diffeomorphic' && (
+          <DiffeomorphicControls
+            options={diffeomorphicOptions}
+            onChange={setDiffeomorphicOptions}
           />
         )}
         <div className="directory-selection">
@@ -351,6 +377,7 @@ function FolderProcess() {
           )}
         </div>
 
+        {(scrambleType === 'Pixel' || scrambleType === 'Fourier') && (
         <div className="intensity-control">
           <label>Intensity: {intensity}%</label>
           <input
@@ -361,6 +388,7 @@ function FolderProcess() {
             onChange={(e) => setIntensity(Number(e.target.value))}
           />
         </div>
+        )}
 
         <button
           onClick={handleProcess}

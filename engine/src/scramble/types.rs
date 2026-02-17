@@ -7,6 +7,7 @@ pub enum ScrambleType {
     Fourier(FourierOptions),
     Block(BlockOptions),
     Blur(BlurOptions),
+    Diffeomorphic(DiffeomorphicOptions),
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum BackgroundMode {
@@ -112,6 +113,26 @@ impl Default for BlurOptions {
     fn default() -> Self {
         Self {
             sigma: 5.0,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct DiffeomorphicOptions {
+    /// Maximum distortion in pixels (RMS displacement)
+    pub max_distortion: f32,
+    /// Number of iterative warp steps (higher = smoother, more invertible)
+    pub n_steps: u32,
+    /// Number of DCT components per axis (controls spatial frequency of warp)
+    pub n_comp: u32,
+}
+
+impl Default for DiffeomorphicOptions {
+    fn default() -> Self {
+        Self {
+            max_distortion: 5.0,
+            n_steps: 20,
+            n_comp: 5,
         }
     }
 }
