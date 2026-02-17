@@ -118,26 +118,15 @@ jobs:
           New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
 
           Write-Host "Downloading installers..."
-          $baseUrl = "https://gstreamer.freedesktop.org/data/pkg/windows/$gstVer/msvc"
-          $runtimeUrl = "$baseUrl/gstreamer-1.0-msvc-x86_64-$gstVer.exe"
-          $develUrl   = "$baseUrl/gstreamer-1.0-devel-msvc-x86_64-$gstVer.exe"
-          Write-Host "Downloading MSVC 64-bit runtime installer..."
-          Invoke-WebRequest -Uri $runtimeUrl -OutFile "$tempDir\gstreamer.exe"
-          Write-Host "Downloading MSVC 64-bit development installer..."
-          Invoke-WebRequest -Uri $develUrl -OutFile "$tempDir\gstreamer-devel.exe"
+          $installerUrl = "https://github.com/altunenes/scramblery/releases/download/dependencies/gstreamer-1.0-msvc-x86_64-$gstVer.exe"
+          Write-Host "Downloading GStreamer installer..."
+          Invoke-WebRequest -Uri $installerUrl -OutFile "$tempDir\gstreamer.exe"
 
           # NSIS silent install: /S = silent, /D= sets install root (must be last arg, no quotes)
-          Write-Host "Installing runtime package..."
+          Write-Host "Installing GStreamer..."
           $proc = Start-Process "$tempDir\gstreamer.exe" "/S /D=$installDir" -Wait -PassThru -NoNewWindow
           if ($proc.ExitCode -ne 0) {
-            Write-Host "Runtime installation failed with code: $($proc.ExitCode)"
-            exit 1
-          }
-
-          Write-Host "Installing development package..."
-          $proc = Start-Process "$tempDir\gstreamer-devel.exe" "/S /D=$installDir" -Wait -PassThru -NoNewWindow
-          if ($proc.ExitCode -ne 0) {
-            Write-Host "Development installation failed with code: $($proc.ExitCode)"
+            Write-Host "Installation failed with code: $($proc.ExitCode)"
             exit 1
           }
 
