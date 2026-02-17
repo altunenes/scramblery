@@ -3,8 +3,8 @@
 Before running Scramblery, you need to install GStreamer:
 
 
-1. Download and install GStreamer from the official website: https://gstreamer.freedesktop.org/download/#macos 
-I built GStreamer 1.24.12 (see: https://github.com/altunenes/scramblery/blob/main/.github/workflows/release.yml#L81C1-L82C1), but I don't think the version matters, download the latest version.
+1. Download and install GStreamer from the official website: https://gstreamer.freedesktop.org/download/
+GStreamer is not bundled with Scramblery to keep the installer size small. Download the latest version — the exact version shouldn't matter.
 
 Installing "runtime installer" should be enough, but if you want to develop and contribute to Scramblery with GStreamer, you can install "development installer" too.
 
@@ -28,9 +28,9 @@ Installing "runtime installer" should be enough, but if you want to develop and 
 
 *A: Yes, we can. But installing Gstreamer is not a big deal like installing CUDA or something. It's just a few clicks and a few MBs. So, I think it's not worth the effort to embed the necessary dlls/libs also it would make the app size larger and harder to maintain.*
 
-**Q: Why don't you include GPU support for face detection?**
+**Q: I see `-cuda` and `-migraphx` installers. Do I need those?**
 
-*A: Two reason. First, face detection model already very small. Second, creating different installers for each different onnx execution provider is rather pointless for such a simple face detection task in my opinion.*
+*A: Only if you want GPU acceleration for optical flow. The default installers use CoreML (macOS) and DirectML (Windows) automatically. The CUDA/MIGraphX builds don't bundle those runtimes — you need to install CUDA or ROCm+MIGraphX yourself. If the runtime isn't found, it just falls back to CPU anyway.*
 
 
 

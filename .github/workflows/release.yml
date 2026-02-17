@@ -91,7 +91,7 @@ jobs:
         if: matrix.platform == 'macos-latest'
         run: |
           # Download and install official GStreamer packages
-          GSTREAMER_VERSION="1.24.12"
+          GSTREAMER_VERSION="1.28.0"
           curl -L "https://gstreamer.freedesktop.org/data/pkg/osx/$GSTREAMER_VERSION/gstreamer-1.0-$GSTREAMER_VERSION-universal.pkg" -o gstreamer.pkg
           curl -L "https://gstreamer.freedesktop.org/data/pkg/osx/$GSTREAMER_VERSION/gstreamer-1.0-devel-$GSTREAMER_VERSION-universal.pkg" -o gstreamer-devel.pkg
           
@@ -110,39 +110,39 @@ jobs:
         shell: pwsh
         run: |
           Write-Host "Starting GStreamer installation process..."
-          $gstVer = "1.24.12"
+          # 1.28.0+ uses NSIS .exe installers instead of .msi
+          $gstVer = "1.28.0"
           $tempDir = "C:\gst-temp"
           $installDir = "C:\gstreamer"
-          
-          # Create necessary directories
+
           New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
-          New-Item -ItemType Directory -Force -Path $installDir | Out-Null
 
           Write-Host "Downloading installers..."
           $baseUrl = "https://gstreamer.freedesktop.org/data/pkg/windows/$gstVer/msvc"
-          $runtimeUrl = "$baseUrl/gstreamer-1.0-msvc-x86_64-$gstVer.msi"
-          $develUrl = "$baseUrl/gstreamer-1.0-devel-msvc-x86_64-$gstVer.msi"
+          $runtimeUrl = "$baseUrl/gstreamer-1.0-msvc-x86_64-$gstVer.exe"
+          $develUrl   = "$baseUrl/gstreamer-1.0-devel-msvc-x86_64-$gstVer.exe"
           Write-Host "Downloading MSVC 64-bit runtime installer..."
-          Invoke-WebRequest -Uri $runtimeUrl -OutFile "$tempDir\gstreamer.msi"
+          Invoke-WebRequest -Uri $runtimeUrl -OutFile "$tempDir\gstreamer.exe"
           Write-Host "Downloading MSVC 64-bit development installer..."
-          Invoke-WebRequest -Uri $develUrl -OutFile "$tempDir\gstreamer-devel.msi"
+          Invoke-WebRequest -Uri $develUrl -OutFile "$tempDir\gstreamer-devel.exe"
 
+          # NSIS silent install: /S = silent, /D= sets install root (must be last arg, no quotes)
           Write-Host "Installing runtime package..."
-          $proc = Start-Process msiexec -ArgumentList "/i", "`"$tempDir\gstreamer.msi`"", "INSTALLDIR=$installDir", "/qn" -Wait -PassThru -NoNewWindow
+          $proc = Start-Process "$tempDir\gstreamer.exe" "/S /D=$installDir" -Wait -PassThru -NoNewWindow
           if ($proc.ExitCode -ne 0) {
             Write-Host "Runtime installation failed with code: $($proc.ExitCode)"
             exit 1
           }
 
           Write-Host "Installing development package..."
-          $proc = Start-Process msiexec -ArgumentList "/i", "`"$tempDir\gstreamer-devel.msi`"", "INSTALLDIR=$installDir", "/qn" -Wait -PassThru -NoNewWindow
+          $proc = Start-Process "$tempDir\gstreamer-devel.exe" "/S /D=$installDir" -Wait -PassThru -NoNewWindow
           if ($proc.ExitCode -ne 0) {
             Write-Host "Development installation failed with code: $($proc.ExitCode)"
             exit 1
           }
-          
+
           Write-Host "Looking for GStreamer installation..."
-          # The MSI installs to C:\gstreamer\1.0\msvc_x86_64
+          # NSIS installer places files under C:\gstreamer\1.0\msvc_x86_64
           $expectedPath = "$installDir\1.0\msvc_x86_64"
           $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
           while (-not (Test-Path $expectedPath)) {
@@ -155,9 +155,9 @@ jobs:
             Write-Host "Waiting for installation directory... ($([int]$stopwatch.Elapsed.TotalSeconds)s)"
           }
           Write-Host "Installation directory found: $expectedPath"
-          
-          # For version 1.22.8, check for the runtime DLL "gstwinrt-1.0-0.dll"
-          $dllToCheck = "bin\gstwinrt-1.0-0.dll"
+
+          # Verify core GStreamer DLL is present
+          $dllToCheck = "bin\gstreamer-1.0-0.dll"
           $fullDllPath = Join-Path $expectedPath $dllToCheck
           if (Test-Path $fullDllPath) {
             Write-Host "Found: $dllToCheck"
