@@ -231,4 +231,4 @@ jobs:
           echo "Signing app at $APP_PATH"
           codesign --force --deep --sign - "$APP_PATH"
           echo "Verifying signature:"
-          spctl --assess --verbose "$APP_PATH"
+          codesign --verify --deep --strict "$APP_PATH" && echo "Signature OK"
