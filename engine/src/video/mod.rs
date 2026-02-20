@@ -173,6 +173,7 @@ pub fn process_video(options: &VideoProcessingOptions, progress_callback: impl F
             let stride = frame.plane_stride()[0] as usize;
             let data = frame.plane_data(0).unwrap();
 
+            // memcpy the whole plane in one shot
             let image = if stride == width as usize * 4 {
                 RgbaImage::from_raw(width, height, data.to_vec())
                     .ok_or_else(|| anyhow::anyhow!("Failed to create image from packed frame"))?
