@@ -14,7 +14,7 @@ jobs:
       matrix:
         include:
           - platform: macos-latest
-            args: '--target aarch64-apple-darwin'
+            args: '--target aarch64-apple-darwin --bundles app'
             features: ''
 
           - platform: windows-latest
@@ -26,7 +26,7 @@ jobs:
             features: 'cuda'
 
           # CPU-only Linux build
-          - platform: ubuntu-22.04
+          - platform: ubuntu-24.04
             args: ''
             features: ''
 
