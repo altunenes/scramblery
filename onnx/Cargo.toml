@@ -3,17 +3,12 @@ name = "onnx"
 version = "0.1.0"
 edition = "2021"
 
-# Only CUDA and MIGraphX need explicit opt-in (require special runtime libraries).
-# CoreML (macOS) and DirectML (Windows) are always included — they are part of
-# the standard ONNX Runtime binary and activate automatically via cfg(target_os).
 [features]
 cuda = ["ort/cuda"]
 migraphx = ["ort/migraphx"]
 
 [dependencies]
-# coreml and directml are always compiled in; ort guards them internally with
-# cfg(target_os) so they are safe no-ops on wrong platforms.
-ort = { version = "=2.0.0-rc.11", features = ["coreml", "directml"] }
+ort = { version = "=2.0.0-rc.11", features = ["coreml"] }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter", "fmt"]}
 once_cell = "1.20.3"
 anyhow = { workspace = true }

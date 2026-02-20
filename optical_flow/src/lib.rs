@@ -5,6 +5,7 @@ use onnx::new_session_from_path;
 use onnx::Session;
 use onnx::Value;
 use log::info;
+use rayon::prelude::*;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::sync::OnceLock;
@@ -64,19 +65,21 @@ pub fn load_optical_flow_model(model_path: Option<PathBuf>) -> Result<&'static M
     Ok(OPTICAL_FLOW_SESSION.get().unwrap())
 }
 
-/// Preprocess an RGBA image to NCHW float32 tensor [1, 3, H, W] with range 0-255
+/// Preprocess an RGBA image to NCHW float32 tensor [1, 3, H, W] with range 0-255.
 fn preprocess_for_flow(image: &RgbaImage) -> Array4<f32> {
     let (width, height) = image.dimensions();
-    let mut tensor = Array4::<f32>::zeros((1, 3, height as usize, width as usize));
+    let (w, h) = (width as usize, height as usize);
+    let hw = h * w;
+    let raw = image.as_raw();
 
-    for (x, y, pixel) in image.enumerate_pixels() {
-        let [r, g, b, _] = pixel.0;
-        tensor[[0, 0, y as usize, x as usize]] = r as f32;
-        tensor[[0, 1, y as usize, x as usize]] = g as f32;
-        tensor[[0, 2, y as usize, x as usize]] = b as f32;
+    let mut data = vec![0f32; 3 * hw];
+    for i in 0..hw {
+        data[i]          = raw[i * 4]     as f32;
+        data[hw + i]     = raw[i * 4 + 1] as f32;
+        data[2 * hw + i] = raw[i * 4 + 2] as f32;
     }
 
-    tensor
+    Array4::from_shape_vec((1, 3, h, w), data).expect("shape mismatch in preprocess_for_flow")
 }
 
 /// Compute optical flow from img1 to img2 using SEA-RAFT
@@ -125,15 +128,12 @@ pub fn compute_optical_flow(
     let height = flow_shape[2];
     let width = flow_shape[3];
 
-    // Copy to flat Vec in channel-first order
-    let mut data = vec![0.0f32; 2 * height * width];
-    for c in 0..2 {
-        for y in 0..height {
-            for x in 0..width {
-                data[c * height * width + y * width + x] = flow_tensor[[0, c, y, x]];
-            }
-        }
-    }
+    // The ONNX output is [1, 2, H, W]
+    let data = if let Some(slice) = flow_tensor.as_slice() {
+        slice.to_vec()
+    } else {
+        flow_tensor.iter().copied().collect()
+    };
 
     Ok(FlowField {
         width,
@@ -142,7 +142,7 @@ pub fn compute_optical_flow(
     })
 }
 
-/// Warp an image using an optical flow field with bilinear interpolation
+/// Warp an image using an optical flow field with bilinear interpolation.
 pub fn warp_image(image: &RgbaImage, flow: &FlowField) -> Result<RgbaImage> {
     let (w, h) = image.dimensions();
     anyhow::ensure!(
@@ -153,22 +153,24 @@ pub fn warp_image(image: &RgbaImage, flow: &FlowField) -> Result<RgbaImage> {
 
     let width = flow.width;
     let height = flow.height;
-    let mut output = RgbaImage::new(w, h);
 
-    for y in 0..height {
-        for x in 0..width {
-            let flow_x = flow.data[y * width + x]; // channel 0
-            let flow_y = flow.data[height * width + y * width + x]; // channel 1
+    let mut raw = vec![0u8; (w * h * 4) as usize];
+    raw.par_chunks_mut(4).enumerate().for_each(|(idx, chunk)| {
+        let y = idx / width;
+        let x = idx % width;
+        let flow_x = flow.data[y * width + x];              // channel 0
+        let flow_y = flow.data[height * width + y * width + x]; // channel 1
+        let src_x = x as f32 + flow_x;
+        let src_y = y as f32 + flow_y;
+        let pixel = bilinear_sample(image, src_x, src_y);
+        chunk[0] = pixel[0];
+        chunk[1] = pixel[1];
+        chunk[2] = pixel[2];
+        chunk[3] = pixel[3];
+    });
 
-            let src_x = x as f32 + flow_x;
-            let src_y = y as f32 + flow_y;
-
-            let pixel = bilinear_sample(image, src_x, src_y);
-            output.put_pixel(x as u32, y as u32, pixel);
-        }
-    }
-
-    Ok(output)
+    RgbaImage::from_raw(w, h, raw)
+        .ok_or_else(|| anyhow::anyhow!("Failed to create warped image from raw buffer"))
 }
 
 /// Bilinear interpolation with edge clamping

@@ -11,8 +11,6 @@ pub enum ExecutionProvider {
     CPU,
     #[cfg(target_os = "macos")]
     CoreML,
-    #[cfg(target_os = "windows")]
-    DirectML,
     #[cfg(feature = "cuda")]
     CUDA,
     #[cfg(feature = "migraphx")]
@@ -24,8 +22,6 @@ impl Default for ExecutionProvider {
         // Priority: platform-native GPU first, then CUDA/ROCm, then CPU fallback
         #[cfg(target_os = "macos")]
         { return ExecutionProvider::CoreML; }
-        #[cfg(target_os = "windows")]
-        { return ExecutionProvider::DirectML; }
         #[cfg(feature = "cuda")]
         { return ExecutionProvider::CUDA; }
         #[cfg(feature = "migraphx")]
@@ -90,11 +86,6 @@ pub static ENV: Lazy<()> = Lazy::new(|| {
     #[cfg(feature = "cuda")]
     {
         providers.push(ort::ep::CUDA::default().build());
-    }
-
-    #[cfg(all(target_os = "windows", not(feature = "cuda")))]
-    {
-        providers.push(ort::ep::DirectML::default().build());
     }
 
     #[cfg(feature = "migraphx")]

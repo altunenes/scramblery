@@ -25,7 +25,12 @@ jobs:
             args: ''
             features: 'cuda'
 
-          # ubuntu-24.04 required: ORT CUDA/MIGraphX binaries need glibc 2.38+ (22.04 only has 2.35)
+          # CPU-only Linux build
+          - platform: ubuntu-22.04
+            args: ''
+            features: ''
+
+          # GPU builds require ubuntu-24.04: ORT CUDA/MIGraphX binaries need glibc 2.38+
           - platform: ubuntu-24.04
             args: ''
             features: 'cuda'

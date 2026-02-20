@@ -3338,6 +3338,7 @@ dependencies = [
  "log",
  "ndarray",
  "onnx",
+ "rayon",
 ]
 
 [[package]]
