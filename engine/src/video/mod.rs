@@ -173,19 +173,19 @@ pub fn process_video(options: &VideoProcessingOptions, progress_callback: impl F
             let stride = frame.plane_stride()[0] as usize;
             let data = frame.plane_data(0).unwrap();
 
-            let mut image = RgbaImage::new(width, height);
-            for y in 0..height {
-                for x in 0..width {
-                    let offset = y as usize * stride + x as usize * 4;
-                    let pixel = image::Rgba([
-                        data[offset],
-                        data[offset + 1],
-                        data[offset + 2],
-                        data[offset + 3],
-                    ]);
-                    image.put_pixel(x, y, pixel);
+            let image = if stride == width as usize * 4 {
+                RgbaImage::from_raw(width, height, data.to_vec())
+                    .ok_or_else(|| anyhow::anyhow!("Failed to create image from packed frame"))?
+            } else {
+                let row_bytes = width as usize * 4;
+                let mut buf = vec![0u8; row_bytes * height as usize];
+                for y in 0..height as usize {
+                    buf[y * row_bytes..y * row_bytes + row_bytes]
+                        .copy_from_slice(&data[y * stride..y * stride + row_bytes]);
                 }
-            }
+                RgbaImage::from_raw(width, height, buf)
+                    .ok_or_else(|| anyhow::anyhow!("Failed to create image from strided frame"))?
+            };
 
             let processed = if let (Some(ref tc_opts), Some(session)) = (&temporal_coherence, flow_session) {
                 let mut state = state.lock().map_err(|e| anyhow::anyhow!("State mutex poisoned: {}", e))?;
@@ -281,14 +281,14 @@ pub fn process_video(options: &VideoProcessingOptions, progress_callback: impl F
             };
 
             let data = frame.plane_data_mut(0).unwrap();
-            for y in 0..height {
-                for x in 0..width {
-                    let pixel = processed.get_pixel(x, y);
-                    let offset = y as usize * stride + x as usize * 4;
-                    data[offset] = pixel[0];
-                    data[offset + 1] = pixel[1];
-                    data[offset + 2] = pixel[2];
-                    data[offset + 3] = pixel[3];
+            let processed_raw = processed.into_raw();
+            let row_bytes = width as usize * 4;
+            if stride == row_bytes {
+                data[..processed_raw.len()].copy_from_slice(&processed_raw);
+            } else {
+                for y in 0..height as usize {
+                    data[y * stride..y * stride + row_bytes]
+                        .copy_from_slice(&processed_raw[y * row_bytes..y * row_bytes + row_bytes]);
                 }
             }
 
