@@ -13,3 +13,4 @@ ndarray = { workspace = true }
 onnx = { path = "../onnx" }
 log = { workspace = true }
 anyhow = { workspace = true }
+rayon = "1.10.0"
