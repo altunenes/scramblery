@@ -217,6 +217,8 @@ jobs:
       # macOS self-signing step
       - name: Self-sign macOS app
         if: matrix.platform == 'macos-latest'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Try the standard output location first (for tauri apps built with target aarch64-apple-darwin)
           APP_PATH="./target/aarch64-apple-darwin/release/bundle/macos/scramblery.app"
@@ -253,3 +255,11 @@ jobs:
           codesign --force --deep --sign - "$APP_PATH"
           echo "Verifying signature:"
           codesign --verify --deep --strict "$APP_PATH" && echo "Signature OK"
+          
+          VERSION=${GITHUB_REF_NAME#v}
+          DMG_NAME="scramblery_${VERSION}_aarch64.dmg"
+          echo "Creating DMG package: $DMG_NAME"
+          hdiutil create -volname "Scramblery" -srcfolder "$APP_PATH" -ov -format UDZO "$DMG_NAME"
+          
+          echo "Uploading $DMG_NAME to GitHub Release..."
+          gh release upload ${{ github.ref_name }} "$DMG_NAME" --clobber
