@@ -116,9 +116,9 @@ pub fn new_session_from_path_with_config(path: PathBuf, config: &ModelConfig) ->
     info!("Creating new ONNX session from path: {:?} with config: {:?}", path, config);
 
     let mut builder = Session::builder()?
-        .with_optimization_level(GraphOptimizationLevel::Level3)?
-        .with_intra_threads(config.intra_threads)?
-        .with_inter_threads(config.inter_threads)?;
+        .with_optimization_level(GraphOptimizationLevel::Level3).map_err(|e| ort::Error::new(e.message().to_string()))?
+        .with_intra_threads(config.intra_threads).map_err(|e| ort::Error::new(e.message().to_string()))?
+        .with_inter_threads(config.inter_threads).map_err(|e| ort::Error::new(e.message().to_string()))?;
 
     if let Some(ref configure) = config.configure {
         builder = configure(builder)?;

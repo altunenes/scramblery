@@ -8,7 +8,7 @@ cuda = ["ort/cuda"]
 migraphx = ["ort/migraphx"]
 
 [dependencies]
-ort = { version = "=2.0.0-rc.11", features = ["coreml"] }
+ort = { version = "=2.0.0-rc.12", features = ["coreml"] }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter", "fmt"]}
 once_cell = "1.20.3"
 anyhow = { workspace = true }
