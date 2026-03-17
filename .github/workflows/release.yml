@@ -205,7 +205,7 @@ jobs:
         if: matrix.features != ''
         shell: bash
         run: |
-          sed -i 's/"productName": "scramblery"/"productName": "scramblery-${{ matrix.features }}"/' ui/src-tauri/tauri.conf.json
+          sed -i'' -e 's/"productName": "scramblery"/"productName": "scramblery-${{ matrix.features }}"/' ui/src-tauri/tauri.conf.json
 
       - name: Install frontend dependencies
         run: |
