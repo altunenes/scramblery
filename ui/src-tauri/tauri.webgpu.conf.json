@@ -1,0 +1,8 @@
+{
+  "$schema": "https://schema.tauri.app/config/2.0.0",
+  "bundle": {
+    "macOS": {
+      "frameworks": ["webgpu-dylibs/libwebgpu_dawn.dylib"]
+    }
+  }
+}
