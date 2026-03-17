@@ -35,3 +35,5 @@ lerna-debug.log*
 
 # Tauri
 **/gen/schemas
+
+webgpu-dylibs/
