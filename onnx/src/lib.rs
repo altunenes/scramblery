@@ -15,19 +15,25 @@ pub enum ExecutionProvider {
     CUDA,
     #[cfg(feature = "migraphx")]
     MIGraphX,
+    #[cfg(feature = "webgpu")]
+    WebGPU,
 }
 
 impl Default for ExecutionProvider {
     fn default() -> Self {
-        // Priority: platform-native GPU first, then CUDA/ROCm, then CPU fallback
-        #[cfg(target_os = "macos")]
-        { return ExecutionProvider::CoreML; }
-        #[cfg(feature = "cuda")]
-        { return ExecutionProvider::CUDA; }
-        #[cfg(feature = "migraphx")]
-        { return ExecutionProvider::MIGraphX; }
+        // Priority: WebGPU (cross-platform), then platform-native GPU, then CUDA/ROCm, then CPU
         #[allow(unreachable_code)]
-        ExecutionProvider::CPU
+        {
+            #[cfg(feature = "webgpu")]
+            { return ExecutionProvider::WebGPU; }
+            #[cfg(target_os = "macos")]
+            { return ExecutionProvider::CoreML; }
+            #[cfg(feature = "cuda")]
+            { return ExecutionProvider::CUDA; }
+            #[cfg(feature = "migraphx")]
+            { return ExecutionProvider::MIGraphX; }
+            ExecutionProvider::CPU
+        }
     }
 }
 
@@ -91,6 +97,11 @@ pub static ENV: Lazy<()> = Lazy::new(|| {
     #[cfg(feature = "migraphx")]
     {
         providers.push(ort::ep::MIGraphX::default().build());
+    }
+
+    #[cfg(feature = "webgpu")]
+    {
+        providers.push(ort::ep::WebGPU::default().build());
     }
 
     providers.push(CPU::default().build().error_on_failure());

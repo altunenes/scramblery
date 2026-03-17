@@ -17,6 +17,10 @@ jobs:
             args: '--target aarch64-apple-darwin --bundles app'
             features: ''
 
+          - platform: macos-latest
+            args: '--target aarch64-apple-darwin --bundles app --config src-tauri/tauri.webgpu.conf.json'
+            features: 'webgpu'
+
           - platform: windows-latest
             args: ''
             features: ''
@@ -24,6 +28,10 @@ jobs:
           - platform: windows-latest
             args: ''
             features: 'cuda'
+
+          - platform: windows-latest
+            args: ''
+            features: 'webgpu'
 
           # CPU-only Linux build
           - platform: ubuntu-24.04
@@ -38,6 +46,10 @@ jobs:
           - platform: ubuntu-24.04
             args: ''
             features: 'migraphx'
+
+          - platform: ubuntu-24.04
+            args: ''
+            features: 'webgpu'
     runs-on: ${{ matrix.platform }}
     steps:
       - name: Checkout repository
@@ -220,46 +232,41 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Determine app name based on whether this is a GPU variant
+          if [ -n "${{ matrix.features }}" ]; then
+            APP_NAME="scramblery-${{ matrix.features }}"
+          else
+            APP_NAME="scramblery"
+          fi
+
           # Try the standard output location first (for tauri apps built with target aarch64-apple-darwin)
-          APP_PATH="./target/aarch64-apple-darwin/release/bundle/macos/scramblery.app"
+          APP_PATH="./target/aarch64-apple-darwin/release/bundle/macos/${APP_NAME}.app"
           if [ -d "$APP_PATH" ]; then
             echo "Found app bundle at $APP_PATH"
-          elif [ -f "scramblery_aarch64.app.tar.gz" ]; then
+          elif [ -f "${APP_NAME}_aarch64.app.tar.gz" ]; then
             TARGET_DIR="./target/aarch64-apple-darwin/release/bundle/macos"
             mkdir -p "$TARGET_DIR"
-            echo "Extracting scramblery_aarch64.app.tar.gz to $TARGET_DIR"
-            tar -xzf "scramblery_aarch64.app.tar.gz" -C "$TARGET_DIR"
-            APP_PATH="$TARGET_DIR/scramblery.app"
-          elif [ -f "scramblery_0.1.0_aarch64.dmg" ]; then
-            echo "Found DMG scramblery_0.1.0_aarch64.dmg. Mounting..."
-            MOUNT_DIR=$(mktemp -d)
-            hdiutil attach "scramblery_0.1.0_aarch64.dmg" -mountpoint "$MOUNT_DIR" -nobrowse -quiet
-            APP_PATH=$(find "$MOUNT_DIR" -maxdepth 1 -name "*.app" | head -n 1)
+            echo "Extracting ${APP_NAME}_aarch64.app.tar.gz to $TARGET_DIR"
+            tar -xzf "${APP_NAME}_aarch64.app.tar.gz" -C "$TARGET_DIR"
+            APP_PATH="$TARGET_DIR/${APP_NAME}.app"
+          else
+            # Fallback: find any .app in the bundle directory
+            APP_PATH=$(find ./target/aarch64-apple-darwin/release/bundle/macos -maxdepth 1 -name "*.app" | head -n 1)
             if [ -z "$APP_PATH" ]; then
-              echo "No .app bundle found in DMG."
-              hdiutil detach "$MOUNT_DIR"
+              echo "No app bundle found to sign."
               exit 1
             fi
-            TARGET_DIR="./target/aarch64-apple-darwin/release/bundle/macos"
-            mkdir -p "$TARGET_DIR"
-            echo "Copying app bundle from DMG..."
-            cp -R "$APP_PATH" "$TARGET_DIR"
-            APP_PATH="$TARGET_DIR/$(basename "$APP_PATH")"
-            hdiutil detach "$MOUNT_DIR"
-            rm -rf "$MOUNT_DIR"
-          else
-            echo "No app bundle found to sign."
-            exit 1
+            echo "Found app bundle at $APP_PATH"
           fi
           echo "Signing app at $APP_PATH"
           codesign --force --deep --sign - "$APP_PATH"
           echo "Verifying signature:"
           codesign --verify --deep --strict "$APP_PATH" && echo "Signature OK"
-          
+
           VERSION=${GITHUB_REF_NAME#v}
-          DMG_NAME="scramblery_${VERSION}_aarch64.dmg"
+          DMG_NAME="${APP_NAME}_${VERSION}_aarch64.dmg"
           echo "Creating DMG package: $DMG_NAME"
           hdiutil create -volname "Scramblery" -srcfolder "$APP_PATH" -ov -format UDZO "$DMG_NAME"
-          
+
           echo "Uploading $DMG_NAME to GitHub Release..."
           gh release upload ${{ github.ref_name }} "$DMG_NAME" --clobber
