@@ -1,5 +1,4 @@
 use std::env;
-use std::path::PathBuf;
 
 fn main() {
     let target = env::var("CARGO_CFG_TARGET_OS");
@@ -22,7 +21,7 @@ fn main() {
     // references webgpu-dylibs/ so it can be found regardless of the target triple.
     #[cfg(feature = "webgpu")]
     {
-        let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
+        let out_dir = std::path::PathBuf::from(env::var("OUT_DIR").unwrap());
         // OUT_DIR is something like target/{triple}/release/build/{pkg}/out
         // Walk up to find the profile dir (where ort places the dylib)
         if let Some(profile_dir) = out_dir.ancestors().nth(3) {
@@ -35,7 +34,7 @@ fn main() {
             };
             let src = profile_dir.join(dylib_name);
             if src.exists() {
-                let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
+                let manifest_dir = std::path::PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
                 let dest_dir = manifest_dir.join("webgpu-dylibs");
                 std::fs::create_dir_all(&dest_dir).ok();
                 let dest = dest_dir.join(dylib_name);

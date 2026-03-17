@@ -9,6 +9,58 @@ use gstreamer_pbutils::Discoverer;
 pub use gst_video::video_frame::{VideoFrame, Readable, Writable, VideoFrameExt};
 use gstreamer_pbutils::prelude::*;
 
+
+fn make_h264_encoder() -> Result<(gst::Element, &'static str)> {
+    if let Ok(enc) = gst::ElementFactory::make("vtenc_h264")
+        .property("bitrate", 2048u32) 
+        .property("max-keyframe-interval", 25i32)
+        .property("realtime", true)
+        .property("allow-frame-reordering", false)
+        .build()
+    {
+        info!("Using VideoToolbox H.264 encoder (hardware)");
+        return Ok((enc, "NV12"));
+    }
+
+    if let Ok(enc) = gst::ElementFactory::make("mfh264enc")
+        .property("bitrate", 2048u32)
+        .property("max-keyframe-interval", 25u32)
+        .build()
+    {
+        info!("Using Media Foundation H.264 encoder (hardware)");
+        return Ok((enc, "NV12"));
+    }
+
+    if let Ok(enc) = gst::ElementFactory::make("nvh264enc")
+        .property("bitrate", 2048u32)
+        .property("gop-size", 25u32)
+        .property_from_str("preset", "low-latency-hp")
+        .property_from_str("rc-mode", "cbr")
+        .build()
+    {
+        info!("Using NVENC H.264 encoder (hardware)");
+        return Ok((enc, "NV12"));
+    }
+
+    if let Ok(enc) = gst::ElementFactory::make("vaapih264enc")
+        .property("bitrate", 2048u32)
+        .property("keyframe-period", 25u32)
+        .build()
+    {
+        info!("Using VA-API H.264 encoder (hardware)");
+        return Ok((enc, "NV12"));
+    }
+
+    let enc = gst::ElementFactory::make("x264enc")
+        .property_from_str("speed-preset", "ultrafast")
+        .property("bitrate", 2048u32)
+        .property("key-int-max", 25u32)
+        .property_from_str("tune", "zerolatency")
+        .build()?;
+    info!("Using x264enc software encoder (CPU fallback)");
+    Ok((enc, "I420"))
+}
+
 pub struct VideoProcessor {
     pipeline: gst::Pipeline,
 }
@@ -17,6 +69,25 @@ impl VideoProcessor {
     pub fn new() -> Result<Self> {
         info!("Initializing GStreamer");
         gst::init()?;
+
+        let registry = gst::Registry::get();
+        let hw_rank = gst::Rank::PRIMARY + 2;
+
+        let hw_decoders = [
+            "vtdec_hw", "vtdec",
+            "nvh264dec", "nvh264sldec", "nvh265dec", "nvh265sldec", "nvav1dec",
+            "vaapih264dec", "vaapih265dec", "vampeg2dec", "vaapiav1dec",
+            "d3d11h264dec", "d3d11h265dec", "d3d11av1dec",
+            "d3d12h264dec", "d3d12h265dec",
+        ];
+
+        for name in hw_decoders {
+            if let Some(feature) = registry.lookup_feature(name) {
+                feature.set_rank(hw_rank);
+                info!("Boosted {} decoder rank for hardware decoding", name);
+            }
+        }
+
         let pipeline = gst::Pipeline::new();
         info!("GStreamer pipeline created");
         Ok(Self { pipeline })
@@ -55,12 +126,7 @@ impl VideoProcessor {
         let appsrc = gst::ElementFactory::make("appsrc").build()?;
         let videoconvert2 = gst::ElementFactory::make("videoconvert").build()?;
         let videoscale2 = gst::ElementFactory::make("videoscale").build()?;
-        let x264enc = gst::ElementFactory::make("x264enc")
-            .property_from_str("speed-preset", "ultrafast")
-            .property("bitrate", 2048u32)
-            .property("key-int-max", 25u32)
-            .property_from_str("tune", "zerolatency")
-            .build()?;
+        let (encoder, caps_format) = make_h264_encoder()?;
 
         let h264parse = gst::ElementFactory::make("h264parse").build()?;
         let queue3 = gst::ElementFactory::make("queue")
@@ -78,7 +144,7 @@ impl VideoProcessor {
         .property(
             "caps",
             gst::Caps::builder("video/x-raw")
-                .field("format", "I420")
+                .field("format", caps_format)
                 .build(),
         )
         .build()?;
@@ -108,7 +174,7 @@ impl VideoProcessor {
             &videoconvert2,
             &videoscale2,
             &capsfilter,
-            &x264enc,
+            &encoder,
             &h264parse,
             &queue3,
             &muxer,
@@ -122,7 +188,7 @@ impl VideoProcessor {
             &videoconvert2,
             &videoscale2,
             &capsfilter,
-            &x264enc,
+            &encoder,
             &h264parse,
             &queue3,
             &muxer,
