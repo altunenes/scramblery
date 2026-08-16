@@ -2,6 +2,21 @@
 members = ["engine", "face_detection", "optical_flow", "video-processor", "onnx", "ui/src-tauri"]
 resolver = "2"
 
+[profile.dev.package.engine]
+opt-level = 3
+
+[profile.dev.package.optical_flow]
+opt-level = 3
+
+[profile.dev.package.face_detection]
+opt-level = 3
+
+[profile.dev.package.video-processor]
+opt-level = 3
+
+[profile.dev.package."*"]
+opt-level = 3
+
 [workspace.dependencies]
 serde = { version = "1.0.217", features = ["derive"] }
 serde_json = "1.0.138"
