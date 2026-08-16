@@ -43,14 +43,11 @@ jobs:
             args: ''
             features: ''
 
-          # GPU builds require ubuntu-24.04: ORT CUDA/MIGraphX binaries need glibc 2.38+
+          # GPU builds require ubuntu-24.04: ORT CUDA binaries need glibc 2.38+
           - platform: ubuntu-24.04
             args: ''
             features: 'cuda'
 
-          - platform: ubuntu-24.04
-            args: ''
-            features: 'migraphx'
 
           - platform: ubuntu-24.04
             args: ''

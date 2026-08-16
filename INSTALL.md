@@ -28,7 +28,7 @@ Installing "runtime installer" should be enough, but if you want to develop and 
 
 *A: Yes, we can. But installing Gstreamer is not a big deal like installing CUDA or something. It's just a few clicks and a few MBs. So, I think it's not worth the effort to embed the necessary dlls/libs also it would make the app size larger and harder to maintain.*
 
-**Q: I see `-cuda`, `-directml`, `-migraphx` and `-webgpu` installers. Do I need those?**
+**Q: I see `-cuda`, `-directml` and `-webgpu` installers. Do I need those?**
 
 *A: Only if you want GPU acceleration for optical flow (the "temporal coherence" option when scrambling video). Everything else behaves identically, and every build falls back to CPU when its runtime isn't present, so the plain installer is always a safe choice.*
 
@@ -39,11 +39,10 @@ Installing "runtime installer" should be enough, but if you want to develop and 
 | `-directml` | Windows | No, works on any DirectX 12 GPU |
 | `-webgpu` | macOS / Windows / Linux | No |
 | `-cuda` | Windows / Linux | Yes, NVIDIA CUDA |
-| `-migraphx` | Linux | Yes, ROCm + MIGraphX |
 
 *On Windows the plain installer runs on CPU. If you want GPU acceleration without installing anything extra, use `-directml`.*
 
-*The CUDA and MIGraphX builds deliberately don't bundle their runtimes. Those are multi-gigabyte installs, and shipping them would make the download enormous.*
+*The CUDA builds deliberately don't bundle the CUDA runtime. It's a multi-gigabyte install, and shipping it would make the download enormous.*
 
 
 

@@ -27,6 +27,8 @@ Audio was being decoded and re-encoded on every run even though scrambling never
 
 There's a `-directml` installer now. It gives you GPU acceleration on any DirectX 12 card with nothing extra to install, unlike the CUDA builds.
 
+The `-migraphx` build is gone. I can add this future if ONNX Runtime ship a MIGraphX binary
+
 ---
 
-Grab the plain installer unless you specifically want GPU acceleration for optical flow. The `-cuda`, `-directml`, `-migraphx` and `-webgpu` builds only affect that, and they all fall back to CPU if the runtime isn't there.
+Grab the plain installer unless you specifically want GPU acceleration for optical flow. The `-cuda`, `-directml` and `-webgpu` builds only affect that, and they all fall back to CPU if the runtime isn't there.
