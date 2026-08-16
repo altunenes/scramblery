@@ -10,7 +10,40 @@ pub use gst_video::video_frame::{VideoFrame, Readable, Writable, VideoFrameExt};
 use gstreamer_pbutils::prelude::*;
 
 
-fn make_h264_encoder() -> Result<(gst::Element, &'static str)> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+pub enum VideoFidelity {
+    /// Lossless H.264 at full 4:4:4 chroma: decoded frames match the processed
+    /// ones up to RGB<->YUV rounding
+    Lossless,
+    /// Full 4:4:4 chroma with mild quantisation
+    HighQuality,
+    /// HW encoder where available, 4:2:0
+    #[default]
+    Fast,
+}
+
+fn make_faithful_encoder(quantizer: u32) -> Result<(gst::Element, &'static str)> {
+    let enc = gst::ElementFactory::make("x264enc")
+        .property_from_str("pass", "quant")
+        .property("quantizer", quantizer)
+        .property_from_str("speed-preset", "superfast")
+        .property("key-int-max", 25u32)
+        .build()?;
+    info!(
+        "Using x264enc software encoder, 4:4:4 chroma, constant quantizer {} ({})",
+        quantizer,
+        if quantizer == 0 { "lossless" } else { "visually lossless" }
+    );
+    Ok((enc, "Y444"))
+}
+
+fn make_h264_encoder(fidelity: VideoFidelity) -> Result<(gst::Element, &'static str)> {
+    match fidelity {
+        VideoFidelity::Lossless => return make_faithful_encoder(0),
+        VideoFidelity::HighQuality => return make_faithful_encoder(18),
+        VideoFidelity::Fast => {}
+    }
+
     if let Ok(enc) = gst::ElementFactory::make("vtenc_h264")
         .property("bitrate", 2048u32) 
         .property("max-keyframe-interval", 25i32)
@@ -61,6 +94,20 @@ fn make_h264_encoder() -> Result<(gst::Element, &'static str)> {
     Ok((enc, "I420"))
 }
 
+
+fn audio_passthrough_parser(structure: &gst::StructureRef) -> Option<&'static str> {
+    match structure.name().as_str() {
+        "audio/mpeg" => match structure.get::<i32>("mpegversion") {
+            Ok(4) | Ok(2) => Some("aacparse"),
+            Ok(1) => Some("mpegaudioparse"),
+            _ => None,
+        },
+        "audio/x-ac3" | "audio/x-eac3" => Some("ac3parse"),
+        "audio/x-opus" => Some("opusparse"),
+        _ => None,
+    }
+}
+
 pub struct VideoProcessor {
     pipeline: gst::Pipeline,
 }
@@ -97,6 +144,7 @@ impl VideoProcessor {
         &self,
         input_path: P,
         output_path: P,
+        fidelity: VideoFidelity,
         frame_callback: impl Fn(&mut VideoFrame<Writable>) -> Result<()> + Send + 'static,
         progress_callback: impl Fn(f32) + Send + Sync + 'static,
     ) -> Result<()> {
@@ -126,7 +174,7 @@ impl VideoProcessor {
         let appsrc = gst::ElementFactory::make("appsrc").build()?;
         let videoconvert2 = gst::ElementFactory::make("videoconvert").build()?;
         let videoscale2 = gst::ElementFactory::make("videoscale").build()?;
-        let (encoder, caps_format) = make_h264_encoder()?;
+        let (encoder, caps_format) = make_h264_encoder(fidelity)?;
 
         let h264parse = gst::ElementFactory::make("h264parse").build()?;
         let queue3 = gst::ElementFactory::make("queue")
@@ -386,6 +434,20 @@ impl VideoProcessor {
                 })
                 .build(),
         );
+        decodebin.connect("autoplug-continue", false, |values| {
+            let caps = match values[2].get::<gst::Caps>() {
+                Ok(caps) => caps,
+                Err(_) => return Some(true.to_value()),
+            };
+            let keep_decoding = match caps.structure(0) {
+                Some(s) => audio_passthrough_parser(s).is_none(),
+                None => true,
+            };
+            if !keep_decoding {
+                info!("Audio stream is MP4-compatible, copying it instead of re-encoding");
+            }
+            Some(keep_decoding.to_value())
+        });
 
         // Dynamically link audio/video from decodebin.
         let videoconvert1_weak = videoconvert1.downgrade();
@@ -415,25 +477,39 @@ impl VideoProcessor {
                             .property("max-size-time", 0u64)
                             .property("max-size-bytes", 0u32)
                             .build()?;
-                        let audioconvert = gst::ElementFactory::make("audioconvert").build()?;
-                        let audioresample = gst::ElementFactory::make("audioresample").build()?;
-                        let aacenc = gst::ElementFactory::make("avenc_aac").build()?;
-                        let aacparse = gst::ElementFactory::make("aacparse").build()?;
+                        let mut chain: Vec<gst::Element> = vec![queue_audio.clone()];
+                        match audio_passthrough_parser(structure) {
+                            Some(parser) => {
+                                chain.push(gst::ElementFactory::make(parser).build()?);
+                                info!("Copying audio stream unchanged via {}", parser);
+                            }
+                            None => {
+                                chain.push(gst::ElementFactory::make("audioconvert").build()?);
+                                chain.push(gst::ElementFactory::make("audioresample").build()?);
+                                chain.push(gst::ElementFactory::make("avenc_aac").build()?);
+                                chain.push(gst::ElementFactory::make("aacparse").build()?);
+                                info!("Audio codec {} cannot be stored in MP4, re-encoding to AAC", name);
+                            }
+                        }
 
-                        pipeline.add_many(&[&queue_audio, &audioconvert, &audioresample, &aacenc, &aacparse])?;
-                        gst::Element::link_many(&[&queue_audio, &audioconvert, &audioresample, &aacenc, &aacparse, &muxer])?;
+                        let refs: Vec<&gst::Element> = chain.iter().collect();
+                        pipeline.add_many(&refs)?;
+                        gst::Element::link_many(&refs)?;
+                        chain
+                            .last()
+                            .expect("audio chain is never empty")
+                            .link(&muxer)
+                            .map_err(|e| format!("Failed to link audio to muxer: {}", e))?;
 
                         // Sync state with parent pipeline
-                        queue_audio.sync_state_with_parent()?;
-                        audioconvert.sync_state_with_parent()?;
-                        audioresample.sync_state_with_parent()?;
-                        aacenc.sync_state_with_parent()?;
-                        aacparse.sync_state_with_parent()?;
+                        for element in &chain {
+                            element.sync_state_with_parent()?;
+                        }
 
                         let sink_pad = queue_audio.static_pad("sink").unwrap();
                         pad.link(&sink_pad).map_err(|e| format!("Failed to link audio: {}", e))?;
 
-                        info!("Linked decoder to audio chain successfully");
+                        info!("Linked audio chain successfully");
                         Ok(())
                     })();
 
