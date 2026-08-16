@@ -7,6 +7,7 @@ edition = "2021"
 cuda = ["ort/cuda"]
 migraphx = ["ort/migraphx"]
 webgpu = ["ort/webgpu"]
+directml = ["ort/directml"]
 
 [dependencies]
 ort = { version = "=2.0.0-rc.13", features = ["coreml"] }
