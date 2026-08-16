@@ -12,6 +12,9 @@ use std::sync::OnceLock;
 
 static OPTICAL_FLOW_SESSION: OnceLock<Mutex<Session>> = OnceLock::new();
 
+pub const FLOW_MODEL_WIDTH: u32 = 512;
+pub const FLOW_MODEL_HEIGHT: u32 = 288;
+
 /// Optical flow field in channel-first layout: [2 * H * W] with all flow_x then all flow_y
 pub struct FlowField {
     pub width: usize,
@@ -29,7 +32,7 @@ pub fn load_optical_flow_model(model_path: Option<PathBuf>) -> Result<&'static M
         path
     } else {
         #[cfg(debug_assertions)]
-        let path = PathBuf::from("resources/models/searaft_flow.onnx");
+        let path = PathBuf::from("resources/models/searaft_flow_512x288.onnx");
 
         #[cfg(not(debug_assertions))]
         let path = {
@@ -40,11 +43,11 @@ pub fn load_optical_flow_model(model_path: Option<PathBuf>) -> Result<&'static M
                 exe_path
                     .parent()
                     .and_then(|p| p.parent())
-                    .map(|p| p.join("Resources/models/searaft_flow.onnx"))
+                    .map(|p| p.join("Resources/models/searaft_flow_512x288.onnx"))
             } else {
                 exe_path
                     .parent()
-                    .map(|p| p.join("models/searaft_flow.onnx"))
+                    .map(|p| p.join("models/searaft_flow_512x288.onnx"))
             }
             .expect("Failed to construct resource path");
 
@@ -82,7 +85,55 @@ fn preprocess_for_flow(image: &RgbaImage) -> Array4<f32> {
     Array4::from_shape_vec((1, 3, h, w), data).expect("shape mismatch in preprocess_for_flow")
 }
 
-/// Compute optical flow from img1 to img2 using SEA-RAFT
+fn resample_flow(flow: &FlowField, dst_w: usize, dst_h: usize) -> FlowField {
+    let (src_w, src_h) = (flow.width, flow.height);
+    if src_w == dst_w && src_h == dst_h {
+        return FlowField { width: src_w, height: src_h, data: flow.data.clone() };
+    }
+
+    let scale_x = dst_w as f32 / src_w as f32;
+    let scale_y = dst_h as f32 / src_h as f32;
+    let src_hw = src_w * src_h;
+
+    let mut data = vec![0f32; 2 * dst_w * dst_h];
+    let (out_x, out_y) = data.split_at_mut(dst_w * dst_h);
+
+    // Sample at pixel centres so the mapping stays symmetric at the borders
+    let sample = |plane: &[f32], x: usize, y: usize| -> f32 {
+        let sx = ((x as f32 + 0.5) / scale_x - 0.5).clamp(0.0, (src_w - 1) as f32);
+        let sy = ((y as f32 + 0.5) / scale_y - 0.5).clamp(0.0, (src_h - 1) as f32);
+        let (x0, y0) = (sx.floor() as usize, sy.floor() as usize);
+        let (x1, y1) = ((x0 + 1).min(src_w - 1), (y0 + 1).min(src_h - 1));
+        let (fx, fy) = (sx - x0 as f32, sy - y0 as f32);
+        let p00 = plane[y0 * src_w + x0];
+        let p10 = plane[y0 * src_w + x1];
+        let p01 = plane[y1 * src_w + x0];
+        let p11 = plane[y1 * src_w + x1];
+        (1.0 - fx) * (1.0 - fy) * p00
+            + fx * (1.0 - fy) * p10
+            + (1.0 - fx) * fy * p01
+            + fx * fy * p11
+    };
+
+    out_x
+        .par_chunks_mut(dst_w)
+        .zip(out_y.par_chunks_mut(dst_w))
+        .enumerate()
+        .for_each(|(y, (row_x, row_y))| {
+            for x in 0..dst_w {
+                row_x[x] = sample(&flow.data[..src_hw], x, y) * scale_x;
+                row_y[x] = sample(&flow.data[src_hw..], x, y) * scale_y;
+            }
+        });
+
+    FlowField { width: dst_w, height: dst_h, data }
+}
+
+/// Compute optical flow from img1 to img2 using SEA-RAFT.
+///
+/// Inference runs at the model's fixed size ([`FLOW_MODEL_WIDTH`] x
+/// [`FLOW_MODEL_HEIGHT`]); the returned field is scaled back up to the input
+/// resolution, so callers always get a full res flow field.
 pub fn compute_optical_flow(
     img1: &RgbaImage,
     img2: &RgbaImage,
@@ -96,8 +147,21 @@ pub fn compute_optical_flow(
         w1, h1, w2, h2
     );
 
-    let tensor1 = preprocess_for_flow(img1);
-    let tensor2 = preprocess_for_flow(img2);
+    // The bundled model has its input shape frozen, so downscale to it. Triangle
+    // filtering low passes the frame first, which avoids aliasing motion detail
+    // into the estimate.
+    let needs_resize = w1 != FLOW_MODEL_WIDTH || h1 != FLOW_MODEL_HEIGHT;
+    let (small1, small2);
+    let (in1, in2) = if needs_resize {
+        small1 = image::imageops::resize(img1, FLOW_MODEL_WIDTH, FLOW_MODEL_HEIGHT, image::imageops::FilterType::Triangle);
+        small2 = image::imageops::resize(img2, FLOW_MODEL_WIDTH, FLOW_MODEL_HEIGHT, image::imageops::FilterType::Triangle);
+        (&small1, &small2)
+    } else {
+        (img1, img2)
+    };
+
+    let tensor1 = preprocess_for_flow(in1);
+    let tensor2 = preprocess_for_flow(in2);
 
     let mut session = session
         .lock()
@@ -121,8 +185,8 @@ pub fn compute_optical_flow(
     let flow_tensor: ndarray::ArrayViewD<f32> = outputs[flow_key.as_str()].try_extract_array()?;
     let flow_shape = flow_tensor.shape();
     info!(
-        "Flow output shape: {:?} (expected [1, 2, {}, {}])",
-        flow_shape, h1, w1
+        "Flow output shape: {:?} (model grid [1, 2, {}, {}], target {}x{})",
+        flow_shape, FLOW_MODEL_HEIGHT, FLOW_MODEL_WIDTH, w1, h1
     );
 
     let height = flow_shape[2];
@@ -135,11 +199,10 @@ pub fn compute_optical_flow(
         flow_tensor.iter().copied().collect()
     };
 
-    Ok(FlowField {
-        width,
-        height,
-        data,
-    })
+    let flow = FlowField { width, height, data };
+
+    // Bring the field back to the caller's resolution so warping stays full size.
+    Ok(resample_flow(&flow, w1 as usize, h1 as usize))
 }
 
 /// Warp an image using an optical flow field with bilinear interpolation.
