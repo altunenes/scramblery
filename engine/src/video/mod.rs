@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use anyhow::Result;
-use video_processor::{VideoProcessor, VideoFrameExt};
+use video_processor::{VideoProcessor, VideoFrameExt, VideoFidelity};
 use image::{DynamicImage, RgbaImage};
 use serde::{Serialize, Deserialize};
 use log::info;
@@ -13,6 +13,8 @@ pub struct VideoProcessingOptions {
     pub output_path: PathBuf,
     pub scramble_options: ScrambleOptions,
     pub temporal_coherence: Option<TemporalCoherenceOptions>,
+    #[serde(default)]
+    pub fidelity: VideoFidelity,
 }
 
 /// Apply scrambling to a single frame based on the scramble options.
@@ -164,9 +166,12 @@ pub fn process_video(options: &VideoProcessingOptions, progress_callback: impl F
 
     let has_face_detection = scramble_options.face_detection.is_some();
 
+    info!("Encoding output with fidelity: {:?}", options.fidelity);
+
     processor.process_video(
         &options.input_path,
         &options.output_path,
+        options.fidelity,
         move |frame| {
             let width = frame.width() as u32;
             let height = frame.height() as u32;
@@ -301,4 +306,39 @@ pub fn process_video(options: &VideoProcessingOptions, progress_callback: impl F
     )?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn fidelity_serialises_as_the_strings_the_ui_sends() {
+        for (value, expected) in [
+            (VideoFidelity::Lossless, "\"Lossless\""),
+            (VideoFidelity::HighQuality, "\"HighQuality\""),
+            (VideoFidelity::Fast, "\"Fast\""),
+        ] {
+            assert_eq!(serde_json::to_string(&value).unwrap(), expected);
+            assert_eq!(
+                serde_json::from_str::<VideoFidelity>(expected).unwrap(),
+                value
+            );
+        }
+    }
+    #[test]
+    fn omitted_fidelity_defaults_to_fast() {
+        let json = r#"{
+            "input_path": "in.mp4",
+            "output_path": "out.mp4",
+            "scramble_options": {
+                "scramble_type": "Pixel",
+                "intensity": 1.0,
+                "seed": null,
+                "face_detection": null
+            },
+            "temporal_coherence": null
+        }"#;
+        let opts: VideoProcessingOptions = serde_json::from_str(json).unwrap();
+        assert_eq!(opts.fidelity, VideoFidelity::Fast);
+    }
 }

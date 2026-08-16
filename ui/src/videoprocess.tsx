@@ -59,7 +59,10 @@ interface VideoProcessingOptions {
     keyframe_interval: number;
     blend_frames: number;
   } | null;
+  fidelity: VideoFidelity;
 }
+
+type VideoFidelity = 'Lossless' | 'HighQuality' | 'Fast';
 
 function VideoProcess() {
   const [inputPath, setInputPath] = useState<string | null>(null);
@@ -96,6 +99,7 @@ function VideoProcess() {
   const [flowOutputDir, setFlowOutputDir] = useState<string | null>(null);
   const [keyframeInterval, setKeyframeInterval] = useState(30);
   const [blendFrames, setBlendFrames] = useState(0);
+  const [fidelity, setFidelity] = useState<VideoFidelity>('Fast');
 
   useEffect(() => {
     setFourierOptions(prev => ({
@@ -197,6 +201,7 @@ function VideoProcess() {
           keyframe_interval: keyframeInterval,
           blend_frames: blendFrames,
         } : null,
+        fidelity,
       };
 
       await invoke('process_video', { options });
@@ -240,6 +245,28 @@ function VideoProcess() {
             <option value="Blur">Gaussian Blur</option>
             <option value="Diffeomorphic">Diffeomorphic Warp</option>
           </select>
+        </div>
+
+        {/* Output Fidelity */}
+        <div className="scramble-type-control">
+          <label>Output Fidelity</label>
+          <select
+            value={fidelity}
+            onChange={(e) => setFidelity(e.target.value as VideoFidelity)}
+            className="select-input"
+          >
+            <option value="Lossless">Lossless (4:4:4)</option>
+            <option value="HighQuality">High Quality (4:4:4)</option>
+            <option value="Fast">Fast (GPU, 4:2:0)</option>
+          </select>
+          <p className="help-text">
+            {fidelity === 'Lossless' &&
+              'Preserves the scramble exactly, and encodes identically on every machine. Produces large files.'}
+            {fidelity === 'HighQuality' &&
+              'Full colour resolution with mild compression. Still identical across machines, roughly half the size of lossless.'}
+            {fidelity === 'Fast' &&
+              'Uses the GPU encoder at 4:2:0, which discards three quarters of the colour detail and varies between machines.'}
+          </p>
         </div>
 
         {/* Method-specific controls */}

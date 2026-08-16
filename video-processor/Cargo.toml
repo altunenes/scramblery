@@ -8,6 +8,7 @@ gstreamer = "0.25.3"
 gstreamer-video = "0.25.3"
 gstreamer-app = "0.25.2"
 gstreamer-pbutils = "0.25.2"
+serde = { workspace = true }
 anyhow = { workspace = true }
 log = {workspace = true}
 image = { workspace = true }

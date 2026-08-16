@@ -1079,6 +1079,7 @@ dependencies = [
  "rayon",
  "rustfft",
  "serde",
+ "serde_json",
  "video-processor",
 ]
 
@@ -6043,6 +6044,7 @@ dependencies = [
  "gstreamer-video",
  "image",
  "log",
+ "serde",
 ]
 
 [[package]]
