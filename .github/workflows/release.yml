@@ -108,7 +108,7 @@ jobs:
         if: matrix.platform == 'macos-latest'
         run: |
           # Download and install official GStreamer packages
-          GSTREAMER_VERSION="1.28.0"
+          GSTREAMER_VERSION="1.28.6"
           curl -L "https://gstreamer.freedesktop.org/data/pkg/osx/$GSTREAMER_VERSION/gstreamer-1.0-$GSTREAMER_VERSION-universal.pkg" -o gstreamer.pkg
           curl -L "https://gstreamer.freedesktop.org/data/pkg/osx/$GSTREAMER_VERSION/gstreamer-1.0-devel-$GSTREAMER_VERSION-universal.pkg" -o gstreamer-devel.pkg
           
@@ -127,13 +127,13 @@ jobs:
         shell: pwsh
         run: |
           Write-Host "Starting GStreamer installation process..."
-          $gstVer = "1.28.1"
+          $gstVer = "1.28.6"
           $tempDir = "C:\gst-temp"
           $installDir = "C:\gstreamer"
 
           New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
 
-          $installerUrl = "https://github.com/altunenes/scramblery/releases/download/dependencies/gstreamer-1.0-msvc-x86_64-$gstVer.exe"
+          $installerUrl = "https://github.com/altunenes/cuneus/releases/download/dependencies/gstreamer-1.0-msvc-x86_64-$gstVer.exe"
           Write-Host "Downloading GStreamer $gstVer installer..."
           Invoke-WebRequest -Uri $installerUrl -OutFile "$tempDir\gstreamer.exe"
 
