@@ -23,3 +23,5 @@ ndarray = { workspace = true }
 face_detection = { path = "../face_detection" }
 optical_flow = { path = "../optical_flow" }
 video-processor = { path = "../video-processor" }
+[dev-dependencies]
+serde_json = { workspace = true }
