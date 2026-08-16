@@ -7,6 +7,7 @@ edition = "2021"
 cuda = ["onnx/cuda"]
 migraphx = ["onnx/migraphx"]
 webgpu = ["onnx/webgpu"]
+directml = ["onnx/directml"]
 
 [dependencies]
 image = { workspace = true }

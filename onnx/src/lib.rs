@@ -17,6 +17,8 @@ pub enum ExecutionProvider {
     MIGraphX,
     #[cfg(feature = "webgpu")]
     WebGPU,
+    #[cfg(all(feature = "directml", target_os = "windows"))]
+    DirectML,
 }
 
 impl Default for ExecutionProvider {
@@ -26,6 +28,8 @@ impl Default for ExecutionProvider {
         {
             #[cfg(feature = "webgpu")]
             { return ExecutionProvider::WebGPU; }
+            #[cfg(all(feature = "directml", target_os = "windows"))]
+            { return ExecutionProvider::DirectML; }
             #[cfg(target_os = "macos")]
             { return ExecutionProvider::CoreML; }
             #[cfg(feature = "cuda")]
@@ -102,6 +106,17 @@ pub static ENV: Lazy<()> = Lazy::new(|| {
     #[cfg(feature = "webgpu")]
     {
         providers.push(ort::ep::WebGPU::default().build());
+    }
+
+    #[cfg(all(feature = "directml", target_os = "windows"))]
+    {
+        use ort::ep::directml::{DeviceFilter, DirectML, PerformancePreference};
+        providers.push(
+            DirectML::default()
+                .with_performance_preference(PerformancePreference::HighPerformance)
+                .with_device_filter(DeviceFilter::Gpu)
+                .build(),
+        );
     }
 
     providers.push(CPU::default().build().error_on_failure());

@@ -9,6 +9,7 @@ edition = "2021"
 cuda = ["engine/cuda"]
 migraphx = ["engine/migraphx"]
 webgpu = ["engine/webgpu"]
+directml = ["engine/directml"]
 
 [build-dependencies]
 tauri-build = { version = "2.0.5", features = [] }

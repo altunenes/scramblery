@@ -7,6 +7,7 @@ edition = "2021"
 cuda = ["face_detection/cuda", "optical_flow/cuda"]
 migraphx = ["face_detection/migraphx", "optical_flow/migraphx"]
 webgpu = ["face_detection/webgpu", "optical_flow/webgpu"]
+directml = ["face_detection/directml", "optical_flow/directml"]
 
 [dependencies]
 base64 = "0.22.1"
