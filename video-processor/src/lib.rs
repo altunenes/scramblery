@@ -278,10 +278,10 @@ impl VideoProcessor {
                                     if let Some(s) = caps.structure(0) {
                                         if let Ok(framerate) = s.get::<gst::Fraction>("framerate") {
                                             let duration = info.duration();
-                                            let duration_secs = duration.unwrap_or(gst::ClockTime::ZERO).seconds();
+                                            let duration_secs = duration.unwrap_or(gst::ClockTime::ZERO).nseconds() as f64 / 1e9;
                                             let fps = framerate.numer() as f64 / framerate.denom() as f64;
-                                            frames = (duration_secs as f64 * fps) as usize;
-                                            info!("Got exact framerate {}/{} fps, duration {}s, calculated frames: {}",
+                                            frames = (duration_secs * fps).round() as usize;
+                                            info!("Got exact framerate {}/{} fps, duration {:.3}s, calculated frames: {}",
                                                  framerate.numer(), framerate.denom(),
                                                  duration_secs, frames);
                                         }
@@ -320,10 +320,10 @@ impl VideoProcessor {
                                         if let Some(caps) = sink_pad.current_caps() {
                                             if let Some(s) = caps.structure(0) {
                                                 if let Ok(framerate) = s.get::<gst::Fraction>("framerate") {
-                                                    let duration_secs = duration.seconds();
-                                                    frames = ((duration_secs as f64) *
+                                                    let duration_secs = duration.nseconds() as f64 / 1e9;
+                                                    frames = (duration_secs *
                                                             (framerate.numer() as f64 /
-                                                             framerate.denom() as f64)) as usize;
+                                                             framerate.denom() as f64)).round() as usize;
                                                     info!("Got framerate from pipeline: {}/{} fps",
                                                          framerate.numer(), framerate.denom());
                                                 }
@@ -332,9 +332,10 @@ impl VideoProcessor {
                                     }
                                 }
                                 if frames == 0 {
-                                    frames = (duration.seconds() * 30) as usize;
-                                    info!("Using estimated 30fps - duration: {}s, frames: {}",
-                                         duration.seconds(), frames);
+                                    let duration_secs = duration.nseconds() as f64 / 1e9;
+                                    frames = (duration_secs * 30.0).round() as usize;
+                                    info!("Using estimated 30fps - duration: {:.3}s, frames: {}",
+                                         duration_secs, frames);
                                 }
                             }
 
@@ -370,7 +371,7 @@ impl VideoProcessor {
                     debug!("Processing frame {}", count);
 
                     if total_frames > 0 {
-                        let progress = (count as f32 / total_frames as f32) * 100.0;
+                        let progress = ((count as f32 / total_frames as f32) * 100.0).min(99.9);
                         progress_callback_sample(progress);
                     }
 
