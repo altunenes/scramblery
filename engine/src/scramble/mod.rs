@@ -4,6 +4,7 @@ pub mod block;
 pub mod blur;
 pub mod diffeomorphic;
 pub mod fourier;
+pub mod local_phase;
 pub mod mask;
 pub mod pixel;
 
@@ -121,6 +122,7 @@ pub fn scramble_planes(planes: &Planes, options: &ScrambleOptions, seed: u64) ->
         ScrambleType::Block(o) => block::scramble(planes, o, &mut rng),
         ScrambleType::Blur(o) => blur::scramble(planes, o.sigma),
         ScrambleType::Diffeomorphic(o) => diffeomorphic::scramble(planes, o, &mut rng),
+        ScrambleType::LocalPhase(o) => local_phase::scramble(planes, o, &mut rng),
     }
 }
 
@@ -195,20 +197,21 @@ fn blend_patch(result: &mut Planes, patch: &Planes, weights: &[f32], x: usize, y
 /// has none (block scrambling).
 pub fn series_unit(scramble_type: &ScrambleType) -> Option<&'static str> {
     match scramble_type {
-        ScrambleType::Pixel | ScrambleType::Fourier(_) => Some("%"),
+        ScrambleType::Pixel | ScrambleType::Fourier(_) | ScrambleType::LocalPhase(_) => Some("%"),
         ScrambleType::Blur(_) | ScrambleType::Diffeomorphic(_) => Some("px"),
         ScrambleType::Block(_) => None,
     }
 }
 
-/// Options with the method's strength set to `level`: intensity in percent for pixel and
-/// Fourier scrambling, sigma in pixels for blur, maximum distortion in pixels for
+/// Options with the method's strength set to `level`: intensity in percent for pixel, Fourier
+/// and local phase scrambling, sigma in pixels for blur, maximum distortion in pixels for
 /// diffeomorphic scrambling.
 pub fn with_level(options: &ScrambleOptions, level: f32) -> crate::Result<ScrambleOptions> {
     let mut options = options.clone();
     match &mut options.scramble_type {
         ScrambleType::Pixel => options.intensity = level / 100.0,
         ScrambleType::Fourier(o) => o.intensity = level / 100.0,
+        ScrambleType::LocalPhase(o) => o.intensity = level / 100.0,
         ScrambleType::Blur(o) => o.sigma = level,
         ScrambleType::Diffeomorphic(o) => o.max_distortion = level,
         ScrambleType::Block(_) => anyhow::bail!("Block scrambling has no strength to vary"),

@@ -3,7 +3,7 @@ import { Theme } from "theme.slint";
 import { Help, Icon, SectionTitle, ValueSlider, ToggleRow, Segmented, TextField, Button } from "widgets.slint";
 
 export global Params {
-    // 0 Pixel, 1 Fourier, 2 Block, 3 Blur, 4 Diffeomorphic
+    // 0 Pixel, 1 Fourier, 2 Block, 3 Blur, 4 Diffeomorphic, 5 Local phase
     in-out property <int> method: 0;
     in-out property <float> intensity: 50;
 
@@ -30,6 +30,11 @@ export global Params {
     in-out property <float> max-distortion: 5.0;
     in-out property <float> warp-steps: 20;
     in-out property <float> dct-components: 5;
+
+    in-out property <float> local-scales: 5;
+    in-out property <float> local-orientations: 4;
+    // 0 Wrap, 1 Reflect, 2 Mean
+    in-out property <int> local-padding: 1;
 
     in-out property <bool> face-detection: false;
     // 0 Keep background (scramble faces only), 1 Faces only
@@ -95,13 +100,14 @@ export global Params {
         }
     }
 
-    out property <[string]> method-names: ["Pixel", "Fourier phase", "Block", "Gaussian blur", "Diffeomorphic"];
+    out property <[string]> method-names: ["Pixel", "Fourier phase", "Block", "Gaussian blur", "Diffeomorphic", "Local phase"];
     out property <[string]> method-summaries: [
         "Shuffle pixel positions",
         "Randomise the phase spectrum",
         "Shuffle square tiles",
         "Remove high spatial frequencies",
         "Smooth, invertible warp",
+        "Randomise local phase, keep local contrast",
     ];
     out property <[string]> method-help: [
         "Randomly permutes a chosen fraction of the pixel positions. Every pixel value is kept, so colour and luminance histograms are preserved exactly; only the spatial arrangement changes.",
@@ -109,6 +115,7 @@ export global Params {
         "Cuts the image into a grid of blocks and shuffles their positions. Edge blocks are only exchanged with blocks of the same size, so every pixel is kept.",
         "Blurs the image with a Gaussian kernel. Fine detail is removed while the coarse layout stays intact.",
         "Warps the image with a smooth random flow field. Low-level properties stay close to the original while shapes become unrecognisable. Stojanoski & Cusack (2014), Journal of Vision 14(12):6.",
+        "Splits the image into Gabor-like bands of scale and orientation and randomises the local phase in each while keeping the local amplitude. Unlike Fourier phase scrambling, contrast stays where it was: textured regions stay textured and plain regions stay plain, while their structure is lost. The mean and the coarsest layout are kept.",
     ];
 }
 
@@ -467,6 +474,39 @@ export component ScrambleSettings inherits Rectangle {
                             minimum: 2;
                             maximum: 20;
                             value <=> Params.dct-components;
+                        }
+                    }
+
+                    if Params.method == 5: ParameterGroup {
+                        ValueSlider {
+                            label: "Intensity";
+                            help: "Scale of the random phase added in every band. 0% returns the original image; 100% makes the local phase uniformly random.";
+                            maximum: 100;
+                            suffix: "%";
+                            value <=> Params.intensity;
+                        }
+
+                        ValueSlider {
+                            label: "Scales";
+                            help: "Number of octave bands. The finest has a wavelength of 4 px and each further scale doubles it, so 5 scales reach 64 px; structure larger than about twice the coarsest wavelength is kept. Use more scales for large images.";
+                            minimum: 1;
+                            maximum: 8;
+                            value <=> Params.local-scales;
+                        }
+
+                        ValueSlider {
+                            label: "Orientations";
+                            help: "Number of orientation bands per scale. More orientations follow edges more closely.";
+                            minimum: 1;
+                            maximum: 8;
+                            value <=> Params.local-orientations;
+                        }
+
+                        Segmented {
+                            label: "Padding";
+                            help: "Reflect adds mirrored margins so that opposite edges do not affect each other; Mean fills the margins with the mean value; Wrap treats the image as periodic and is fastest.";
+                            options: ["Wrap", "Reflect", "Mean"];
+                            current-index <=> Params.local-padding;
                         }
                     }
                 }

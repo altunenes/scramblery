@@ -198,6 +198,7 @@ fn every_method_is_reproducible_with_a_seed() {
         ScrambleType::Fourier(FourierOptions::default()),
         ScrambleType::Block(BlockOptions { block_size: (8, 8), interpolate_edges: false }),
         ScrambleType::Diffeomorphic(DiffeomorphicOptions::default()),
+        ScrambleType::LocalPhase(LocalPhaseOptions::default()),
     ];
     for scramble_type in methods {
         let options = |seed| ScrambleOptions { scramble_type: scramble_type.clone(), seed: Some(seed), ..Default::default() };
@@ -501,4 +502,69 @@ fn linear_light_phase_scrambling_preserves_mean_linear_light() {
     for (pa, pb) in a.color.iter().zip(&b.color) {
         assert!((mean_sd(pa).0 - mean_sd(pb).0).abs() < 2e-3, "{} vs {}", mean_sd(pa).0, mean_sd(pb).0);
     }
+}
+
+fn local_phase(options: LocalPhaseOptions) -> ScrambleOptions {
+    ScrambleOptions { scramble_type: ScrambleType::LocalPhase(options), ..Default::default() }
+}
+
+fn max_difference(a: &Planes, b: &Planes) -> f32 {
+    a.color.iter().flatten().zip(b.color.iter().flatten()).map(|(x, y)| (x - y).abs()).fold(0.0, f32::max)
+}
+
+#[test]
+fn local_phase_at_zero_intensity_returns_the_input() {
+    let planes = test_planes(W, H, 0);
+    for padding_mode in [PaddingMode::Wrap, PaddingMode::Reflect, PaddingMode::Mean] {
+        for orientations in [1, 4, 6] {
+            let options = local_phase(LocalPhaseOptions { intensity: 0.0, orientations, padding_mode, ..Default::default() });
+            let out = scramble_planes(&planes, &options, 3);
+            assert!(max_difference(&planes, &out) < 1e-5, "{padding_mode:?}, {orientations} orientations");
+        }
+    }
+}
+
+#[test]
+fn local_phase_scrambling_keeps_channel_means_and_changes_structure() {
+    let planes = test_planes(W, H, 0);
+    let options = local_phase(LocalPhaseOptions { padding_mode: PaddingMode::Wrap, ..Default::default() });
+    let out = scramble_planes(&planes, &options, 3);
+    for (a, b) in planes.color.iter().zip(&out.color) {
+        assert!((mean_sd(a).0 - mean_sd(b).0).abs() < 1e-6);
+    }
+    assert!(max_difference(&planes, &out) > 0.1);
+}
+
+#[test]
+fn local_phase_scrambling_keeps_contrast_where_it_was() {
+    // Structure in the left half only; the right half is uniform.
+    let (w, h) = (96, 64);
+    let mut planes = test_planes(w, h, 1);
+    for plane in &mut planes.color {
+        for (i, v) in plane.iter_mut().enumerate() {
+            if i % w >= w / 2 {
+                *v = 0.5;
+            }
+        }
+    }
+    let out = scramble_planes(&planes, &local_phase(LocalPhaseOptions::default()), 5);
+    let region_sd = |p: &Planes, from: usize, to: usize| {
+        let values: Vec<f32> = p.color[0].iter().enumerate().filter(|(i, _)| (from..to).contains(&(i % w))).map(|(_, v)| *v).collect();
+        mean_sd(&values).1
+    };
+    let (left_in, left_out) = (region_sd(&planes, 0, w / 2 - 8), region_sd(&out, 0, w / 2 - 8));
+    let right_out = region_sd(&out, w / 2 + 8, w);
+    assert!(left_out > 0.5 * left_in, "left: {left_in} -> {left_out}");
+    assert!(right_out < 0.2 * left_out, "right: {right_out}, left: {left_out}");
+    let changed = planes.color[0].iter().zip(&out.color[0]).enumerate().filter(|(i, (a, b))| i % w < w / 2 - 8 && (*a - *b).abs() > 0.05).count();
+    assert!(changed > (w / 2 - 8) * h / 4);
+}
+
+#[test]
+fn local_phase_scrambling_keeps_gray_images_gray() {
+    let mut planes = test_planes(W, H, 2);
+    let gray = planes.color[0].clone();
+    planes.color = vec![gray.clone(), gray.clone(), gray];
+    let out = scramble_planes(&planes, &local_phase(LocalPhaseOptions::default()), 6);
+    assert!(out.color[0].iter().zip(&out.color[1]).zip(&out.color[2]).all(|((r, g), b)| (r - g).abs() < 1e-6 && (g - b).abs() < 1e-6));
 }
