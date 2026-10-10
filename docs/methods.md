@@ -66,6 +66,30 @@ The output is cropped back to the original size.
 
 **Grayscale.** When selected, luminance is processed as a single plane and the output is grayscale.
 
+### Local phase
+
+Fourier phase scrambling keeps the global amplitude spectrum but spreads contrast evenly over the whole image. Local phase scrambling keeps where contrast is, at each scale and orientation, and randomises only its local arrangement: textured regions stay textured, plain regions stay plain, and the coarse layout is kept.
+
+Each colour plane is decomposed with a complex steerable filter bank, similar to the complex steerable pyramid (Portilla & Simoncelli, 2000), defined in the frequency domain with *S* scales and *M* orientations. Its bands are oriented, band-pass and complex, like Gabor or log-Gabor filters, but their windows are chosen so that the decomposition can be inverted exactly. Band (*s*, *o*) has the filter $G_{s,o}(f, \theta) = R_s(f)\,A_o(\theta)$:
+
+- **Radial windows.** With $u = \log_2(f_0 / f)$ and $f_0 = 1/4$ cycle per pixel, scale 0 is 1 for $u \le 0$, so it also covers all higher frequencies. For $s \le u < s + 1$, $R_s = \cos(\tfrac{\pi}{2} h)$ and $R_{s+1} = \sin(\tfrac{\pi}{2} h)$ with $h = t^2(3 - 2t)$, $t = u - s$. Below the coarsest scale, a low-pass residual *L* takes the place of $R_S$ and is 1 for $u \ge S$. The squares of all windows sum to 1 at every frequency.
+- **Angular windows.** $A_o(\theta) = c \cos^{M-1}(\theta - \theta_o)$ for $|\theta - \theta_o| < \pi/2$ and 0 otherwise, with $\theta_o = \pi o / M$ and *c* chosen so that $\sum_o \left[A_o(\theta)^2 + A_o(\theta + \pi)^2\right] = 1$. Each filter covers one half of the frequency plane, so the band response $b_{s,o}(\mathbf{x}) = \mathcal{F}^{-1}[X\,G_{s,o}](\mathbf{x})$ is complex: $|b|$ is the local amplitude and $\arg b$ the local phase.
+
+Each band coefficient receives a random phase offset scaled by the intensity *s*, $b' = b\, e^{\,i\,s\,\varphi_{s,o}(\mathbf{x})}$, which keeps the local amplitude. The offset field of a band is Gaussian white noise, low-pass filtered with a Gaussian whose standard deviation is half the band's centre frequency $f_0 / 2^s$, scaled to unit variance and mapped to a uniform distribution on $(-\pi, \pi)$ with $\varphi = \pi\,\mathrm{erf}(g/\sqrt{2})$. The offsets therefore vary smoothly over about one wavelength of the band. Every band has its own field, and the same fields are used for every colour channel.
+
+The image is resynthesised as $Y = X L^2 + \sum_{s,o} \left[Z_{s,o}(\mathbf{k}) + \overline{Z_{s,o}(-\mathbf{k})}\right]$ with $Z_{s,o} = \mathcal{F}[b'_{s,o}]\, G_{s,o}$. Changing the phase moves part of a band's energy to frequencies its synthesis filter removes, so each $Z_{s,o}$ is rescaled to the energy of the unchanged band. Consequences:
+
+- At *s* = 0 the image is returned exactly.
+- The low-pass residual, which holds the mean and all structure coarser than about twice the coarsest wavelength ($4 \cdot 2^{S-1}$ pixels), is kept. Scales are defined in pixels, so the same setting keeps more of a larger image's structure.
+- The energy of every band is kept, so contrast at each scale and orientation is unchanged overall, and it stays near where it was in the image.
+- Channel means are kept exactly with Wrap padding and closely with the other padding modes.
+- Because all channels receive the same offsets, a grayscale image stays grayscale.
+- Unlike Fourier phase scrambling, the amplitude spectrum is not preserved exactly.
+
+**Padding.** *Wrap* transforms the image at its own size. *Reflect* and *Mean* add margins of two wavelengths of the coarsest scale ($2^{S+2}$ pixels, at most the image size) on every side, mirrored or filled with the plane's mean, so that opposite edges do not affect each other. The padded size is rounded up to a product of 2, 3 and 5.
+
+**Computation.** Scale *s* contains only frequencies below $0.5 / 2^s$ cycles per pixel, so its bands are processed exactly on a grid $2^s$ times smaller than the padded image.
+
 ### Block
 
 The image is divided into a grid of blocks of the chosen width and height, and block positions are shuffled. When the image size is not a multiple of the block size, the right and bottom edges hold smaller blocks; blocks are only exchanged with blocks of the same size, so every pixel is kept and the histograms are preserved exactly. *Smooth block edges* replaces the two pixels on each side of every block boundary with their mean.
@@ -101,7 +125,7 @@ As the last step, the result can be shown through a centred window with a unifor
 Batch processing can produce several outputs per input:
 
 - **Exemplars** are differently seeded versions of the same image.
-- **An intensity series** applies one exemplar's seed at several strengths, so that the levels differ only in strength. The varied parameter is the intensity in percent for pixel and Fourier scrambling, σ in pixels for blur, and the maximum distortion in pixels for diffeomorphic scrambling; block scrambling has none. Because the random phase field is fixed, Fourier levels lie on a continuum in phase (the offset at level *s* is *s* times the offset at 100%). Pixel levels are nested: the positions moved at a lower intensity are a subset of those moved at a higher one.
+- **An intensity series** applies one exemplar's seed at several strengths, so that the levels differ only in strength. The varied parameter is the intensity in percent for pixel, Fourier and local phase scrambling, σ in pixels for blur, and the maximum distortion in pixels for diffeomorphic scrambling; block scrambling has none. Because the random phase field is fixed, Fourier levels lie on a continuum in phase (the offset at level *s* is *s* times the offset at 100%). Pixel levels are nested: the positions moved at a lower intensity are a subset of those moved at a higher one.
 
 Outputs are named after their input, followed by `_sNN` for the exemplar (when there are several) and `_lLEVEL` for the series level, e.g. `face01_s02_l050.png`.
 
@@ -157,6 +181,7 @@ These follow the corresponding functions of the SHINE toolbox (Willenbockel et a
 
 ## References
 
+- Portilla, J., & Simoncelli, E. P. (2000). A parametric texture model based on joint statistics of complex wavelet coefficients. *International Journal of Computer Vision*, 40(1), 49–70.
 - Stojanoski, B., & Cusack, R. (2014). Time to wave good-bye to phase scrambling: Creating controlled scrambled images using diffeomorphic transformations. *Journal of Vision*, 14(12):6.
 - Wang, Z., Bovik, A. C., Sheikh, H. R., & Simoncelli, E. P. (2004). Image quality assessment: From error visibility to structural similarity. *IEEE Transactions on Image Processing*, 13(4), 600–612.
 - Willenbockel, V., Sadr, J., Fiset, D., Horne, G. O., Gosselin, F., & Tanaka, J. W. (2010). Controlling low-level image properties: The SHINE toolbox. *Behavior Research Methods*, 42(3), 671–684.
