@@ -1,7 +1,7 @@
 use anyhow::Result;
 use image::{DynamicImage, GenericImageView, imageops::FilterType};
 use ndarray::Array4;
-use onnx::{new_session_from_memory, new_session_from_path};
+use onnx::{new_deterministic_session_from_memory, new_session_from_path};
 use std::path::PathBuf;
 use log::info;
 use onnx::Session;
@@ -11,11 +11,13 @@ use std::sync::OnceLock;
 use std::sync::Mutex;
 
 
+pub mod outline;
+
 static FACE_MODEL: &[u8] = include_bytes!("../../resources/models/version-RFB-640.onnx");
 
 static FACE_DETECTOR_SESSION: OnceLock<Mutex<Session>> = OnceLock::new();
 
-/// Target dimensions for the face detection model (please see: https://github.com/onnx/models/tree/main/validated/vision/body_analysis/ultraface)
+/// Input size of the UltraFace model (https://github.com/onnx/models/tree/main/validated/vision/body_analysis/ultraface).
 pub const TARGET_WIDTH: u32 = 640;
 pub const TARGET_HEIGHT: u32 = 480;
 
@@ -29,17 +31,17 @@ pub struct FaceRegion {
 }
 
 impl FaceRegion {
-    /// Returns whether this region should be considered for scrambling
+    /// Whether the detection is confident enough to be scrambled.
     pub fn is_valid_for_scrambling(&self, min_confidence: f32) -> bool {
         self.confidence >= min_confidence
     }
 
-    /// Gets the dimensions of the face region
+    /// Width and height of the box.
     pub fn dimensions(&self) -> (u32, u32) {
         (self.x2 - self.x1, self.y2 - self.y1)
     }
 
-    /// Expands the region by a factor to ensure we capture the full face
+    /// The box enlarged by `factor` around its centre, limited to the image.
     pub fn expand(&self, factor: f32, max_width: u32, max_height: u32) -> Self {
         let width = (self.x2 - self.x1) as f32;
         let height = (self.y2 - self.y1) as f32;
@@ -56,7 +58,7 @@ impl FaceRegion {
     }
 }
 
-/// Loads the face detection model, using a cached version if available
+/// The face detector session, created on first use.
 pub fn load_face_detector(model_path: Option<PathBuf>) -> Result<&'static Mutex<Session>> {
     if let Some(session) = FACE_DETECTOR_SESSION.get() {
         return Ok(session);
@@ -66,9 +68,10 @@ pub fn load_face_detector(model_path: Option<PathBuf>) -> Result<&'static Mutex<
             info!("Loading face detection model from {:?}", path);
             new_session_from_path(path)?
         }
-        None => new_session_from_memory(FACE_MODEL)?,
+        // CPU-only so that detected boxes, and hence outputs, are reproducible everywhere.
+        None => new_deterministic_session_from_memory(FACE_MODEL)?,
     };
-    if let Err(_) = FACE_DETECTOR_SESSION.set(Mutex::new(session)) {
+    if FACE_DETECTOR_SESSION.set(Mutex::new(session)).is_err() {
         info!("Warning: Face detection session was already initialized by another thread");
     }
     Ok(FACE_DETECTOR_SESSION.get().unwrap())
@@ -87,8 +90,7 @@ fn preprocess_image(image: &DynamicImage) -> Array4<f32> {
     tensor
 }
 
-/// Detects face regions in an image that can be used for selective scrambling
-/// expansion_factor: How much to expand detected regions?
+/// Detects faces above `confidence_threshold`. Boxes are enlarged by `expansion_factor` when given.
 pub fn detect_face_regions(
     image: &DynamicImage,
     session: &Mutex<Session>,
@@ -117,7 +119,6 @@ pub fn detect_face_regions(
             continue;
         }
 
-        // corner coordinates
         let x1 = boxes[[0, i, 0]];
         let y1 = boxes[[0, i, 1]];
         let x2 = boxes[[0, i, 2]];
@@ -125,7 +126,6 @@ pub fn detect_face_regions(
 
         info!("Raw detection: x1={}, y1={}, x2={}, y2={}, conf={}",
               x1, y1, x2, y2, face_confidence);
-        // Scale to image dimensions
         let mut region = FaceRegion {
             x1: (x1 * orig_width as f32) as u32,
             y1: (y1 * orig_height as f32) as u32,
@@ -133,11 +133,9 @@ pub fn detect_face_regions(
             y2: (y2 * orig_height as f32) as u32,
             confidence: face_confidence,
         };
-        // Skip invalid boxes
         if region.x2 <= region.x1 || region.y2 <= region.y1 {
             continue;
         }
-        // Only expand if requested and box is valid
         if let Some(factor) = expansion_factor {
             let orig_region = region.clone();
             region = region.expand(factor, orig_width, orig_height);
@@ -145,7 +143,8 @@ pub fn detect_face_regions(
         }
         detected_boxes.push(region);
     }
-    // Sort by confidence and apply NMS (please see:https://github.com/onnx/models/blob/main/validated/vision/body_analysis/ultraface/dependencies/box_utils.py)
+    // Non-maximum suppression as in the UltraFace reference code:
+    // https://github.com/onnx/models/blob/main/validated/vision/body_analysis/ultraface/dependencies/box_utils.py
     detected_boxes.sort_by(|a, b| b.confidence.partial_cmp(&a.confidence).unwrap());
     let regions = apply_nms(detected_boxes, 0.5)?;
     info!("Detected {} face regions above threshold {}", regions.len(), confidence_threshold);

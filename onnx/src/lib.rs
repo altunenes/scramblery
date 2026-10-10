@@ -23,7 +23,7 @@ pub enum ExecutionProvider {
 
 impl Default for ExecutionProvider {
     fn default() -> Self {
-        // Priority: WebGPU (cross-platform), then platform-native GPU, then CUDA/ROCm, then CPU
+        // WebGPU, then the platform's native provider, then CUDA or MIGraphX, then CPU.
         #[allow(unreachable_code)]
         {
             #[cfg(feature = "webgpu")]
@@ -77,6 +77,20 @@ impl Default for ModelConfig {
     }
 }
 
+/// Where CoreML keeps compiled models, so that only the first run pays the compilation time.
+#[cfg(target_os = "macos")]
+fn coreml_cache_dir() -> String {
+    let base = std::env::var_os("HOME")
+        .map(|home| PathBuf::from(home).join("Library/Caches"))
+        .unwrap_or_else(std::env::temp_dir);
+    let dir = base.join("scramblery/coreml");
+    if let Err(e) = std::fs::create_dir_all(&dir) {
+        log::warn!("Cannot create CoreML cache folder {}: {e}", dir.display());
+    }
+    info!("CoreML model cache: {}", dir.display());
+    dir.to_string_lossy().into_owned()
+}
+
 /// Global ONNX Runtime environment initialization
 pub static ENV: Lazy<()> = Lazy::new(|| {
     info!("Initializing ONNX Runtime environment");
@@ -85,10 +99,13 @@ pub static ENV: Lazy<()> = Lazy::new(|| {
 
     #[cfg(target_os = "macos")]
     {
-        use ort::ep::coreml::{ComputeUnits, CoreML};
+        use ort::ep::coreml::{ComputeUnits, CoreML, ModelFormat};
         providers.push(
             CoreML::default()
                 .with_compute_units(ComputeUnits::CPUAndGPU)
+                .with_model_format(ModelFormat::MLProgram)
+                .with_static_input_shapes(true)
+                .with_model_cache_dir(coreml_cache_dir())
                 .build(),
         );
     }
@@ -150,6 +167,20 @@ pub fn new_session_from_memory(bytes: &[u8]) -> Result<Session> {
     info!("Creating new ONNX session from memory ({} bytes) with config: {:?}", bytes.len(), config);
     let session = session_builder(&config)?.commit_from_memory(bytes)?;
     info!("ONNX session created successfully");
+    Ok(session)
+}
+
+/// Creates a session from in-memory model bytes that runs on one CPU thread only, ignoring
+/// GPU execution providers. Results are then identical across runs, processes and machines.
+pub fn new_deterministic_session_from_memory(bytes: &[u8]) -> Result<Session> {
+    let config = ModelConfig { intra_threads: 1, ..ModelConfig::default() };
+    info!("Creating CPU-only ONNX session from memory ({} bytes)", bytes.len());
+    let session = session_builder(&config)?
+        .with_no_environment_execution_providers()
+        .map_err(|e| ort::Error::new(e.message().to_string()))?
+        .with_execution_providers([CPU::default().build()])
+        .map_err(|e| ort::Error::new(e.message().to_string()))?
+        .commit_from_memory(bytes)?;
     Ok(session)
 }
 
