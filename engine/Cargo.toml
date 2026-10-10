@@ -1,6 +1,6 @@
 [package]
 name = "engine"
-version = "0.1.0"
+version.workspace = true
 edition = "2021"
 
 [features]
@@ -12,16 +12,15 @@ directml = ["face_detection/directml", "optical_flow/directml"]
 [dependencies]
 rayon = "1.10.0"
 num-complex = "0.4.6"
-itertools = "0.14.0"
 rustfft = "6.2.0"
 image = { workspace = true }
 serde = { workspace = true }
 anyhow = { workspace = true }
 log = { workspace = true }
 rand = { workspace = true }
-ndarray = { workspace = true }
+rand_chacha = "0.9"
+serde_json = { workspace = true }
 face_detection = { path = "../face_detection" }
 optical_flow = { path = "../optical_flow" }
+onnx = { path = "../onnx" }
 video-processor = { path = "../video-processor" }
-[dev-dependencies]
-serde_json = { workspace = true }

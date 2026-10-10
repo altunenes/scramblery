@@ -1,408 +1,125 @@
-use image::{DynamicImage, GenericImageView, ImageBuffer, Rgb};
-use ndarray::Array2;
+//! Phase scrambling in the Fourier domain.
+//!
+//! The same random phase field is added to every colour channel, which preserves the phase
+//! differences between channels and therefore avoids spurious colours. The field is Hermitian
+//! symmetric so the result stays real, and the DC term is never changed, so the mean of each
+//! channel is preserved. With `PaddingMode::Wrap` the amplitude spectrum is preserved exactly.
+
 use num_complex::Complex64;
-use rustfft::{Fft, FftPlanner};
-use rand::{Rng, SeedableRng};
-use rand::rngs::StdRng;
-use crate::Result;
-use super::types::{FourierOptions, PaddingMode};
-use face_detection::{detect_face_regions, load_face_detector};
-use crate::FaceDetectionOptions;
-use crate::FrequencyRange;
-use crate::BackgroundMode;
-use image::GenericImage;
-pub struct FourierScrambler {
-    width: usize,
-    height: usize,
-    fft: std::sync::Arc<dyn Fft<f64>>,
-    ifft: std::sync::Arc<dyn Fft<f64>>,
-    options: FourierOptions,
-    rng: StdRng,
-}
+use rand::Rng;
+use rayon::prelude::*;
 
-impl FourierScrambler {
-    pub fn new(width: usize, height: usize, options: FourierOptions, seed: Option<u64>) -> Self {
-        // Determine the padded size (square) based on the maximum dimension.
-        let padded_size = get_optimal_fft_size(width.max(height));
-        let mut planner = FftPlanner::new();
-        let fft = planner.plan_fft_forward(padded_size);
-        let ifft = planner.plan_fft_inverse(padded_size);
-        let rng = if let Some(seed) = seed {
-            StdRng::seed_from_u64(seed)
-        } else {
-            StdRng::from_os_rng()
-        };
-        Self {
-            width,
-            height,
-            fft,
-            ifft,
-            options,
-            rng,
-        }
-    }
+use super::types::{FourierOptions, FrequencyRange, PaddingMode};
+use crate::planes::Planes;
+use crate::seed;
+use crate::spectral::{fft2, mirror_index, radial_frequency};
 
-    /// Scrambles a single image.
-    /// If the `grayscale` option is enabled, the image is first converted to grayscale,
-    /// processed as a single luminance channel, and returned as a grayscale image.
-    /// Otherwise, each color channel is processed separately.
-    pub fn scramble(&mut self, image: &DynamicImage) -> Result<DynamicImage> {
-        if self.options.grayscale {
-            let gray_image = image.to_luma8();
-            let (width, height) = gray_image.dimensions();
-            let mut channel = Array2::zeros((height as usize, width as usize));
-            for y in 0..(height as usize) {
-                for x in 0..(width as usize) {
-                    channel[[y, x]] = gray_image.get_pixel(x as u32, y as u32)[0] as f64 / 255.0;
-                }
-            }
-            let processed_channel = self.process_channel(channel)?;
-            let mut output = image::GrayImage::new(width, height);
-            for y in 0..(height as usize) {
-                for x in 0..(width as usize) {
-                    let val = (processed_channel[[y, x]] * 255.0).clamp(0.0, 255.0) as u8;
-                    output.put_pixel(x as u32, y as u32, image::Luma([val]));
-                }
-            }
-            return Ok(DynamicImage::ImageLuma8(output));
-        }
+pub fn scramble(input: &Planes, options: &FourierOptions, rng: &mut seed::Rng) -> Planes {
+    let source = if options.grayscale && !input.is_grayscale() {
+        input.to_grayscale()
+    } else {
+        input.clone()
+    };
+    let (width, height) = (source.width, source.height);
+    let (pw, ph) = match options.padding_mode {
+        PaddingMode::Wrap => (width, height),
+        PaddingMode::Reflect | PaddingMode::Mean => (2 * width, 2 * height),
+    };
 
-        let (width, height) = image.dimensions();
-        self.width = width as usize;
-        self.height = height as usize;
-        let channels = self.split_channels(image)?;
-        let processed_channels: Vec<Array2<f64>> = channels
-            .into_iter()
-            .map(|channel| self.process_channel(channel))
-            .collect::<Result<Vec<_>>>()?;
-        self.combine_channels(processed_channels)
-    }
-    /// Processes face regions separately.
-    /// A new scrambler is created for each region so that its FFT plan matches the region size.
-    pub fn scramble_with_face_detection(
-        &mut self,
-        image: &DynamicImage,
-        face_opts: &FaceDetectionOptions,
-    ) -> Result<DynamicImage> {
-        let session = load_face_detector(None)?;
-        let face_regions = detect_face_regions(
-            image,
-            session,
-            face_opts.confidence_threshold,
-            Some(face_opts.expansion_factor),
-        )?;
-        let (width, height) = image.dimensions();
-        let mut result = image.clone();
-        match face_opts.background_mode {
-            BackgroundMode::Include => {
-                for region in face_regions {
-                    let region_width = region.x2 - region.x1;
-                    let region_height = region.y2 - region.y1;
-                    let mut region_img = DynamicImage::new_rgb8(region_width, region_height);
-                    for y in 0..region_height {
-                        for x in 0..region_width {
-                            let pixel = image.get_pixel(x + region.x1, y + region.y1);
-                            region_img.put_pixel(x, y, pixel);
-                        }
-                    }
-                    // Create a new scrambler for the region so that FFT planning is correct.
-                    let mut region_scrambler =
-                    FourierScrambler::new(region_width as usize, region_height as usize, self.options.clone(), None);                    
-                    let processed = region_scrambler.scramble(&region_img)?;
-                    for y in 0..region_height {
-                        for x in 0..region_width {
-                            let px = processed.get_pixel(x, y);
-                            result.put_pixel(x + region.x1, y + region.y1, px);
-                        }
-                    }
-                }
-                Ok(result)
-            },
-            BackgroundMode::Exclude => {
-                let mut new_image = DynamicImage::new_rgb8(width, height);
-                for region in face_regions {
-                    let region_width = region.x2 - region.x1;
-                    let region_height = region.y2 - region.y1;
-                    let mut region_img = DynamicImage::new_rgb8(region_width, region_height);
-                    for y in 0..region_height {
-                        for x in 0..region_width {
-                            let pixel = image.get_pixel(x + region.x1, y + region.y1);
-                            region_img.put_pixel(x, y, pixel);
-                        }
-                    }
-                    let mut region_scrambler =
-                    FourierScrambler::new(region_width as usize, region_height as usize, self.options.clone(), None);
-                    let processed = region_scrambler.scramble(&region_img)?;
-                    for y in 0..region_height {
-                        for x in 0..region_width {
-                            let px = processed.get_pixel(x, y);
-                            new_image.put_pixel(x + region.x1, y + region.y1, px);
-                        }
-                    }
-                }
-                Ok(new_image)
-            }
-        }
-    }
-    /// Processes a single channel: pads the image, computes its 2D FFT,
-    /// scrambles its phase, then computes the inverse FFT.
-    fn process_channel(&mut self, channel: Array2<f64>) -> Result<Array2<f64>> {
-        let padded = self.apply_padding(&channel)?;
-        let n = padded.dim().0;
-        let mut complex_data = self.to_complex(&padded);
-        self.fft2d(&mut complex_data, n);
-        self.apply_frequency_filter(&mut complex_data, n);
-        if self.options.phase_scramble {
-            self.phase_scramble(&mut complex_data);
-        }
-        self.ifft2d(&mut complex_data, n);
-        let mut result = self.remove_padding(&complex_data, channel.dim())?;
-        for val in result.iter_mut() {
-            *val = val.max(0.0).min(1.0);
-        }
-        Ok(result)
-    }
+    let phase_noise = if options.phase_scramble {
+        random_phase_field(pw, ph, rng)
+    } else {
+        vec![0.0; pw * ph]
+    };
+    let band = band_mask(options, width, pw, ph);
 
-    fn apply_frequency_filter(&self, data: &mut [Complex64], n: usize) {
-        match &self.options.frequency_range {
-            FrequencyRange::All => {
-                // No filtering needed
-                return;
-            },
-            FrequencyRange::LowPass(cutoff) => {
-                // Keep only low frequencies (center of FFT)
-                let cutoff_radius = (cutoff * n as f32 / 2.0) as usize;
-                for y in 0..n {
-                    for x in 0..n {
-                        let center_y = if y < n/2 { y } else { n - y };
-                        let center_x = if x < n/2 { x } else { n - x };
-                        let radius = ((center_y * center_y + center_x * center_x) as f32).sqrt();
-                        
-                        if radius > cutoff_radius as f32 {
-                            data[y * n + x] = Complex64::new(0.0, 0.0);
-                        }
-                    }
-                }
-            },
-            FrequencyRange::HighPass(cutoff) => {
-                // Keep only high frequencies (edges of FFT)
-                let cutoff_radius = (cutoff * n as f32 / 2.0) as usize;
-                for y in 0..n {
-                    for x in 0..n {
-                        let center_y = if y < n/2 { y } else { n - y };
-                        let center_x = if x < n/2 { x } else { n - x };
-                        let radius = ((center_y * center_y + center_x * center_x) as f32).sqrt();
-                        
-                        if radius < cutoff_radius as f32 {
-                            data[y * n + x] = Complex64::new(0.0, 0.0);
-                        }
-                    }
-                }
-            },
-            FrequencyRange::BandPass { low, high } => {
-                let low_radius = (low * n as f32 / 2.0) as usize;
-                let high_radius = (high * n as f32 / 2.0) as usize;
-                for y in 0..n {
-                    for x in 0..n {
-                        let center_y = if y < n/2 { y } else { n - y };
-                        let center_x = if x < n/2 { x } else { n - x };
-                        let radius = ((center_y * center_y + center_x * center_x) as f32).sqrt();
-                        
-                        if radius < low_radius as f32 || radius > high_radius as f32 {
-                            data[y * n + x] = Complex64::new(0.0, 0.0);
-                        }
-                    }
-                }
-            }
-        }
-    }
-    fn fft2d(&self, data: &mut [Complex64], n: usize) {
-        for row in 0..n {
-            let start = row * n;
-            let end = start + n;
-            self.fft.process(&mut data[start..end]);
-        }
-        let mut column = vec![Complex64::new(0.0, 0.0); n];
-        for col in 0..n {
-            for row in 0..n {
-                column[row] = data[row * n + col];
-            }
-            self.fft.process(&mut column);
-            for row in 0..n {
-                data[row * n + col] = column[row];
-            }
-        }
-    }
-
-    fn ifft2d(&self, data: &mut [Complex64], n: usize) {
-        for row in 0..n {
-            let start = row * n;
-            let end = start + n;
-            self.ifft.process(&mut data[start..end]);
-        }
-        let mut column = vec![Complex64::new(0.0, 0.0); n];
-        for col in 0..n {
-            for row in 0..n {
-                column[row] = data[row * n + col];
-            }
-            self.ifft.process(&mut column);
-            for row in 0..n {
-                data[row * n + col] = column[row];
-            }
-        }
-        let scale = 1.0 / (n * n) as f64;
-        for val in data.iter_mut() {
-            *val = *val * scale;
-        }
-    }
-
-    fn phase_scramble(&mut self, data: &mut [Complex64]) {
-        let n = (data.len() as f64).sqrt() as usize;
-        for y in 0..n {
-            for x in 0..n {
-                let sym_y = if y == 0 { 0 } else { n - y };
-                let sym_x = if x == 0 { 0 } else { n - x };
-                if y > sym_y || (y == sym_y && x > sym_x) {
+    let color = source
+        .color
+        .par_iter()
+        .map(|plane| {
+            let mut data = pad(plane, width, height, pw, ph, options.padding_mode);
+            fft2(&mut data, pw, ph, false);
+            for (i, v) in data.iter_mut().enumerate() {
+                if i == 0 {
                     continue;
                 }
-                let idx = y * n + x;
-                let orig = data[idx];
-                let mag = orig.norm();
-                let orig_phase = orig.arg();
-                let random_phase = self.rng.random_range(0.0..(2.0 * std::f64::consts::PI));
-                let dphase = angle_difference(random_phase, orig_phase);
-                let new_phase = orig_phase + self.options.intensity as f64 * dphase;
-                let new_val = Complex64::from_polar(mag, new_phase);
-                data[idx] = new_val;
-                if !(y == sym_y && x == sym_x) {
-                    let sym_idx = sym_y * n + sym_x;
-                    data[sym_idx] = new_val.conj();
+                if band[i] {
+                    *v *= Complex64::from_polar(1.0, options.intensity as f64 * phase_noise[i]);
+                } else if options.remove_outside_range {
+                    *v = Complex64::new(0.0, 0.0);
                 }
+            }
+            fft2(&mut data, pw, ph, true);
+            crop(&data, pw, width, height)
+        })
+        .collect();
+
+    Planes { color, ..source }
+}
+
+/// Uniform random phases in (-pi, pi] with Hermitian symmetry; self-conjugate bins get 0.
+/// Drawn for every bin regardless of the frequency range, so the same seed gives the same
+/// noise whatever range is chosen.
+fn random_phase_field(width: usize, height: usize, rng: &mut seed::Rng) -> Vec<f64> {
+    let mut field = vec![0.0f64; width * height];
+    for ky in 0..height {
+        for kx in 0..width {
+            let i = ky * width + kx;
+            let m = mirror_index(kx, ky, width, height);
+            if i < m {
+                let theta = rng.random_range(-std::f64::consts::PI..std::f64::consts::PI);
+                field[i] = theta;
+                field[m] = -theta;
             }
         }
     }
+    field
+}
 
-    fn to_complex(&self, real: &Array2<f64>) -> Vec<Complex64> {
-        real.iter().map(|&val| Complex64::new(val, 0.0)).collect()
-    }
+/// Which bins of a `pw` x `ph` transform fall inside the frequency range.
+fn band_mask(options: &FourierOptions, image_width: usize, pw: usize, ph: usize) -> Vec<bool> {
+    let cpp = |v: f32| options.unit.to_cycles_per_pixel(v, image_width);
+    let range = match options.frequency_range {
+        FrequencyRange::All => (0.0, f64::INFINITY),
+        FrequencyRange::LowPass(c) => (0.0, cpp(c)),
+        FrequencyRange::HighPass(c) => (cpp(c), f64::INFINITY),
+        FrequencyRange::BandPass { low, high } => (cpp(low), cpp(high)),
+    };
+    (0..ph)
+        .flat_map(|ky| (0..pw).map(move |kx| (kx, ky)))
+        .map(|(kx, ky)| {
+            let f = radial_frequency(kx, ky, pw, ph);
+            f >= range.0 && f <= range.1
+        })
+        .collect()
+}
 
-    fn split_channels(&self, image: &DynamicImage) -> Result<Vec<Array2<f64>>> {
-        let rgb = image.to_rgb8();
-        let (width, height) = (self.width, self.height);
-        let mut channels = Vec::with_capacity(3);
-        for c in 0..3 {
-            let mut channel = Array2::zeros((height, width));
-            for y in 0..height {
-                for x in 0..width {
-                    let pixel = rgb.get_pixel(x as u32, y as u32);
-                    channel[[y, x]] = pixel[c] as f64 / 255.0;
+fn pad(plane: &[f32], width: usize, height: usize, pw: usize, ph: usize, mode: PaddingMode) -> Vec<Complex64> {
+    let mean = plane.iter().map(|&v| v as f64).sum::<f64>() / plane.len().max(1) as f64;
+    let mut out = vec![Complex64::new(mean, 0.0); pw * ph];
+    for y in 0..ph {
+        for x in 0..pw {
+            let value = match mode {
+                PaddingMode::Wrap => Some(plane[y * width + x]),
+                PaddingMode::Reflect => {
+                    let sx = if x < width { x } else { 2 * width - 1 - x };
+                    let sy = if y < height { y } else { 2 * height - 1 - y };
+                    Some(plane[sy * width + sx])
                 }
-            }
-            channels.push(channel);
-        }
-        Ok(channels)
-    }
-
-    fn combine_channels(&self, channels: Vec<Array2<f64>>) -> Result<DynamicImage> {
-        let (width, height) = (self.width as u32, self.height as u32);
-        let mut image = ImageBuffer::new(width, height);
-        for y in 0..height {
-            for x in 0..width {
-                let r = (channels[0][[y as usize, x as usize]] * 255.0) as u8;
-                let g = (channels[1][[y as usize, x as usize]] * 255.0) as u8;
-                let b = (channels[2][[y as usize, x as usize]] * 255.0) as u8;
-                image.put_pixel(x, y, Rgb([r, g, b]));
-            }
-        }
-        Ok(DynamicImage::ImageRgb8(image))
-    }
-
-    fn apply_padding(&self, channel: &Array2<f64>) -> Result<Array2<f64>> {
-        let (height, width) = channel.dim();
-        let padded_size = get_optimal_fft_size(width.max(height));
-        let mut padded = Array2::zeros((padded_size, padded_size));
-        match self.options.padding_mode {
-            PaddingMode::Zero => {
-                for y in 0..height {
-                    for x in 0..width {
-                        padded[[y, x]] = channel[[y, x]];
-                    }
-                }
-            },
-            PaddingMode::Reflect => {
-                // Use reflect_index to fill entire padded image.
-                for y in 0..padded_size {
-                    for x in 0..padded_size {
-                        let src_y = reflect_index(y, height);
-                        let src_x = reflect_index(x, width);
-                        padded[[y, x]] = channel[[src_y, src_x]];
-                    }
-                }
-            },
-            PaddingMode::Wrap => {
-                for y in 0..padded_size {
-                    for x in 0..padded_size {
-                        padded[[y, x]] = channel[[y % height, x % width]];
-                    }
-                }
-            },
-        }
-        Ok(padded)
-    }
-
-    fn remove_padding(&self, complex_data: &[Complex64], original_dim: (usize, usize)) -> Result<Array2<f64>> {
-        let (height, width) = original_dim;
-        let padded_size = get_optimal_fft_size(width.max(height));
-        let mut result = Array2::zeros((height, width));
-        for y in 0..height {
-            for x in 0..width {
-                let idx = y * padded_size + x;
-                result[[y, x]] = complex_data[idx].re;
+                PaddingMode::Mean => (x < width && y < height).then(|| plane[y * width + x]),
+            };
+            if let Some(v) = value {
+                out[y * pw + x] = Complex64::new(v as f64, 0.0);
             }
         }
-        Ok(result)
     }
+    out
 }
 
-/// Returns the next power of two greater than or equal to `size`.
-fn get_optimal_fft_size(size: usize) -> usize {
-    let mut optimal_size = size;
-    while !is_power_of_two(optimal_size) {
-        optimal_size += 1;
+fn crop(data: &[Complex64], pw: usize, width: usize, height: usize) -> Vec<f32> {
+    let mut out = Vec::with_capacity(width * height);
+    for y in 0..height {
+        out.extend(data[y * pw..y * pw + width].iter().map(|v| v.re as f32));
     }
-    optimal_size
-}
-
-fn is_power_of_two(n: usize) -> bool {
-    n != 0 && (n & (n - 1)) == 0
-}
-
-/// Reflects index `x` for an original size `size` using symmetric reflection.
-fn reflect_index(x: usize, size: usize) -> usize {
-    if size == 0 {
-        return 0;
-    }
-    if size == 1 {
-        return 0;
-    }
-    let period = 2 * size - 2;
-    let x_mod = x % period;
-    if x_mod < size {
-        x_mod
-    } else {
-        period - x_mod
-    }
-}
-
-/// Computes the minimal angular difference between two angles (in radians),
-/// accounting for wrapping at ±π.
-fn angle_difference(a: f64, b: f64) -> f64 {
-    let mut diff = a - b;
-    while diff > std::f64::consts::PI {
-        diff -= 2.0 * std::f64::consts::PI;
-    }
-    while diff < -std::f64::consts::PI {
-        diff += 2.0 * std::f64::consts::PI;
-    }
-    diff
+    out
 }

@@ -1,105 +1,60 @@
-use image::{DynamicImage, GenericImageView, RgbaImage};
-use image::imageops;
-use face_detection::{detect_face_regions, load_face_detector};
-use super::types::{BlurOptions, BackgroundMode};
-use crate::Result;
-use crate::FaceDetectionOptions;
+use rayon::prelude::*;
 
-pub struct BlurScrambler {
-    options: BlurOptions,
+use crate::planes::Planes;
+
+/// Gaussian blur with standard deviation `sigma` pixels, applied to colour and alpha.
+pub fn scramble(input: &Planes, sigma: f32) -> Planes {
+    let blur = |plane: &Vec<f32>| gaussian_blur(plane, input.width, input.height, sigma);
+    Planes {
+        color: input.color.par_iter().map(blur).collect(),
+        alpha: input.alpha.as_ref().map(blur),
+        ..input.clone()
+    }
 }
 
-impl BlurScrambler {
-    pub fn new(options: BlurOptions) -> Self {
-        Self {
-            options,
+/// Separable Gaussian filter with mirrored borders. The kernel extends to 3 sigma.
+pub fn gaussian_blur(plane: &[f32], width: usize, height: usize, sigma: f32) -> Vec<f32> {
+    if sigma <= 0.0 || plane.is_empty() {
+        return plane.to_vec();
+    }
+    let radius = (3.0 * sigma).ceil() as isize;
+    let mut kernel: Vec<f32> = (-radius..=radius)
+        .map(|i| (-(i * i) as f32 / (2.0 * sigma * sigma)).exp())
+        .collect();
+    let sum: f32 = kernel.iter().sum();
+    kernel.iter_mut().for_each(|k| *k /= sum);
+
+    let mirror = |i: isize, n: usize| -> usize {
+        let n = n as isize;
+        if n == 1 {
+            return 0;
         }
-    }
+        let period = 2 * n - 2;
+        let m = i.rem_euclid(period);
+        (if m < n { m } else { period - m }) as usize
+    };
 
-    pub fn scramble(&self, image: &DynamicImage) -> Result<DynamicImage> {
-        // Convert to RGBA for consistent handling
-        let rgba_image = image.to_rgba8();
-        
-        // Apply Gaussian blur using the image crate's function
-        let blurred_rgba = imageops::blur(&rgba_image, self.options.sigma);
-        
-        Ok(DynamicImage::ImageRgba8(blurred_rgba))
-    }
-
-    pub fn scramble_with_face_detection(
-        &self,
-        image: &DynamicImage,
-        face_opts: &FaceDetectionOptions,
-    ) -> Result<DynamicImage> {
-        let session = load_face_detector(None)?;
-        let face_regions = detect_face_regions(
-            image,
-            session,
-            face_opts.confidence_threshold,
-            Some(face_opts.expansion_factor),
-        )?;
-
-        let (width, height) = image.dimensions();
-        
-        match face_opts.background_mode {
-            BackgroundMode::Include => {
-                // Blur only face regions, keep background intact
-                let mut result = image.to_rgba8();
-                
-                for region in face_regions {
-                    let region_width = region.x2 - region.x1;
-                    let region_height = region.y2 - region.y1;
-                    
-                    // Extract the region
-                    let sub_image = image.crop_imm(
-                        region.x1, region.y1, region_width, region_height
-                    );
-                    
-                    // Blur the region
-                    let blurred_sub = imageops::blur(&sub_image, self.options.sigma);
-                    
-                    // Copy blurred region back to the result
-                    for y in 0..region_height {
-                        for x in 0..region_width {
-                            if x + region.x1 < width && y + region.y1 < height {
-                                let pixel = blurred_sub.get_pixel(x, y);
-                                result.put_pixel(x + region.x1, y + region.y1, *pixel);
-                            }
-                        }
-                    }
-                }
-                
-                Ok(DynamicImage::ImageRgba8(result))
-            },
-            BackgroundMode::Exclude => {
-                // Output only the blurred face regions
-                let mut result = RgbaImage::new(width, height);
-                
-                for region in face_regions {
-                    let region_width = region.x2 - region.x1;
-                    let region_height = region.y2 - region.y1;
-                    
-                    // Extract the region
-                    let sub_image = image.crop_imm(
-                        region.x1, region.y1, region_width, region_height
-                    );
-                    
-                    // Blur the region
-                    let blurred_sub = imageops::blur(&sub_image, self.options.sigma);
-                    
-                    // Copy blurred region to the result
-                    for y in 0..region_height {
-                        for x in 0..region_width {
-                            if x + region.x1 < width && y + region.y1 < height {
-                                let pixel = blurred_sub.get_pixel(x, y);
-                                result.put_pixel(x + region.x1, y + region.y1, *pixel);
-                            }
-                        }
-                    }
-                }
-                
-                Ok(DynamicImage::ImageRgba8(result))
-            }
+    let mut horizontal = vec![0.0f32; plane.len()];
+    horizontal.par_chunks_mut(width).enumerate().for_each(|(y, row)| {
+        let src = &plane[y * width..(y + 1) * width];
+        for (x, out) in row.iter_mut().enumerate() {
+            *out = kernel
+                .iter()
+                .enumerate()
+                .map(|(k, w)| w * src[mirror(x as isize + k as isize - radius, width)])
+                .sum();
         }
-    }
+    });
+
+    let mut output = vec![0.0f32; plane.len()];
+    output.par_chunks_mut(width).enumerate().for_each(|(y, row)| {
+        for (x, out) in row.iter_mut().enumerate() {
+            *out = kernel
+                .iter()
+                .enumerate()
+                .map(|(k, w)| w * horizontal[mirror(y as isize + k as isize - radius, height) * width + x])
+                .sum();
+        }
+    });
+    output
 }

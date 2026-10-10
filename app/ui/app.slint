@@ -4,13 +4,14 @@ import "fonts/Inter-SemiBold.ttf";
 import "fonts/Inter-Bold.ttf";
 
 import { Theme } from "theme.slint";
-import { Icon, Help } from "widgets.slint";
+import { Icon, Help, ScatterPoint } from "widgets.slint";
 import { Params } from "settings.slint";
-import { ImagePage, ImageState } from "image_page.slint";
+import { ImagePage, ImageState, StatRow, AxisTick } from "image_page.slint";
 import { BatchPage, BatchState } from "batch_page.slint";
 import { VideoPage, VideoState } from "video_page.slint";
+import { NormalizePage, NormalizeState, NormalizedRow } from "normalize_page.slint";
 
-export { Params, ImageState, BatchState, VideoState, Theme }
+export { Params, ImageState, BatchState, VideoState, NormalizeState, Theme, StatRow, AxisTick, NormalizedRow, ScatterPoint }
 
 export global AppInfo {
     in property <string> version;
@@ -291,6 +292,20 @@ export component AppWindow inherits Window {
                         }
                     }
                 }
+
+                HorizontalLayout {
+                    alignment: center;
+
+                    RailItem {
+                        label: "Normalize";
+                        icon: @image-url("icons/sliders.svg");
+                        selected: root.page == 3;
+                        working: NormalizeState.busy && root.page != 3;
+                        clicked => {
+                            root.page = 3;
+                        }
+                    }
+                }
             }
 
             VerticalLayout {
@@ -318,9 +333,9 @@ export component AppWindow inherits Window {
                     RailItem {
                         label: "About";
                         icon: @image-url("icons/info.svg");
-                        selected: root.page == 3;
+                        selected: root.page == 4;
                         clicked => {
-                            root.page = 3;
+                            root.page = 4;
                         }
                     }
                 }
@@ -342,8 +357,12 @@ export component AppWindow inherits Window {
                 visible: root.page == 2;
             }
 
-            AboutPage {
+            NormalizePage {
                 visible: root.page == 3;
+            }
+
+            AboutPage {
+                visible: root.page == 4;
             }
         }
     }

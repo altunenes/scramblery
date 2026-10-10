@@ -4,7 +4,7 @@ Before running Scramblery, you need to install GStreamer:
 
 
 1. Download and install GStreamer from the official website: https://gstreamer.freedesktop.org/download/
-GStreamer is not bundled with Scramblery to keep the installer size small. Download the latest version — the exact version shouldn't matter.
+GStreamer is not bundled with Scramblery to keep the installer size small. Any recent version works.
 
 Installing "runtime installer" should be enough, but if you want to develop and contribute to Scramblery with GStreamer, you can install "development installer" too.
 
@@ -30,7 +30,7 @@ Installing "runtime installer" should be enough, but if you want to develop and 
 
 **Q: I see `-cuda`, `-directml` and `-webgpu` installers. Do I need those?**
 
-*A: Only if you want GPU acceleration for optical flow (the "temporal coherence" option when scrambling video). Everything else behaves identically, and every build falls back to CPU when its runtime isn't present, so the plain installer is always a safe choice.*
+*A: Only if you want GPU acceleration for optical flow (the "Follow motion" option when scrambling video). Everything else behaves identically, and every build falls back to CPU when its runtime isn't present, so the plain installer is always a safe choice.*
 
 | Build | Platform | Anything to install? |
 |-------|----------|----------------------|

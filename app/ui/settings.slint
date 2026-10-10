@@ -1,6 +1,6 @@
 import { ScrollView } from "std-widgets.slint";
 import { Theme } from "theme.slint";
-import { Help, Icon, SectionTitle, ValueSlider, ToggleRow, Segmented } from "widgets.slint";
+import { Help, Icon, SectionTitle, ValueSlider, ToggleRow, Segmented, TextField, Button } from "widgets.slint";
 
 export global Params {
     // 0 Pixel, 1 Fourier, 2 Block, 3 Blur, 4 Diffeomorphic
@@ -9,18 +9,21 @@ export global Params {
 
     // 0 All, 1 Low-pass, 2 High-pass, 3 Band-pass
     in-out property <int> frequency-range: 0;
-    in-out property <float> cutoff: 0.5;
-    in-out property <float> band-low: 0.3;
-    in-out property <float> band-high: 0.7;
+    // Cutoffs are in the selected unit: 0 cycles/pixel, 1 cycles/image width, 2 cycles/degree.
+    in-out property <int> frequency-unit: 0;
+    in-out property <float> pixels-per-degree: 30;
+    in-out property <float> cutoff: 0.1;
+    in-out property <float> band-low: 0.05;
+    in-out property <float> band-high: 0.2;
+    in-out property <bool> remove-outside-range: false;
     in-out property <bool> phase-scramble: true;
     in-out property <bool> grayscale: false;
-    // 0 Zero, 1 Reflect, 2 Wrap
-    in-out property <int> fourier-padding: 1;
+    // 0 Wrap, 1 Reflect, 2 Mean
+    in-out property <int> fourier-padding: 0;
 
     in-out property <float> block-width: 32;
     in-out property <float> block-height: 32;
-    in-out property <bool> interpolate-edges: true;
-    in-out property <int> block-padding: 1;
+    in-out property <bool> interpolate-edges: false;
 
     in-out property <float> blur-sigma: 5.0;
 
@@ -31,6 +34,66 @@ export global Params {
     in-out property <bool> face-detection: false;
     // 0 Keep background (scramble faces only), 1 Faces only
     in-out property <int> background-mode: 0;
+    // 0 Rectangle, 1 Ellipse, 2 Outline
+    in-out property <int> face-shape: 2;
+    // Soft edge width and region size, in percent.
+    in-out property <float> face-feather: 25;
+    in-out property <float> face-size: 105;
+
+    in-out property <bool> aperture: false;
+    // 0 Circle, 1 Ellipse
+    in-out property <int> aperture-shape: 0;
+    // Size and soft edge in percent.
+    in-out property <float> aperture-size: 90;
+    in-out property <float> aperture-feather: 15;
+    // 0 Mean grey, 1 Mean colour, 2 Custom grey
+    in-out property <int> aperture-surround: 0;
+    in-out property <float> aperture-gray: 0.5;
+
+    // 0 Clip, 1 Compress contrast
+    in-out property <int> out-of-range: 0;
+    in-out property <bool> linear-light: false;
+
+    // 0 Off, 1 Luminance, 2 Histogram, 3 Spectrum
+    in-out property <int> match-property: 0;
+    // 0 Original, 1 Fixed values, 2 Set average
+    in-out property <int> match-target: 0;
+    in-out property <float> match-mean: 0.5;
+    in-out property <float> match-contrast: 0.2;
+    // Reference folder for set-average matching on the Image page.
+    in-out property <string> reference-dir;
+    in-out property <string> reference-status;
+
+    callback pick-reference();
+    callback load-recipe();
+    callback save-recipe();
+    in-out property <bool> fixed-seed: false;
+    in-out property <string> seed-text;
+    // Seed of the most recent result, set by the application.
+    in-out property <string> last-seed;
+
+    // Slider range and step for cutoffs in the selected unit.
+    out property <float> cutoff-max: frequency-unit == 0 ? 0.5 : frequency-unit == 1 ? 512 : pixels-per-degree / 2;
+    out property <float> cutoff-step: frequency-unit == 0 ? 0.005 : frequency-unit == 1 ? 1 : 0.1;
+    out property <int> cutoff-decimals: frequency-unit == 0 ? 3 : frequency-unit == 1 ? 0 : 1;
+    out property <string> unit-suffix: frequency-unit == 0 ? " c/px" : frequency-unit == 1 ? " c/img" : " c/deg";
+
+    // Sensible cutoffs for the selected unit; called when the user switches units.
+    public function reset-cutoffs() {
+        if (frequency-unit == 0) {
+            cutoff = 0.1;
+            band-low = 0.05;
+            band-high = 0.2;
+        } else if (frequency-unit == 1) {
+            cutoff = 25;
+            band-low = 10;
+            band-high = 50;
+        } else {
+            cutoff = Math.round(pixels-per-degree / 10 * 10) / 10;
+            band-low = Math.round(pixels-per-degree / 30 * 10) / 10;
+            band-high = Math.round(pixels-per-degree / 6 * 10) / 10;
+        }
+    }
 
     out property <[string]> method-names: ["Pixel", "Fourier phase", "Block", "Gaussian blur", "Diffeomorphic"];
     out property <[string]> method-summaries: [
@@ -41,9 +104,9 @@ export global Params {
         "Smooth, invertible warp",
     ];
     out property <[string]> method-help: [
-        "Swaps randomly chosen pairs of pixels. The colour and luminance histogram of the image is preserved exactly; only the spatial arrangement changes.",
-        "Replaces the Fourier phase with random phase while keeping the amplitude spectrum, so spatial-frequency content and contrast energy stay close to the original while recognisable structure is lost.",
-        "Cuts the image into a grid of blocks and shuffles their positions. Local structure inside each block is kept; the global configuration is destroyed.",
+        "Randomly permutes a chosen fraction of the pixel positions. Every pixel value is kept, so colour and luminance histograms are preserved exactly; only the spatial arrangement changes.",
+        "Adds the same random phase to every colour channel while keeping the amplitude spectrum and the mean, so spatial-frequency content and colour balance are preserved while structure is lost.",
+        "Cuts the image into a grid of blocks and shuffles their positions. Edge blocks are only exchanged with blocks of the same size, so every pixel is kept.",
         "Blurs the image with a Gaussian kernel. Fine detail is removed while the coarse layout stays intact.",
         "Warps the image with a smooth random flow field. Low-level properties stay close to the original while shapes become unrecognisable. Stojanoski & Cusack (2014), Journal of Vision 14(12):6.",
     ];
@@ -165,6 +228,39 @@ export component ScrambleSettings inherits Rectangle {
                 padding-top: 22px;
                 spacing: 28px;
 
+                HorizontalLayout {
+                    spacing: 6px;
+
+                    VerticalLayout {
+                        alignment: center;
+                        horizontal-stretch: 1;
+
+                        SectionTitle {
+                            text: "RECIPE";
+                        }
+                    }
+
+                    Button {
+                        text: "Load";
+                        icon: @image-url("icons/upload.svg");
+                        subtle: true;
+                        height: 28px;
+                        clicked => {
+                            Params.load-recipe();
+                        }
+                    }
+
+                    Button {
+                        text: "Save";
+                        icon: @image-url("icons/download.svg");
+                        subtle: true;
+                        height: 28px;
+                        clicked => {
+                            Params.save-recipe();
+                        }
+                    }
+                }
+
                 VerticalLayout {
                     spacing: 10px;
 
@@ -196,7 +292,7 @@ export component ScrambleSettings inherits Rectangle {
                     if Params.method == 0: ParameterGroup {
                         ValueSlider {
                             label: "Intensity";
-                            help: "Number of random pixel swaps, as a fraction of the pixel count. Partners are random, so at 100% about 86% of pixels move.";
+                            help: "Fraction of pixel positions that are randomly permuted among themselves.";
                             maximum: 100;
                             suffix: "%";
                             value <=> Params.intensity;
@@ -206,7 +302,7 @@ export component ScrambleSettings inherits Rectangle {
                     if Params.method == 1: ParameterGroup {
                         ValueSlider {
                             label: "Intensity";
-                            help: "How far each phase moves toward a random value. 0% returns the original image, 100% gives fully random phase.";
+                            help: "Scale of the random phase added to each frequency. 0% returns the original image; 100% makes the phase uniformly random.";
                             maximum: 100;
                             suffix: "%";
                             value <=> Params.intensity;
@@ -214,52 +310,80 @@ export component ScrambleSettings inherits Rectangle {
 
                         Segmented {
                             label: "Frequency range";
-                            help: "Spatial frequencies outside the chosen range are removed (set to zero) before the phase is scrambled. Cutoffs are fractions of the Nyquist frequency.";
+                            help: "Which spatial frequencies have their phase randomised. Frequencies outside the range are left intact unless you choose to remove them.";
                             options: ["All", "Low-pass", "High-pass", "Band"];
                             current-index <=> Params.frequency-range;
                         }
 
+                        if Params.frequency-range != 0: Segmented {
+                            label: "Unit";
+                            help: "Cycles per pixel (Nyquist = 0.5), cycles per image width, or cycles per degree of visual angle given the display's pixels per degree.";
+                            options: ["c/pixel", "c/image", "c/degree"];
+                            current-index <=> Params.frequency-unit;
+                            selected => {
+                                Params.reset-cutoffs();
+                            }
+                        }
+
+                        if Params.frequency-range != 0 && Params.frequency-unit == 2: ValueSlider {
+                            label: "Pixels per degree";
+                            help: "Pixels per degree of visual angle on your display at the viewing distance: distance × tan(1°) × pixels per cm.";
+                            minimum: 5;
+                            maximum: 200;
+                            step: 1;
+                            value <=> Params.pixels-per-degree;
+                        }
+
                         if Params.frequency-range == 1 || Params.frequency-range == 2: ValueSlider {
                             label: "Cutoff";
-                            help: Params.frequency-range == 1 ? "Frequencies above this fraction of Nyquist are removed." : "Frequencies below this fraction of Nyquist are removed.";
-                            maximum: 1;
-                            step: 0.01;
-                            decimals: 2;
+                            help: Params.frequency-range == 1 ? "Frequencies up to the cutoff are scrambled." : "Frequencies from the cutoff up to Nyquist are scrambled.";
+                            maximum: Params.cutoff-max;
+                            step: Params.cutoff-step;
+                            decimals: Params.cutoff-decimals;
+                            suffix: Params.unit-suffix;
                             value <=> Params.cutoff;
                         }
 
                         if Params.frequency-range == 3: ValueSlider {
                             label: "Low cutoff";
-                            help: "Lower edge of the kept band, as a fraction of Nyquist.";
-                            maximum: 1;
-                            step: 0.01;
-                            decimals: 2;
+                            help: "Lower edge of the band.";
+                            maximum: Params.cutoff-max;
+                            step: Params.cutoff-step;
+                            decimals: Params.cutoff-decimals;
+                            suffix: Params.unit-suffix;
                             value <=> Params.band-low;
                             edited(v) => {
-                                if (v > Params.band-high - 0.01) {
-                                    Params.band-low = Math.max(0, Params.band-high - 0.01);
+                                if (v > Params.band-high) {
+                                    Params.band-low = Params.band-high;
                                 }
                             }
                         }
 
                         if Params.frequency-range == 3: ValueSlider {
                             label: "High cutoff";
-                            help: "Upper edge of the kept band, as a fraction of Nyquist.";
-                            maximum: 1;
-                            step: 0.01;
-                            decimals: 2;
+                            help: "Upper edge of the band.";
+                            maximum: Params.cutoff-max;
+                            step: Params.cutoff-step;
+                            decimals: Params.cutoff-decimals;
+                            suffix: Params.unit-suffix;
                             value <=> Params.band-high;
                             edited(v) => {
-                                if (v < Params.band-low + 0.01) {
-                                    Params.band-high = Math.min(1, Params.band-low + 0.01);
+                                if (v < Params.band-low) {
+                                    Params.band-high = Params.band-low;
                                 }
                             }
                         }
 
+                        if Params.frequency-range != 0: ToggleRow {
+                            label: "Remove frequencies outside range";
+                            help: "Set frequencies outside the range to zero (filtering) instead of leaving them intact. The mean luminance is always kept.";
+                            checked <=> Params.remove-outside-range;
+                        }
+
                         Segmented {
                             label: "Padding";
-                            help: "How the image is extended to the FFT size. Reflect mirrors the edges and avoids border artefacts; Zero pads with black; Wrap tiles the image.";
-                            options: ["Zero", "Reflect", "Wrap"];
+                            help: "Wrap transforms the image as it is and preserves its amplitude spectrum exactly. Reflect mirrors it to twice the size to avoid wrap-around edges; Mean pads with the mean value.";
+                            options: ["Wrap", "Reflect", "Mean"];
                             current-index <=> Params.fourier-padding;
                         }
 
@@ -271,7 +395,7 @@ export component ScrambleSettings inherits Rectangle {
 
                         ToggleRow {
                             label: "Grayscale";
-                            help: "Process a single luminance channel and output a grayscale image.";
+                            help: "Process the Rec. 709 luminance as one channel and output a grayscale image.";
                             checked <=> Params.grayscale;
                         }
                     }
@@ -299,7 +423,7 @@ export component ScrambleSettings inherits Rectangle {
 
                         ToggleRow {
                             label: "Smooth block edges";
-                            help: "Blend pixels across block boundaries. Turn off to keep every original pixel value exactly.";
+                            help: "Average the two pixels on each side of every block boundary. Off keeps every original pixel value exactly.";
                             checked <=> Params.interpolate-edges;
                         }
                     }
@@ -320,7 +444,7 @@ export component ScrambleSettings inherits Rectangle {
                     if Params.method == 4: ParameterGroup {
                         ValueSlider {
                             label: "Max distortion";
-                            help: "RMS pixel displacement of the warp. Higher values distort more; 5–10 px is typical.";
+                            help: "RMS pixel displacement of the warp. Higher values distort more; 5 to 10 px is typical.";
                             minimum: 1;
                             maximum: 50;
                             step: 0.5;
@@ -331,7 +455,7 @@ export component ScrambleSettings inherits Rectangle {
 
                         ValueSlider {
                             label: "Warp steps";
-                            help: "The warp is applied in this many small steps. More steps give a smoother, more invertible warp; 10–20 is typical.";
+                            help: "The warp is applied in this many small steps. More steps give a smoother, more invertible warp; 10 to 20 is typical.";
                             minimum: 1;
                             maximum: 50;
                             value <=> Params.warp-steps;
@@ -361,10 +485,216 @@ export component ScrambleSettings inherits Rectangle {
                     }
 
                     if Params.face-detection: Segmented {
+                        label: "Shape";
+                        help: "Rectangle: the whole face box. Ellipse: the ellipse inscribed in it. Outline: the face oval traced by facial landmarks (MediaPipe Face Mesh), which follows jaw, cheeks and forehead.";
+                        options: ["Rectangle", "Ellipse", "Outline"];
+                        current-index <=> Params.face-shape;
+                    }
+
+                    if Params.face-detection: ValueSlider {
+                        label: "Soft edge";
+                        help: "Width of the transition between scrambled and original, as a percentage of the region's half-size. The weight follows a smoothstep curve; 0% gives a hard edge.";
+                        maximum: 100;
+                        suffix: "%";
+                        value <=> Params.face-feather;
+                    }
+
+                    if Params.face-detection: ValueSlider {
+                        label: "Region size";
+                        help: "Size of the region relative to the detected face box. Values above 100% include more of the forehead, chin and hair.";
+                        minimum: 80;
+                        maximum: 200;
+                        step: 5;
+                        suffix: "%";
+                        value <=> Params.face-size;
+                    }
+
+                    if Params.face-detection: Segmented {
                         label: "Background";
                         help: "Keep: scramble the faces and leave the rest of the image untouched. Remove: output only the scrambled faces on a transparent background.";
                         options: ["Keep", "Remove"];
                         current-index <=> Params.background-mode;
+                    }
+                }
+
+                VerticalLayout {
+                    spacing: 14px;
+
+                    SectionTitle {
+                        text: "APERTURE";
+                    }
+
+                    ToggleRow {
+                        label: "Show through a window";
+                        help: "Show the result through a centred circular or elliptical window; the surround is filled with a uniform colour. Applied last, after scrambling and matching.";
+                        checked <=> Params.aperture;
+                    }
+
+                    if Params.aperture: Segmented {
+                        label: "Shape";
+                        help: "Circle: diameter relative to the shorter image side. Ellipse: fits the image's proportions.";
+                        options: ["Circle", "Ellipse"];
+                        current-index <=> Params.aperture-shape;
+                    }
+
+                    if Params.aperture: ValueSlider {
+                        label: "Size";
+                        help: "Window diameter relative to the image; 100% touches the edges.";
+                        minimum: 10;
+                        maximum: 100;
+                        suffix: "%";
+                        value <=> Params.aperture-size;
+                    }
+
+                    if Params.aperture: ValueSlider {
+                        label: "Soft edge";
+                        help: "Width of the transition to the surround as a percentage of the window radius, following a smoothstep curve.";
+                        maximum: 100;
+                        suffix: "%";
+                        value <=> Params.aperture-feather;
+                    }
+
+                    if Params.aperture: Segmented {
+                        label: "Surround";
+                        help: "Mean grey: neutral grey at the image's mean luminance. Mean colour: the mean of each channel. Custom: a grey level of your choice.";
+                        options: ["Mean grey", "Mean colour", "Custom"];
+                        current-index <=> Params.aperture-surround;
+                    }
+
+                    if Params.aperture && Params.aperture-surround == 2: ValueSlider {
+                        label: "Grey level";
+                        help: "Surround value from 0 (black) to 1 (white), in encoded pixel values.";
+                        maximum: 1;
+                        step: 0.01;
+                        decimals: 2;
+                        value <=> Params.aperture-gray;
+                    }
+                }
+
+                VerticalLayout {
+                    spacing: 14px;
+
+                    SectionTitle {
+                        text: "MATCHING";
+                    }
+
+                    Segmented {
+                        label: "Match after scrambling";
+                        help: "Give each scrambled image a property of a target. Luminance sets mean and RMS contrast; Histogram sets every channel's histogram exactly; Spectrum sets the amplitude spectrum and keeps the phase.";
+                        options: ["Off", "Luminance", "Histogram", "Spectrum"];
+                        current-index <=> Params.match-property;
+                    }
+
+                    if Params.match-property != 0: Segmented {
+                        label: "Target";
+                        help: "Original: the image or frame that was scrambled, so scrambled controls match their intact versions. Fixed: given values (luminance only). Set: the average over a set of images (the input folder in Batch, the reference folder below on the Image and Video pages).";
+                        options: ["Original", "Fixed", "Set"];
+                        current-index <=> Params.match-target;
+                    }
+
+                    if Params.match-property == 1 && Params.match-target == 1: ValueSlider {
+                        label: "Mean luminance";
+                        help: "Target mean of Rec. 709 luma (0 to 1).";
+                        maximum: 1;
+                        step: 0.01;
+                        decimals: 2;
+                        value <=> Params.match-mean;
+                    }
+
+                    if Params.match-property == 1 && Params.match-target == 1: ValueSlider {
+                        label: "RMS contrast";
+                        help: "Target standard deviation of luma (0 to 1).";
+                        maximum: 0.5;
+                        step: 0.005;
+                        decimals: 3;
+                        value <=> Params.match-contrast;
+                    }
+
+                    if Params.match-property != 1 && Params.match-property != 0 && Params.match-target == 1: Text {
+                        text: "Fixed targets apply to luminance only.";
+                        color: Theme.warning;
+                        font-size: Theme.text-sm;
+                    }
+
+                    if Params.match-property != 0 && Params.match-target == 2: HorizontalLayout {
+                        spacing: 8px;
+
+                        VerticalLayout {
+                            alignment: center;
+                            spacing: 2px;
+                            horizontal-stretch: 1;
+
+                            Text {
+                                text: Params.reference-dir == "" ? "Reference folder" : Params.reference-status;
+                                color: Theme.text;
+                                font-size: Theme.text-md;
+                                overflow: elide;
+                            }
+
+                            Text {
+                                text: Params.reference-dir == "" ? "For Image and Video; Batch uses its input folder" : Params.reference-dir;
+                                color: Theme.faint;
+                                font-size: Theme.text-sm;
+                                overflow: elide;
+                            }
+                        }
+
+                        VerticalLayout {
+                            alignment: center;
+
+                            Button {
+                                text: "Choose…";
+                                clicked => {
+                                    Params.pick-reference();
+                                }
+                            }
+                        }
+                    }
+                }
+
+                VerticalLayout {
+                    spacing: 14px;
+
+                    SectionTitle {
+                        text: "OUTPUT";
+                    }
+
+                    ToggleRow {
+                        label: "Process in linear light";
+                        help: "Convert pixel values from sRGB encoding to linear light before scrambling and matching, and back afterwards, so that operations act on physical light rather than gamma-encoded values. Assumes an sRGB display; statistics in the Analysis view remain on encoded values.";
+                        checked <=> Params.linear-light;
+                    }
+
+                    Segmented {
+                        label: "Values outside 0 to 1";
+                        help: "Phase scrambling can push values beyond the displayable range. Clip clamps them, which changes mean and contrast where it happens. Compress scales contrast around each channel's mean until everything fits, keeping the means exactly.";
+                        options: ["Clip", "Compress contrast"];
+                        current-index <=> Params.out-of-range;
+                    }
+
+                    ToggleRow {
+                        label: "Fixed seed";
+                        help: "With a fixed seed the same settings always produce the same image. Otherwise every run uses a new random seed, which is reported and saved with the result.";
+                        checked <=> Params.fixed-seed;
+                    }
+
+                    if Params.fixed-seed: HorizontalLayout {
+                        spacing: 8px;
+
+                        TextField {
+                            label: "Seed";
+                            help: "Any whole number from 0 to 18446744073709551615.";
+                            placeholder: "e.g. 42";
+                            invalid: Params.seed-text != "" && !Params.seed-text.is-float();
+                            text <=> Params.seed-text;
+                        }
+
+                        if Params.last-seed != "": Button {
+                            text: "Use last";
+                            clicked => {
+                                Params.seed-text = Params.last-seed;
+                            }
+                        }
                     }
                 }
             }
