@@ -1,0 +1,227 @@
+import { ScrollView } from "std-widgets.slint";
+import { Theme } from "theme.slint";
+import { Button, Card, PathRow, ProgressBar, ErrorBanner, PageHeader, Segmented, ToggleRow, ValueSlider, Stat, SetOverview, ScatterPoint } from "widgets.slint";
+import { Workspace } from "batch_page.slint";
+
+export struct NormalizedRow {
+    file: string,
+    mean: string,
+    contrast: string,
+    clipped: string,
+}
+
+export global NormalizeState {
+    in property <string> input-dir;
+    in property <string> output-dir;
+    // 0 Luminance, 1 Histogram, 2 Spectrum
+    in-out property <int> method: 0;
+    in-out property <bool> custom-target;
+    in-out property <float> target-mean: 0.5;
+    in-out property <float> target-contrast: 0.2;
+    in property <bool> busy;
+    in property <bool> done;
+    in property <float> progress; // 0..1
+    in property <string> error;
+    in property <[NormalizedRow]> rows;
+    in property <string> spread-before;
+    in property <string> spread-after;
+    in property <[ScatterPoint]> overview;
+    in property <string> overview-x-min;
+    in property <string> overview-x-max;
+    in property <string> overview-y-min;
+    in property <string> overview-y-max;
+
+    callback pick-input();
+    callback pick-output();
+    callback start();
+    callback open-output();
+    callback dismiss-error();
+}
+
+export component NormalizePage inherits HorizontalLayout {
+    Workspace {
+        PageHeader {
+            title: "Normalize";
+            subtitle: "Give every image in a set the same mean luminance and contrast, histogram or amplitude spectrum.";
+        }
+
+        Card {
+            title: "Folders";
+            subtitle: "All images in the input folder are treated as one set.";
+
+            PathRow {
+                label: "Input folder";
+                path: NormalizeState.input-dir;
+                choose => {
+                    NormalizeState.pick-input();
+                }
+            }
+
+            PathRow {
+                label: "Output folder";
+                path: NormalizeState.output-dir;
+                choose => {
+                    NormalizeState.pick-output();
+                }
+            }
+        }
+
+        Card {
+            title: "Method";
+            subtitle: NormalizeState.method == 0 ? "Same mean luminance and RMS contrast for every image; colour channels are shifted and scaled together."
+                : NormalizeState.method == 1 ? "Same histogram per channel for every image: the average of the set (exact histogram specification)."
+                : "Same amplitude spectrum per channel: the average of the set, keeping each image's phase. Images must share one size.";
+
+            VerticalLayout {
+                spacing: 14px;
+
+                Segmented {
+                    options: ["Luminance", "Histogram", "Spectrum"];
+                    current-index <=> NormalizeState.method;
+                }
+
+                if NormalizeState.method == 0: ToggleRow {
+                    label: "Custom target instead of the set average";
+                    checked <=> NormalizeState.custom-target;
+                }
+
+                if NormalizeState.method == 0 && NormalizeState.custom-target: ValueSlider {
+                    label: "Mean luminance";
+                    maximum: 1;
+                    step: 0.01;
+                    decimals: 2;
+                    value <=> NormalizeState.target-mean;
+                }
+
+                if NormalizeState.method == 0 && NormalizeState.custom-target: ValueSlider {
+                    label: "RMS contrast";
+                    maximum: 0.5;
+                    step: 0.01;
+                    decimals: 2;
+                    value <=> NormalizeState.target-contrast;
+                }
+
+                Text {
+                    text: "Methods as in the SHINE toolbox: Willenbockel et al. (2010), Behavior Research Methods 42(3).";
+                    color: Theme.faint;
+                    font-size: Theme.text-xs;
+                    overflow: elide;
+                }
+            }
+        }
+
+        Card {
+            title: NormalizeState.busy ? "Processing…" : NormalizeState.done ? "Finished" : "Run";
+            subtitle: NormalizeState.done ? "Report saved as scramblery_normalize_report.csv" : "Values pushed outside 0 to 1 are clipped; the report lists how much per image.";
+
+            VerticalLayout {
+                spacing: 16px;
+
+                if NormalizeState.busy: ProgressBar {
+                    progress: NormalizeState.progress;
+                }
+
+                if NormalizeState.done: HorizontalLayout {
+                    spacing: 40px;
+                    alignment: start;
+
+                    Stat {
+                        label: "Spread before (mean · contrast)";
+                        value: NormalizeState.spread-before;
+                    }
+
+                    Stat {
+                        label: "Spread after";
+                        value: NormalizeState.spread-after;
+                        color: Theme.success;
+                    }
+                }
+
+                if NormalizeState.done: SetOverview {
+                    points: NormalizeState.overview;
+                    before-label: "Before";
+                    after-label: "After";
+                    x-min: NormalizeState.overview-x-min;
+                    x-max: NormalizeState.overview-x-max;
+                    y-min: NormalizeState.overview-y-min;
+                    y-max: NormalizeState.overview-y-max;
+                }
+
+                if NormalizeState.done: VerticalLayout {
+                    HorizontalLayout {
+                        padding-bottom: 6px;
+
+                        Text {
+                            text: "FILE";
+                            color: Theme.faint;
+                            font-size: Theme.text-xs;
+                            font-weight: 600;
+                            horizontal-stretch: 1;
+                        }
+
+                        for header in ["MEAN", "CONTRAST", "CLIPPED"]: Text {
+                            width: 120px;
+                            text: header;
+                            color: Theme.faint;
+                            font-size: Theme.text-xs;
+                            font-weight: 600;
+                            horizontal-alignment: right;
+                        }
+                    }
+
+                    for row in NormalizeState.rows: HorizontalLayout {
+                        height: 28px;
+
+                        Text {
+                            text: row.file;
+                            color: Theme.text;
+                            font-size: Theme.text-sm;
+                            overflow: elide;
+                            horizontal-stretch: 1;
+                            vertical-alignment: center;
+                        }
+
+                        for value in [row.mean, row.contrast, row.clipped]: Text {
+                            width: 120px;
+                            text: value;
+                            color: Theme.muted;
+                            font-size: Theme.text-sm;
+                            horizontal-alignment: right;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+
+                if NormalizeState.error != "": ErrorBanner {
+                    message: NormalizeState.error;
+                    dismiss => {
+                        NormalizeState.dismiss-error();
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: 8px;
+                    alignment: end;
+
+                    if NormalizeState.done: Button {
+                        text: "Open output folder";
+                        icon: @image-url("icons/folder.svg");
+                        clicked => {
+                            NormalizeState.open-output();
+                        }
+                    }
+
+                    Button {
+                        text: NormalizeState.busy ? "Processing…" : "Normalize images";
+                        icon: @image-url("icons/sliders.svg");
+                        primary: true;
+                        enabled: !NormalizeState.busy && NormalizeState.input-dir != "" && NormalizeState.output-dir != "";
+                        clicked => {
+                            NormalizeState.start();
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

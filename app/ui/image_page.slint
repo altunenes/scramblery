@@ -1,7 +1,18 @@
 import { Spinner } from "std-widgets.slint";
 import { Theme } from "theme.slint";
-import { Icon, Button, Toggle, Segmented, ErrorBanner } from "widgets.slint";
-import { ScrambleSettings } from "settings.slint";
+import { Icon, Button, Toggle, Segmented, ErrorBanner, Notice } from "widgets.slint";
+import { ScrambleSettings, Params } from "settings.slint";
+
+export struct StatRow {
+    label: string,
+    original: string,
+    result: string,
+}
+
+export struct AxisTick {
+    position: float,
+    label: string,
+}
 
 export global ImageState {
     in property <image> original;
@@ -12,9 +23,18 @@ export global ImageState {
     in property <string> dimensions;
     in property <bool> busy;
     in property <string> status;
+    in property <string> warning;
     in property <string> error;
+    in property <bool> has-analysis;
+    in property <[StatRow]> stats;
+    // Chart paths in a 1000 x 300 view box.
+    in property <string> hist-original: "M 0 0";
+    in property <string> hist-result: "M 0 0";
+    in property <string> spectrum-original: "M 0 0";
+    in property <string> spectrum-result: "M 0 0";
+    in property <[AxisTick]> spectrum-ticks;
     in-out property <bool> live-preview: true;
-    // 0 side by side, 1 split, 2 result only
+    // 0 side by side, 1 split, 2 result only, 3 analysis
     in-out property <int> view-mode: 0;
 
     callback open-image();
@@ -196,6 +216,253 @@ component SplitView inherits Rectangle {
     }
 }
 
+
+component Legend inherits HorizontalLayout {
+    spacing: 16px;
+    alignment: end;
+
+    for entry[i] in [{ label: "Original", color: Theme.faint }, { label: "Scrambled", color: Theme.accent }]: HorizontalLayout {
+        spacing: 6px;
+
+        VerticalLayout {
+            alignment: center;
+
+            Rectangle {
+                width: 10px;
+                height: 10px;
+                border-radius: 2px;
+                background: entry.color;
+            }
+        }
+
+        Text {
+            text: entry.label;
+            color: Theme.muted;
+            font-size: Theme.text-sm;
+        }
+    }
+}
+
+component Chart inherits Rectangle {
+    in property <string> title;
+    in property <string> caption;
+    in property <string> original;
+    in property <string> result;
+    in property <bool> fill-original;
+    in property <[AxisTick]> ticks;
+    in property <string> x-start;
+    in property <string> x-end;
+
+    border-radius: Theme.radius-lg;
+    background: Theme.surface;
+    border-width: 1px;
+    border-color: Theme.border;
+
+    VerticalLayout {
+        padding: 18px;
+        spacing: 10px;
+
+        HorizontalLayout {
+            VerticalLayout {
+                spacing: 2px;
+                horizontal-stretch: 1;
+
+                Text {
+                    text: root.title;
+                    color: Theme.text;
+                    font-size: Theme.text-md;
+                    font-weight: 600;
+                }
+
+                Text {
+                    text: root.caption;
+                    color: Theme.faint;
+                    font-size: Theme.text-sm;
+                    overflow: elide;
+                }
+            }
+
+            Legend { }
+        }
+
+        Rectangle {
+            min-height: 120px;
+
+            Rectangle {
+                y: parent.height - 1px;
+                height: 1px;
+                background: Theme.border;
+            }
+
+            Path {
+                width: parent.width;
+                height: parent.height;
+                viewbox-width: 1000;
+                viewbox-height: 300;
+                commands: root.original;
+                fill: root.fill-original ? Theme.faint.with-alpha(0.25) : transparent;
+                stroke: Theme.faint;
+                stroke-width: 1.5px;
+            }
+
+            Path {
+                width: parent.width;
+                height: parent.height;
+                viewbox-width: 1000;
+                viewbox-height: 300;
+                commands: root.result;
+                fill: transparent;
+                stroke: Theme.accent;
+                stroke-width: 2px;
+            }
+        }
+
+        Rectangle {
+            height: 16px;
+
+            for tick in root.ticks: Text {
+                x: Math.clamp(parent.width * tick.position - self.width / 2, 0, parent.width - self.width);
+                text: tick.label;
+                color: Theme.faint;
+                font-size: Theme.text-xs;
+            }
+
+            if root.ticks.length == 0: Text {
+                x: 0;
+                text: root.x-start;
+                color: Theme.faint;
+                font-size: Theme.text-xs;
+            }
+
+            if root.ticks.length == 0: Text {
+                x: parent.width - self.width;
+                text: root.x-end;
+                color: Theme.faint;
+                font-size: Theme.text-xs;
+            }
+        }
+    }
+}
+
+component AnalysisView inherits HorizontalLayout {
+    spacing: 20px;
+
+    Rectangle {
+        width: 300px;
+        border-radius: Theme.radius-lg;
+        background: Theme.surface;
+        border-width: 1px;
+        border-color: Theme.border;
+
+        VerticalLayout {
+            padding: 18px;
+            spacing: 0px;
+            alignment: start;
+
+            HorizontalLayout {
+                padding-bottom: 10px;
+
+                Text {
+                    text: "Statistic";
+                    color: Theme.faint;
+                    font-size: Theme.text-xs;
+                    font-weight: 600;
+                    horizontal-stretch: 1;
+                }
+
+                Text {
+                    width: 72px;
+                    text: "ORIGINAL";
+                    color: Theme.faint;
+                    font-size: Theme.text-xs;
+                    font-weight: 600;
+                    horizontal-alignment: right;
+                }
+
+                Text {
+                    width: 80px;
+                    text: "SCRAMBLED";
+                    color: Theme.faint;
+                    font-size: Theme.text-xs;
+                    font-weight: 600;
+                    horizontal-alignment: right;
+                }
+            }
+
+            for row in ImageState.stats: Rectangle {
+                height: 40px;
+
+                Rectangle {
+                    y: 0;
+                    height: 1px;
+                    background: Theme.border;
+                }
+
+                HorizontalLayout {
+                    Text {
+                        text: row.label;
+                        color: Theme.muted;
+                        font-size: Theme.text-sm;
+                        vertical-alignment: center;
+                        horizontal-stretch: 1;
+                        overflow: elide;
+                    }
+
+                    Text {
+                        width: 72px;
+                        text: row.original;
+                        color: Theme.muted;
+                        font-size: Theme.text-sm;
+                        horizontal-alignment: right;
+                        vertical-alignment: center;
+                    }
+
+                    Text {
+                        width: 80px;
+                        text: row.result;
+                        color: Theme.text;
+                        font-size: Theme.text-sm;
+                        font-weight: 600;
+                        horizontal-alignment: right;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+
+            Text {
+                height: 64px;
+                text: "Luminance is Rec. 709 luma of the encoded values (0 to 1). RMS contrast is its standard deviation.";
+                color: Theme.faint;
+                font-size: Theme.text-xs;
+                wrap: word-wrap;
+                vertical-alignment: bottom;
+            }
+        }
+    }
+
+    VerticalLayout {
+        spacing: 20px;
+
+        Chart {
+            title: "Luminance histogram";
+            caption: "256 bins from black to white";
+            original: ImageState.hist-original;
+            result: ImageState.hist-result;
+            fill-original: true;
+            x-start: "0";
+            x-end: "1";
+        }
+
+        Chart {
+            title: "Amplitude spectrum";
+            caption: "Rotational average, log-log · spatial frequency in " + (Params.frequency-unit == 0 ? "cycles/pixel" : Params.frequency-unit == 1 ? "cycles/image width" : "cycles/degree");
+            original: ImageState.spectrum-original;
+            result: ImageState.spectrum-result;
+            ticks: ImageState.spectrum-ticks;
+        }
+    }
+}
+
 component EmptyState inherits VerticalLayout {
     callback open();
     alignment: center;
@@ -299,8 +566,8 @@ component Toolbar inherits Rectangle {
             alignment: center;
 
             Segmented {
-                width: 270px;
-                options: ["Side by side", "Split", "Result"];
+                width: 360px;
+                options: ["Side by side", "Split", "Result", "Analysis"];
                 current-index <=> ImageState.view-mode;
             }
         }
@@ -396,6 +663,10 @@ export component ImagePage inherits HorizontalLayout {
                     }
                 }
 
+                if ImageState.warning != "" && ImageState.error == "": Notice {
+                    message: ImageState.warning;
+                }
+
                 if ImageState.view-mode == 0: HorizontalLayout {
                     spacing: 20px;
 
@@ -420,6 +691,12 @@ export component ImagePage inherits HorizontalLayout {
                     original: ImageState.original;
                     result: ImageState.result;
                     has-result: ImageState.has-result;
+                }
+
+                if ImageState.view-mode == 3 && ImageState.has-analysis: AnalysisView { }
+
+                if ImageState.view-mode == 3 && !ImageState.has-analysis: Placeholder {
+                    busy: ImageState.busy;
                 }
 
                 if ImageState.view-mode == 2: Pane {

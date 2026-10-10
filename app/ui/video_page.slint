@@ -8,11 +8,18 @@ export global VideoState {
     in property <string> output-path;
     // 0 Lossless, 1 HighQuality, 2 Fast
     in-out property <int> fidelity: 2;
-    in-out property <bool> temporal-coherence;
+    // 0 Fixed pattern, 1 New each frame, 2 Follow motion, 3 Spatiotemporal phase
+    in-out property <int> temporal-mode: 0;
+    in-out property <float> spatiotemporal-intensity: 100;
+    in-out property <float> memory-gb: 4;
+    // 0 Auto, 1 BT.601, 2 BT.709, 3 BT.2020
+    in-out property <int> color-standard: 0;
+    in property <string> report;
     in-out property <float> keyframe-interval: 30;
     in-out property <float> blend-frames: 0;
     in-out property <bool> export-flow;
     in property <string> flow-dir;
+    in property <string> seed;
     in property <bool> busy;
     in property <bool> done;
     in property <float> progress; // 0..100
@@ -66,28 +73,60 @@ export component VideoPage inherits HorizontalLayout {
                 : VideoState.fidelity == 1 ? "Full 4:4:4 colour with light compression. Identical across machines."
                 : "GPU encoder at 4:2:0 colour. Small files, but output varies between machines.";
 
-            Segmented {
-                help: "Lossless or High quality are recommended for stimulus material: Fast discards three quarters of the colour detail and depends on the machine's encoder.";
-                label: "Fidelity";
-                options: ["Lossless", "High quality", "Fast"];
-                current-index <=> VideoState.fidelity;
+            VerticalLayout {
+                spacing: 14px;
+
+                Segmented {
+                    help: "Lossless or High quality are recommended for stimulus material: Fast discards three quarters of the colour detail and depends on the machine's encoder.";
+                    label: "Fidelity";
+                    options: ["Lossless", "High quality", "Fast"];
+                    current-index <=> VideoState.fidelity;
+                }
+
+                Segmented {
+                    help: "Auto uses the colour standard the file declares. Choose one only if the file's description is missing or wrong; it is then used for reading and writing, and the output is tagged with it.";
+                    label: "Colour standard";
+                    options: ["Auto", "BT.601", "BT.709", "BT.2020"];
+                    current-index <=> VideoState.color-standard;
+                }
             }
         }
 
         Card {
-            title: "Motion";
-            subtitle: "Keyframes are scrambled fresh; frames in between follow the original motion.";
+            title: "Temporal behaviour";
+            subtitle: VideoState.temporal-mode == 0 ? "The same scramble (noise, warp or permutation) is applied to every frame, so the pattern is stable over time."
+                : VideoState.temporal-mode == 1 ? "Every frame gets a new scramble: dynamic noise that changes from frame to frame."
+                : VideoState.temporal-mode == 2 ? "The scramble moves with the content, following optical flow; unreliable regions get a fresh scramble."
+                : "Space and time are phase-scrambled together, preserving spatial and temporal frequency content. Replaces the method on the left.";
 
             VerticalLayout {
                 spacing: 14px;
 
-                ToggleRow {
-                    label: "Temporal coherence (optical flow)";
-                    help: "Estimates motion with the SEA-RAFT optical flow model and warps the previous scrambled frame along it, so the scramble moves with the original video instead of flickering.";
-                    checked <=> VideoState.temporal-coherence;
+                Segmented {
+                    help: "Fixed applies the same scramble to every frame and is the usual choice for frame-wise methods. Per frame produces flickering dynamic noise. Follow motion estimates optical flow (SEA-RAFT) and moves the previous scramble with the content; it is much slower. Spatiotemporal phase-scrambles space and time together in a 3D Fourier transform, preserving spatial and temporal frequency content.";
+                    label: "Frames";
+                    options: ["Fixed", "Per frame", "Follow motion", "Spatiotemporal"];
+                    current-index <=> VideoState.temporal-mode;
                 }
 
-                if VideoState.temporal-coherence: VerticalLayout {
+                if VideoState.temporal-mode == 3: ValueSlider {
+                    label: "Phase intensity";
+                    help: "Scale of the random phase added to every spatiotemporal frequency. The 3D amplitude spectrum, i.e. spatial and temporal frequency content, and the mean are preserved. Long or high-resolution videos are split into equal volumes that fit in memory, crossfaded over 8 frames.";
+                    maximum: 100;
+                    suffix: "%";
+                    value <=> VideoState.spatiotemporal-intensity;
+                }
+
+                if VideoState.temporal-mode == 3: ValueSlider {
+                    label: "Memory for volumes";
+                    help: "Memory a spatiotemporal volume may use. Videos that need more are split into equally long, crossfaded volumes; more memory gives longer volumes.";
+                    minimum: 1;
+                    maximum: 64;
+                    suffix: " GB";
+                    value <=> VideoState.memory-gb;
+                }
+
+                if VideoState.temporal-mode == 2: VerticalLayout {
                     spacing: 14px;
 
                     ValueSlider {
@@ -125,6 +164,7 @@ export component VideoPage inherits HorizontalLayout {
 
         Card {
             title: VideoState.busy ? "Processing…" : VideoState.done ? "Finished" : "Run";
+            subtitle: VideoState.done ? VideoState.report : "";
 
             VerticalLayout {
                 spacing: 16px;

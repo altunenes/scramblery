@@ -1,6 +1,6 @@
 [package]
 name = "scramblery"
-version = "3.0.3"
+version.workspace = true
 description = "Image and video scrambling for vision science"
 authors = ["@altunenes"]
 license = "GPL-3.0-only"
@@ -15,6 +15,7 @@ directml = ["engine/directml"]
 [dependencies]
 engine = { path = "../engine" }
 image = { workspace = true }
+serde_json = { workspace = true }
 anyhow = { workspace = true }
 log = { workspace = true }
 slint = "1.18.1"

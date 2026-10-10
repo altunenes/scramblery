@@ -274,7 +274,7 @@ export component Segmented inherits VerticalLayout {
                 width: parent.width - 8px;
                 text: option;
                 color: index == root.current-index ? Theme.text : Theme.muted;
-                font-size: Theme.text-sm;
+                font-size: root.options.length >= 4 ? Theme.text-xs : Theme.text-sm;
                 font-weight: index == root.current-index ? 600 : 500;
                 horizontal-alignment: center;
                 vertical-alignment: center;
@@ -535,5 +535,210 @@ export component PageHeader inherits VerticalLayout {
         color: Theme.muted;
         font-size: Theme.text-md;
         overflow: elide;
+    }
+}
+
+export component TextField inherits Rectangle {
+    in property <string> label;
+    in property <string> help;
+    in property <string> placeholder;
+    in property <bool> invalid;
+    in-out property <string> text;
+    callback edited(string);
+    out property <bool> hovered: touch.has-hover;
+
+    changed hovered => {
+        if (root.help != "") {
+            if (root.hovered) {
+                Help.show(root.label, root.help);
+            } else {
+                Help.hide(root.label);
+            }
+        }
+    }
+
+    height: 34px;
+    border-radius: Theme.radius;
+    background: Theme.raised;
+    border-width: 1px;
+    border-color: root.invalid ? Theme.danger : input.has-focus ? Theme.accent : transparent;
+
+    touch := TouchArea {
+        mouse-cursor: MouseCursor.text;
+        clicked => {
+            input.focus();
+        }
+    }
+
+    if root.text == "": Text {
+        x: 12px;
+        text: root.placeholder;
+        color: Theme.faint;
+        font-size: Theme.text-md;
+        vertical-alignment: center;
+    }
+
+    input := TextInput {
+        x: 12px;
+        width: parent.width - 24px;
+        text <=> root.text;
+        color: Theme.text;
+        font-size: Theme.text-md;
+        vertical-alignment: center;
+        single-line: true;
+        selection-background-color: Theme.accent-soft;
+        edited => {
+            root.edited(self.text);
+        }
+    }
+}
+
+export component Notice inherits Rectangle {
+    in property <string> message;
+    border-radius: Theme.radius;
+    background: Theme.warning-soft;
+    height: 40px;
+
+    HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 12px;
+        spacing: 10px;
+
+        VerticalLayout {
+            alignment: center;
+
+            Icon {
+                source: @image-url("icons/alert.svg");
+                tint: Theme.warning;
+                width: 16px;
+                height: 16px;
+            }
+        }
+
+        Text {
+            text: root.message;
+            color: Theme.text;
+            font-size: Theme.text-sm;
+            overflow: elide;
+            horizontal-stretch: 1;
+            vertical-alignment: center;
+        }
+    }
+}
+
+export struct ScatterPoint {
+    x: float,
+    y: float,
+    after: bool,
+}
+
+// Mean luminance against RMS contrast for a set of images, before and after processing.
+export component SetOverview inherits VerticalLayout {
+    in property <[ScatterPoint]> points;
+    in property <string> x-min;
+    in property <string> x-max;
+    in property <string> y-min;
+    in property <string> y-max;
+    in property <string> before-label: "Inputs";
+    in property <string> after-label: "Outputs";
+    spacing: 8px;
+
+    HorizontalLayout {
+        spacing: 16px;
+        alignment: end;
+
+        for entry in [{ label: root.before-label, color: Theme.faint }, { label: root.after-label, color: Theme.accent }]: HorizontalLayout {
+            spacing: 6px;
+
+            VerticalLayout {
+                alignment: center;
+
+                Rectangle {
+                    width: 8px;
+                    height: 8px;
+                    border-radius: 4px;
+                    background: entry.color;
+                }
+            }
+
+            Text {
+                text: entry.label;
+                color: Theme.muted;
+                font-size: Theme.text-sm;
+            }
+        }
+    }
+
+    HorizontalLayout {
+        spacing: 8px;
+
+        VerticalLayout {
+            width: 56px;
+
+            Text {
+                text: root.y-max;
+                color: Theme.faint;
+                font-size: Theme.text-xs;
+                horizontal-alignment: right;
+            }
+
+            Text {
+                vertical-stretch: 1;
+                text: "RMS\ncontrast";
+                color: Theme.faint;
+                font-size: Theme.text-xs;
+                horizontal-alignment: right;
+                vertical-alignment: center;
+            }
+
+            Text {
+                text: root.y-min;
+                color: Theme.faint;
+                font-size: Theme.text-xs;
+                horizontal-alignment: right;
+            }
+        }
+
+        plot := Rectangle {
+            height: 220px;
+            border-radius: Theme.radius-sm;
+            background: Theme.canvas.with-alpha(0.5);
+            border-width: 1px;
+            border-color: Theme.border;
+
+            for point in root.points: Rectangle {
+                x: 6px + point.x * (plot.width - 12px) - self.width / 2;
+                y: 6px + (1 - point.y) * (plot.height - 12px) - self.height / 2;
+                width: 8px;
+                height: 8px;
+                border-radius: 4px;
+                background: point.after ? Theme.accent : Theme.faint;
+                opacity: 0.8;
+            }
+        }
+    }
+
+    HorizontalLayout {
+        padding-left: 64px;
+
+        Text {
+            text: root.x-min;
+            color: Theme.faint;
+            font-size: Theme.text-xs;
+        }
+
+        Text {
+            horizontal-stretch: 1;
+            text: "Mean luminance";
+            color: Theme.faint;
+            font-size: Theme.text-xs;
+            horizontal-alignment: center;
+        }
+
+        Text {
+            text: root.x-max;
+            color: Theme.faint;
+            font-size: Theme.text-xs;
+        }
     }
 }

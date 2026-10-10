@@ -1,7 +1,7 @@
 import { ScrollView } from "std-widgets.slint";
 import { Theme } from "theme.slint";
-import { Button, Card, PathRow, ProgressBar, ErrorBanner, Stat, PageHeader } from "widgets.slint";
-import { ScrambleSettings } from "settings.slint";
+import { Button, Card, PathRow, ProgressBar, ErrorBanner, Stat, PageHeader, ValueSlider, ToggleRow, TextField, SetOverview, ScatterPoint } from "widgets.slint";
+import { ScrambleSettings, Params } from "settings.slint";
 
 export global BatchState {
     in property <string> input-dir;
@@ -13,6 +13,16 @@ export global BatchState {
     in property <int> succeeded;
     in property <int> failed;
     in property <[string]> failures;
+    in property <string> seed;
+    in-out property <float> exemplars: 1;
+    in-out property <bool> series;
+    in-out property <string> levels-text: "0, 25, 50, 75, 100";
+    in property <[ScatterPoint]> overview;
+    in property <string> overview-x-min;
+    in property <string> overview-x-max;
+    in property <string> overview-y-min;
+    in property <string> overview-y-max;
+    in property <string> spread;
     in property <string> error;
 
     callback pick-input();
@@ -59,7 +69,7 @@ export component BatchPage inherits HorizontalLayout {
 
         Card {
             title: "Folders";
-            subtitle: "JPEG, PNG, GIF and WebP files are processed. File names are kept.";
+            subtitle: "PNG, JPEG, TIFF, BMP, GIF and WebP files are processed. File names and bit depth are kept.";
 
             PathRow {
                 label: "Input folder";
@@ -79,8 +89,55 @@ export component BatchPage inherits HorizontalLayout {
         }
 
         Card {
+            title: "Outputs";
+            subtitle: "Outputs are named after their input, with _sNN for the exemplar and _lLEVEL for the series level.";
+
+            VerticalLayout {
+                spacing: 14px;
+
+                ValueSlider {
+                    label: "Scrambles per image";
+                    help: "Number of differently seeded versions made from every input image.";
+                    minimum: 1;
+                    maximum: 20;
+                    value <=> BatchState.exemplars;
+                }
+
+                ToggleRow {
+                    label: "Intensity series";
+                    help: "Make every scramble at several strengths with the same seed, so the levels differ only in strength, e.g. for psychometric functions.";
+                    enabled: Params.method != 2;
+                    checked <=> BatchState.series;
+                }
+
+                if BatchState.series && Params.method != 2: VerticalLayout {
+                    spacing: 6px;
+
+                    Text {
+                        text: Params.method == 0 || Params.method == 1 ? "Levels (intensity, %)" : Params.method == 3 ? "Levels (sigma, px)" : "Levels (maximum distortion, px)";
+                        color: Theme.text;
+                        font-size: Theme.text-md;
+                    }
+
+                    TextField {
+                        label: "Levels";
+                        help: "Comma-separated values.";
+                        placeholder: "0, 25, 50, 75, 100";
+                        text <=> BatchState.levels-text;
+                    }
+                }
+
+                if Params.method == 2: Text {
+                    text: "Block scrambling has no strength to vary.";
+                    color: Theme.faint;
+                    font-size: Theme.text-sm;
+                }
+            }
+        }
+
+        Card {
             title: BatchState.busy ? "Processing…" : BatchState.done ? "Finished" : "Run";
-            subtitle: BatchState.busy || BatchState.done ? "" : "Every image is processed in parallel using all CPU cores.";
+            subtitle: BatchState.done ? "Base seed " + BatchState.seed + " · per-image statistics in scramblery_report.csv" : BatchState.busy ? "" : "A report with per-image seeds and statistics is saved in the output folder.";
 
             VerticalLayout {
                 spacing: 16px;
@@ -165,6 +222,19 @@ export component BatchPage inherits HorizontalLayout {
                         }
                     }
                 }
+            }
+        }
+    
+        if BatchState.done && BatchState.overview.length > 0: Card {
+            title: "Set overview";
+            subtitle: BatchState.spread;
+
+            SetOverview {
+                points: BatchState.overview;
+                x-min: BatchState.overview-x-min;
+                x-max: BatchState.overview-x-max;
+                y-min: BatchState.overview-y-min;
+                y-max: BatchState.overview-y-max;
             }
         }
     }
