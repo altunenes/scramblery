@@ -7,7 +7,7 @@ use engine::normalize::{normalize_directory, LuminanceTarget, NormalizeMethod};
 use engine::*;
 
 #[derive(Parser)]
-#[command(name = "scramblery-cli", version, about = "Image and video scrambling for vision science")]
+#[command(name = "scramblery-cli", version, about = "Image and video scrambling for research, privacy and creative work")]
 struct Cli {
     #[command(subcommand)]
     command: Command,

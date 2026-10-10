@@ -12,10 +12,8 @@ This is a "byproduct" of my research for my master's [thesis](https://www.tandfo
 
 
 ---
-*Preview of the main menu*
-
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/1137f7f2-9169-4e4c-a14d-5dddaf5a3647" width="400" alt="Main Menu Preview"/>
+  <img src="docs/images/app.webp" width="820" alt="Scramblery scrambling only the face of the Mona Lisa, with the settings panel on the left">
 </p>
 
 ---
@@ -23,33 +21,58 @@ This is a "byproduct" of my research for my master's [thesis](https://www.tandfo
 ## Features
 
 - **Image Scrambling:** Pixel, Fourier phase, block, Gaussian blur and diffeomorphic scrambling (Stojanoski & Cusack, 2014).
-- **Spatial-Frequency Control:** Scramble (or filter) a low-pass, high-pass or band-pass range given in cycles per pixel, cycles per image or cycles per degree.
+- **Spatial Frequency Control:** Scramble (or filter) a low-pass, high-pass or band-pass range given in cycles per pixel, cycles per image or cycles per degree.
 - **Analysis:** Compare original and scrambled images: mean luminance, RMS contrast, histograms, rotationally averaged amplitude spectrum and its slope, clipping and SSIM.
 - **Normalization:** Equate mean luminance and contrast, histograms or amplitude spectra across a set of images, using the methods of the SHINE toolbox (Willenbockel et al., 2010).
 - **Matching:** Match each scrambled image to its original, to fixed values or to a set average, live in the preview and in batch and video processing.
-- **Stimulus Sets:** Batch processing of folders, several differently seeded scrambles per image, and intensity series that vary only the scrambling strength, e.g. for psychometric functions.
+- **Image Sets:** Batch processing of folders, several differently seeded scrambles per image, and intensity series that vary only the scrambling strength, e.g. for psychometric functions.
 - **Faces and Apertures:** Restrict scrambling to detected faces (face outline from facial landmarks, ellipse or box, with soft edges), keeping or removing the background, and show stimuli through circular or elliptical windows on a uniform surround.
-- **Reproducibility:** Every result records its seed; saved images get a JSON file with the exact settings, batch runs write a CSV report with per-image statistics, and settings can be saved and loaded as recipes.
-- **Bit Depth and Linear Light:** 16-bit images are processed and saved at 16 bits, and processing can optionally run in linear light rather than on gamma-encoded values.
-- **Video Scrambling:** Frame-wise scrambling with a fixed or changing pattern, scrambling that follows the original motion (SEA-RAFT optical flow), and spatiotemporal phase scrambling that preserves spatial and temporal frequency content. Video is processed losslessly in its own colour space, at up to 10 bits, and in parallel.
+- **Reproducibility:** Every result records its seed; saved images get a JSON file with the exact settings, batch runs write a CSV report with statistics for each image, and settings can be saved and loaded as recipes.
+- **Bit Depth and Linear Light:** 16-bit images are processed and saved at 16 bits, and processing can optionally run in linear light rather than on gamma encoded values.
+- **Video Scrambling:** Frame by frame scrambling with a fixed or changing pattern, scrambling that follows the original motion (SEA-RAFT optical flow), and spatiotemporal phase scrambling that preserves spatial and temporal frequency content. Video is processed losslessly in its own colour space, at up to 10 bits, and in parallel.
 - **Command Line:** `scramblery-cli` runs every method, the analysis and normalization from scripts. See [BUILD.md](BUILD.md).
 
 How each method and statistic is defined is described in [docs/methods.md](docs/methods.md).
 
 ## Examples
 
----
+<p align="center">
+  <img src="docs/images/methods.webp" width="640" alt="The Mona Lisa and five scrambled versions: pixel, Fourier phase, block, Gaussian blur and diffeomorphic">
+</p>
 
-<div align="center">
+An intensity series made with one seed: Fourier phase scrambling at 0% to 100%. Mean colour and the amplitude spectrum are kept at every level, apart from the few values clipped to the displayable range.
 
-| Video | GIF Preview |
-|:-----:|:-----------:|
-| [Video](https://github.com/user-attachments/assets/affb7333-231d-4773-bfa4-44c4c05fd815) <br><sub>Block scramble-only facial area exclude bg</sub> | <img src="https://github.com/user-attachments/assets/a6ca6476-e940-46c7-a9f4-b549e6bfa503" width="200" alt="block" /> |
-| [Video](https://github.com/user-attachments/assets/0a57b9a9-859d-4a4f-96cf-a4fe39f98637) <br><sub>Pixel scramble-only facial area exclude bg</sub> | <img src="https://github.com/user-attachments/assets/ebdcf320-9e1a-4ebd-b5a2-64b29c00146d" width="200" alt="exc_bg" /> |
-| [Video 1](https://github.com/user-attachments/assets/37fd72dc-e575-4de0-b910-94a42e81f0b2) <br>[Video 2](https://github.com/user-attachments/assets/a0f47a62-7867-4fb1-ae6f-bff893225d47) <br><sub>Fourier Phase: Colorful/Gray options</sub> | <img src="https://github.com/user-attachments/assets/6d011ce0-7cfc-429d-8d2e-93f3c5f19c5d" width="200" alt="fft" /> |
+<p align="center">
+  <img src="docs/images/series.webp" width="820" alt="Fourier phase scrambling of the Mona Lisa at 0, 25, 50, 75 and 100 percent">
+</p>
 
-</div>
+Beyond scrambling the whole image: faces only with soft outlines, a chosen spatial frequency band, matching to the original, and apertures.
 
+<p align="center">
+  <img src="docs/images/features.webp" width="640" alt="Six variants: face outline only, face ellipse with diffeomorphic warp, high frequencies scrambled, low frequencies scrambled, histogram matched to the original, and a circular aperture on a mean-grey surround">
+</p>
+
+Every result can be checked in the Analysis view: luminance, contrast, spectral slope, clipping and SSIM against the original, with histograms and amplitude spectra.
+
+<p align="center">
+  <img src="docs/images/analysis.webp" width="820" alt="Analysis view comparing the original and the phase scrambled image: statistics table, luminance histograms and amplitude spectra">
+</p>
+
+*Image: Mona Lisa, Leonardo da Vinci (public domain, via Wikimedia Commons).*
+
+### Video
+
+Faces are detected in every frame; spatiotemporal scrambling randomises the phase across space and time together.
+
+<p align="center">
+  <img src="docs/images/video.webp" width="640" alt="A video in four versions: original, faces scrambled within the face outline, faces block-scrambled, and spatiotemporal phase scrambling">
+</p>
+
+Temporal modes on a fast head movement, phase scrambled at 100%. *Fixed pattern* applies one scramble to every frame; *Spatiotemporal* scrambles space and time together, keeping spatial and temporal frequency content; *Follow motion* uses optical flow (SEA-RAFT) to move the scramble with the content, so the motion of the original is kept while its form is not. Combined with face detection (here with the background removed), only the face is scrambled and the scramble moves with it.
+
+<p align="center">
+  <img src="docs/images/modes.webp" width="640" alt="A fast head movement in four versions: fixed pattern, spatiotemporal, follow motion, and the face alone with follow motion">
+</p>
 
 ---
 

@@ -77,7 +77,7 @@ export component VideoPage inherits HorizontalLayout {
                 spacing: 14px;
 
                 Segmented {
-                    help: "Lossless or High quality are recommended for stimulus material: Fast discards three quarters of the colour detail and depends on the machine's encoder.";
+                    help: "Lossless or High quality are recommended when the output will be analysed or shown in experiments: Fast discards three quarters of the colour detail and depends on the machine's encoder.";
                     label: "Fidelity";
                     options: ["Lossless", "High quality", "Fast"];
                     current-index <=> VideoState.fidelity;
@@ -103,7 +103,7 @@ export component VideoPage inherits HorizontalLayout {
                 spacing: 14px;
 
                 Segmented {
-                    help: "Fixed applies the same scramble to every frame and is the usual choice for frame-wise methods. Per frame produces flickering dynamic noise. Follow motion estimates optical flow (SEA-RAFT) and moves the previous scramble with the content; it is much slower. Spatiotemporal phase-scrambles space and time together in a 3D Fourier transform, preserving spatial and temporal frequency content.";
+                    help: "Fixed applies the same scramble to every frame and is the usual choice for frame by frame methods. Per frame produces flickering dynamic noise. Follow motion estimates optical flow (SEA-RAFT) and moves the previous scramble with the content; it is much slower, and moving shapes stay visible, so it is not meant for anonymisation. Spatiotemporal phase scrambles space and time together in a 3D Fourier transform, preserving spatial and temporal frequency content.";
                     label: "Frames";
                     options: ["Fixed", "Per frame", "Follow motion", "Spatiotemporal"];
                     current-index <=> VideoState.temporal-mode;
@@ -111,7 +111,7 @@ export component VideoPage inherits HorizontalLayout {
 
                 if VideoState.temporal-mode == 3: ValueSlider {
                     label: "Phase intensity";
-                    help: "Scale of the random phase added to every spatiotemporal frequency. The 3D amplitude spectrum, i.e. spatial and temporal frequency content, and the mean are preserved. Long or high-resolution videos are split into equal volumes that fit in memory, crossfaded over 8 frames.";
+                    help: "Scale of the random phase added to every spatiotemporal frequency. The 3D amplitude spectrum, i.e. spatial and temporal frequency content, and the mean are preserved. Long or high resolution videos are split into equal volumes that fit in memory, crossfaded over 8 frames.";
                     maximum: 100;
                     suffix: "%";
                     value <=> VideoState.spatiotemporal-intensity;

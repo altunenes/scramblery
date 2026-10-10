@@ -382,7 +382,7 @@ export component ScrambleSettings inherits Rectangle {
 
                         Segmented {
                             label: "Padding";
-                            help: "Wrap transforms the image as it is and preserves its amplitude spectrum exactly. Reflect mirrors it to twice the size to avoid wrap-around edges; Mean pads with the mean value.";
+                            help: "Wrap transforms the image as it is and preserves its amplitude spectrum exactly. Reflect mirrors it to twice the size so that its edges do not wrap around; Mean pads with the mean value.";
                             options: ["Wrap", "Reflect", "Mean"];
                             current-index <=> Params.fourier-padding;
                         }
@@ -493,7 +493,7 @@ export component ScrambleSettings inherits Rectangle {
 
                     if Params.face-detection: ValueSlider {
                         label: "Soft edge";
-                        help: "Width of the transition between scrambled and original, as a percentage of the region's half-size. The weight follows a smoothstep curve; 0% gives a hard edge.";
+                        help: "Width of the transition between scrambled and original, as a percentage of half the region's size. The weight follows a smoothstep curve; 0% gives a hard edge.";
                         maximum: 100;
                         suffix: "%";
                         value <=> Params.face-feather;
@@ -661,7 +661,7 @@ export component ScrambleSettings inherits Rectangle {
 
                     ToggleRow {
                         label: "Process in linear light";
-                        help: "Convert pixel values from sRGB encoding to linear light before scrambling and matching, and back afterwards, so that operations act on physical light rather than gamma-encoded values. Assumes an sRGB display; statistics in the Analysis view remain on encoded values.";
+                        help: "Convert pixel values from sRGB encoding to linear light before scrambling and matching, and back afterwards, so that operations act on physical light rather than gamma encoded values. Assumes an sRGB display; statistics in the Analysis view remain on encoded values.";
                         checked <=> Params.linear-light;
                     }
 

@@ -26,6 +26,9 @@ pub const SPATIOTEMPORAL_OVERLAP: usize = 8;
 /// below which a warped pixel is fully trusted, and above which it is replaced.
 const RELIABLE_ERROR: f32 = 0.03;
 const UNRELIABLE_ERROR: f32 = 0.10;
+/// Standard deviation of the Gaussian that smooths the follow-motion weights, as a fraction of
+/// the shorter frame side.
+const WEIGHT_SMOOTHING: f32 = 0.03;
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Default)]
 pub enum FrameSeeds {
@@ -540,6 +543,10 @@ fn process_following(frame: &mut YuvFrame, options: &VideoProcessingOptions, scr
             }
             let fresh_weight = keyframe_blend(tc, index);
             let replace: Vec<f32> = weight.iter().map(|w| 1.0 - w * (1.0 - fresh_weight)).collect();
+            // The weights come from the original frames and follow their edges (eyes, mouth,
+            // outlines). Smoothing them keeps those details from being drawn into the output.
+            let sigma = WEIGHT_SMOOTHING * original.width.min(original.height) as f32;
+            let replace = crate::scramble::blur::gaussian_blur(&replace, original.width, original.height, sigma);
             mix(&warped, &fresh, &replace)
         }
         _ => fresh,

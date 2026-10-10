@@ -42,7 +42,7 @@ Installing "runtime installer" should be enough, but if you want to develop and 
 
 *On Windows the plain installer runs on CPU. If you want GPU acceleration without installing anything extra, use `-directml`.*
 
-*The CUDA builds deliberately don't bundle the CUDA runtime. It's a multi-gigabyte install, and shipping it would make the download enormous.*
+*The CUDA builds deliberately don't bundle the CUDA runtime. It's an install of several gigabytes, and shipping it would make the download enormous.*
 
 
 

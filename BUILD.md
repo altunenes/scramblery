@@ -15,7 +15,7 @@ From the repository root:
 cargo run --release
 ```
 
-For GPU-accelerated optical flow, add a feature: `cargo run --release --features webgpu` (also `cuda`, `directml`).
+For optical flow on the GPU, add a feature: `cargo run --release --features webgpu` (also `cuda`, `directml`).
 
 **Command line:**
 
@@ -40,7 +40,7 @@ cargo test --workspace
 **Project layout:**
 
 *   `app/`: the desktop app, built with [Slint](https://slint.dev). `app/ui/` holds the interface, `app/src/` the Rust code.
-*   `cli/`: the `scramblery-cli` command-line tool.
+*   `cli/`: the `scramblery-cli` command line tool.
 *   `engine/`: scrambling, analysis, normalization, batch and video processing.
 *   `face_detection/`, `optical_flow/`, `onnx/`: ONNX Runtime models.
 *   `video-processor/`: GStreamer decoding and encoding.

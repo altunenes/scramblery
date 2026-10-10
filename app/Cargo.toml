@@ -1,7 +1,7 @@
 [package]
 name = "scramblery"
 version.workspace = true
-description = "Image and video scrambling for vision science"
+description = "Image and video scrambling for research, privacy and creative work"
 authors = ["@altunenes"]
 license = "GPL-3.0-only"
 edition = "2021"
