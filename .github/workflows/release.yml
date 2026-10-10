@@ -228,7 +228,7 @@ jobs:
           name: 'Scramblery ${{ github.ref_name }}'
           body_path: .github/RELEASE_NOTES.md
           draft: false
-          prerelease: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
           fail_on_unmatched_files: false
           files: |
             target/packages/*.dmg

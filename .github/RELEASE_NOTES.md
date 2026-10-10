@@ -1,34 +1,44 @@
-### Video scrambling is much faster
+Scramblery 4.0 is the biggest update so far. The app is now written entirely in Rust with a new interface, and most of the work went into the scientific side: what each method preserves, how results can be checked, and how they can be reproduced.
 
-Optical flow (the temporal coherence option) used to eat all your RAM on 1080p clips and often never finished a single frame. It now runs at roughly 1.4s per frame using about 2GB.
+### New interface
 
-Your output resolution doesn't change. Only the motion estimation runs smaller internally; scrambling and warping still happen at full size.
+The app moved from Tauri/React to [Slint](https://slint.dev), so there is no web stack anymore. Every setting has a short explanation next to it, and there is a light and a dark theme.
 
-### New: Output Fidelity setting
+### Methods
 
-Video was always encoded at 4:2:0 chroma, which throws away most of the colour detail before the encoder even runs. That matters when the scramble pattern is your stimulus. You can now pick:
+- **Local phase scrambling (new):** randomises the phase within Gabor-like bands of scale and orientation while keeping the local amplitude. Unlike Fourier phase scrambling, contrast stays where it was in the image.
+- **Fourier phase scrambling** now uses one phase field for all colour channels, so no false colours appear, and it keeps the mean of every channel. Frequency ranges can be given in cycles per pixel, per image or per degree of visual angle.
+- **Faces** can be scrambled inside a box, an ellipse or the face outline (from facial landmarks), with soft edges.
+- **Apertures:** show results through a circular or elliptical window on a uniform surround.
+- **Linear light:** processing can optionally run on linear rather than gamma encoded values.
 
-- **Fast (GPU, 4:2:0)**: the default, same as previous releases
-- **High Quality (4:4:4)**: full colour, light compression
-- **Lossless (4:4:4)**: use this for real stimulus material
+### Matching and normalization
 
-Both 4:4:4 modes encode in software, so you get the same output on macOS, Windows and Linux. Before this, quality quietly depended on which encoder your machine happened to have.
+- Match each scrambled image to its original, to fixed values or to the average of a reference set: mean luminance and RMS contrast, histograms or amplitude spectra.
+- A new Normalize page equates these properties across a folder of images, using the methods of the SHINE toolbox (Willenbockel et al., 2010).
+- The Analysis view compares original and result: luminance, contrast, histograms, amplitude spectrum and slope, clipping and SSIM.
 
-### Audio is left alone now
+### Reproducibility
 
-Audio was being decoded and re-encoded on every run even though scrambling never touches it. AAC, MP3, AC3 and Opus tracks now get copied straight through.
+- Every result records its seed, and saved images get a JSON file with the exact settings. Load it as a recipe to get the same result again, on any machine.
+- Batch runs write a CSV report with statistics for each image, and can make several seeded versions per image or an intensity series for psychometric functions.
+- 16-bit images stay 16-bit.
 
-### Fixes
+### Video
 
-- Progress bar could run past 100% (up to 190% on short clips) and look stuck when it was actually still working.
-- Dev builds now compile the heavy image code optimised.
+- Frames are converted exactly in their own colour space, so an unchanged frame comes back with identical luma. 10-bit sources give 10-bit output with the Lossless and High quality settings.
+- **Spatiotemporal mode (new):** scrambles space and time together and keeps spatial and temporal frequency content.
+- Follow motion now ignores unreliable optical flow and no longer draws edges of the original into the output.
+- Independent frames are processed in parallel.
 
-### New Windows build
+### Command line
 
-There's a `-directml` installer now. It gives you GPU acceleration on any DirectX 12 card with nothing extra to install, unlike the CUDA builds.
+`scramblery-cli` runs every method, the analysis and normalization from scripts. It is not in the installers yet; see BUILD.md to build it.
 
-The `-migraphx` build is gone. I can add this future if ONNX Runtime ship a MIGraphX binary
+### Documentation
+
+[docs/methods.md](https://github.com/altunenes/scramblery/blob/main/docs/methods.md) describes exactly what each method does and how every statistic is computed.
 
 ---
 
-Grab the plain installer unless you specifically want GPU acceleration for optical flow. The `-cuda`, `-directml` and `-webgpu` builds only affect that, and they all fall back to CPU if the runtime isn't there.
+Grab the plain installer unless you specifically want GPU acceleration for optical flow. The `-cuda`, `-directml` and `-webgpu` builds only affect that, and they all fall back to CPU if the runtime isn't there. GStreamer still needs to be installed separately; see [INSTALL.md](https://github.com/altunenes/scramblery/blob/main/INSTALL.md).
