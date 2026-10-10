@@ -28,36 +28,9 @@ pub fn load_optical_flow_model(model_path: Option<PathBuf>) -> Result<&'static M
         return Ok(session);
     }
 
-    let model_path = if let Some(path) = model_path {
-        path
-    } else {
-        #[cfg(debug_assertions)]
-        let path = PathBuf::from("resources/models/searaft_flow_512x288.onnx");
-
-        #[cfg(not(debug_assertions))]
-        let path = {
-            let exe_path = std::env::current_exe().expect("Failed to get executable path");
-            info!("Executable path: {:?}", exe_path);
-
-            let resource_path = if cfg!(target_os = "macos") {
-                exe_path
-                    .parent()
-                    .and_then(|p| p.parent())
-                    .map(|p| p.join("Resources/models/searaft_flow_512x288.onnx"))
-            } else {
-                exe_path
-                    .parent()
-                    .map(|p| p.join("models/searaft_flow_512x288.onnx"))
-            }
-            .expect("Failed to construct resource path");
-
-            info!("Constructed resource path: {:?}", resource_path);
-            info!("Resource path exists: {}", resource_path.exists());
-
-            resource_path
-        };
-
-        path
+    let model_path = match model_path {
+        Some(path) => path,
+        None => onnx::find_model("searaft_flow_512x288.onnx")?,
     };
 
     info!("Loading optical flow model from {:?}", model_path);

@@ -5,7 +5,6 @@ use std::path::Path;
 use rayon::prelude::*;
 use anyhow::Context;
 use crate::Result;
-use crate::ScrambleType;
 use crate::ScrambleOptions;
 pub fn process_directory(options: &BatchProcessingOptions) -> Result<Vec<ProcessingResult>> {
 
@@ -59,58 +58,7 @@ fn process_single_image(
     let img = image::open(input_path)
         .with_context(|| format!("Failed to open image: {}", input_path.display()))?;
 
-    let scrambled = match &options.scramble_type {
-        ScrambleType::Pixel => crate::scramble::scramble_pixels(&img, options)?,
-        ScrambleType::Fourier(fourier_opts) => {
-            let mut scrambler = crate::scramble::FourierScrambler::new(
-                img.width() as usize,
-                img.height() as usize,
-                fourier_opts.clone(),
-                options.seed,
-            );
-            
-            if let Some(face_opts) = &options.face_detection {
-                scrambler.scramble_with_face_detection(&img, face_opts)?
-            } else {
-                scrambler.scramble(&img)?
-            }
-        },
-        ScrambleType::Block(block_opts) => {
-            let mut scrambler = crate::scramble::BlockScrambler::new(
-                block_opts.clone(),
-                options.seed,
-            );
-            
-            if let Some(face_opts) = &options.face_detection {
-                scrambler.scramble_with_face_detection(&img, face_opts)?
-            } else {
-                scrambler.scramble(&img)?
-            }
-        },
-        ScrambleType::Blur(blur_opts) => {
-            let scrambler = crate::scramble::BlurScrambler::new(
-                blur_opts.clone(),
-            );
-
-            if let Some(face_opts) = &options.face_detection {
-                scrambler.scramble_with_face_detection(&img, face_opts)?
-            } else {
-                scrambler.scramble(&img)?
-            }
-        }
-        ScrambleType::Diffeomorphic(diff_opts) => {
-            let mut scrambler = crate::scramble::DiffeomorphicScrambler::new(
-                diff_opts.clone(),
-                options.seed,
-            );
-
-            if let Some(face_opts) = &options.face_detection {
-                scrambler.scramble_with_face_detection(&img, face_opts)?
-            } else {
-                scrambler.scramble(&img)?
-            }
-        }
-    };
+    let scrambled = crate::scramble::scramble_image(&img, options)?;
 
     scrambled.save(output_path)
         .with_context(|| format!("Failed to save image: {}", output_path.display()))?;

@@ -1,0 +1,375 @@
+import { ScrollView } from "std-widgets.slint";
+import { Theme } from "theme.slint";
+import { Help, Icon, SectionTitle, ValueSlider, ToggleRow, Segmented } from "widgets.slint";
+
+export global Params {
+    // 0 Pixel, 1 Fourier, 2 Block, 3 Blur, 4 Diffeomorphic
+    in-out property <int> method: 0;
+    in-out property <float> intensity: 50;
+
+    // 0 All, 1 Low-pass, 2 High-pass, 3 Band-pass
+    in-out property <int> frequency-range: 0;
+    in-out property <float> cutoff: 0.5;
+    in-out property <float> band-low: 0.3;
+    in-out property <float> band-high: 0.7;
+    in-out property <bool> phase-scramble: true;
+    in-out property <bool> grayscale: false;
+    // 0 Zero, 1 Reflect, 2 Wrap
+    in-out property <int> fourier-padding: 1;
+
+    in-out property <float> block-width: 32;
+    in-out property <float> block-height: 32;
+    in-out property <bool> interpolate-edges: true;
+    in-out property <int> block-padding: 1;
+
+    in-out property <float> blur-sigma: 5.0;
+
+    in-out property <float> max-distortion: 5.0;
+    in-out property <float> warp-steps: 20;
+    in-out property <float> dct-components: 5;
+
+    in-out property <bool> face-detection: false;
+    // 0 Keep background (scramble faces only), 1 Faces only
+    in-out property <int> background-mode: 0;
+
+    out property <[string]> method-names: ["Pixel", "Fourier phase", "Block", "Gaussian blur", "Diffeomorphic"];
+    out property <[string]> method-summaries: [
+        "Shuffle pixel positions",
+        "Randomise the phase spectrum",
+        "Shuffle square tiles",
+        "Remove high spatial frequencies",
+        "Smooth, invertible warp",
+    ];
+    out property <[string]> method-help: [
+        "Swaps randomly chosen pairs of pixels. The colour and luminance histogram of the image is preserved exactly; only the spatial arrangement changes.",
+        "Replaces the Fourier phase with random phase while keeping the amplitude spectrum, so spatial-frequency content and contrast energy stay close to the original while recognisable structure is lost.",
+        "Cuts the image into a grid of blocks and shuffles their positions. Local structure inside each block is kept; the global configuration is destroyed.",
+        "Blurs the image with a Gaussian kernel. Fine detail is removed while the coarse layout stays intact.",
+        "Warps the image with a smooth random flow field. Low-level properties stay close to the original while shapes become unrecognisable. Stojanoski & Cusack (2014), Journal of Vision 14(12):6.",
+    ];
+}
+
+component MethodItem inherits Rectangle {
+    in property <string> name;
+    in property <string> summary;
+    in property <bool> selected;
+    callback clicked;
+
+    height: 48px;
+    border-radius: Theme.radius;
+    background: root.selected ? Theme.accent-soft : touch.has-hover ? Theme.raised : transparent;
+    animate background { duration: 120ms; }
+
+    Rectangle {
+        x: 0;
+        y: 12px;
+        width: 3px;
+        height: parent.height - 24px;
+        border-radius: 1.5px;
+        background: root.selected ? Theme.accent : transparent;
+    }
+
+    VerticalLayout {
+        padding-left: 14px;
+        padding-right: 10px;
+        alignment: center;
+        spacing: 2px;
+
+        Text {
+            text: root.name;
+            color: root.selected ? Theme.accent : Theme.text;
+            font-size: Theme.text-md;
+            font-weight: root.selected ? 600 : 500;
+        }
+
+        Text {
+            text: root.summary;
+            color: Theme.muted;
+            font-size: Theme.text-sm;
+            overflow: elide;
+        }
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => {
+            root.clicked();
+        }
+    }
+}
+
+component HelpCard inherits Rectangle {
+    private property <bool> hovering: Help.owner != "";
+    height: 156px;
+    background: Theme.panel;
+
+    Rectangle {
+        y: 0;
+        height: 1px;
+        background: Theme.border;
+    }
+
+    Icon {
+        x: 20px;
+        y: 18px;
+        width: 15px;
+        height: 15px;
+        source: @image-url("icons/help.svg");
+        tint: root.hovering ? Theme.accent : Theme.faint;
+    }
+
+    Text {
+        x: 44px;
+        y: 17px;
+        width: parent.width - 64px;
+        text: root.hovering ? Help.title : Params.method-names[Params.method];
+        color: Theme.text;
+        font-size: Theme.text-md;
+        font-weight: 600;
+        overflow: elide;
+    }
+
+    Text {
+        x: 20px;
+        y: 44px;
+        width: parent.width - 40px;
+        height: parent.height - 56px;
+        text: root.hovering ? Help.text : Params.method-help[Params.method];
+        color: Theme.muted;
+        font-size: Theme.text-sm;
+        wrap: word-wrap;
+        overflow: elide;
+        vertical-alignment: top;
+    }
+}
+
+component ParameterGroup inherits VerticalLayout {
+    spacing: 14px;
+}
+
+export component ScrambleSettings inherits Rectangle {
+    width: 320px;
+    background: Theme.panel;
+
+    Rectangle {
+        x: parent.width - 1px;
+        width: 1px;
+        background: Theme.border;
+    }
+
+    VerticalLayout {
+        ScrollView {
+            VerticalLayout {
+                alignment: start;
+                padding: 20px;
+                padding-top: 22px;
+                spacing: 28px;
+
+                VerticalLayout {
+                    spacing: 10px;
+
+                    SectionTitle {
+                        text: "METHOD";
+                    }
+
+                    VerticalLayout {
+                        spacing: 2px;
+
+                        for name[index] in Params.method-names: MethodItem {
+                            name: name;
+                            summary: Params.method-summaries[index];
+                            selected: Params.method == index;
+                            clicked => {
+                                Params.method = index;
+                            }
+                        }
+                    }
+                }
+
+                VerticalLayout {
+                    spacing: 14px;
+
+                    SectionTitle {
+                        text: "PARAMETERS";
+                    }
+
+                    if Params.method == 0: ParameterGroup {
+                        ValueSlider {
+                            label: "Intensity";
+                            help: "Number of random pixel swaps, as a fraction of the pixel count. Partners are random, so at 100% about 86% of pixels move.";
+                            maximum: 100;
+                            suffix: "%";
+                            value <=> Params.intensity;
+                        }
+                    }
+
+                    if Params.method == 1: ParameterGroup {
+                        ValueSlider {
+                            label: "Intensity";
+                            help: "How far each phase moves toward a random value. 0% returns the original image, 100% gives fully random phase.";
+                            maximum: 100;
+                            suffix: "%";
+                            value <=> Params.intensity;
+                        }
+
+                        Segmented {
+                            label: "Frequency range";
+                            help: "Spatial frequencies outside the chosen range are removed (set to zero) before the phase is scrambled. Cutoffs are fractions of the Nyquist frequency.";
+                            options: ["All", "Low-pass", "High-pass", "Band"];
+                            current-index <=> Params.frequency-range;
+                        }
+
+                        if Params.frequency-range == 1 || Params.frequency-range == 2: ValueSlider {
+                            label: "Cutoff";
+                            help: Params.frequency-range == 1 ? "Frequencies above this fraction of Nyquist are removed." : "Frequencies below this fraction of Nyquist are removed.";
+                            maximum: 1;
+                            step: 0.01;
+                            decimals: 2;
+                            value <=> Params.cutoff;
+                        }
+
+                        if Params.frequency-range == 3: ValueSlider {
+                            label: "Low cutoff";
+                            help: "Lower edge of the kept band, as a fraction of Nyquist.";
+                            maximum: 1;
+                            step: 0.01;
+                            decimals: 2;
+                            value <=> Params.band-low;
+                            edited(v) => {
+                                if (v > Params.band-high - 0.01) {
+                                    Params.band-low = Math.max(0, Params.band-high - 0.01);
+                                }
+                            }
+                        }
+
+                        if Params.frequency-range == 3: ValueSlider {
+                            label: "High cutoff";
+                            help: "Upper edge of the kept band, as a fraction of Nyquist.";
+                            maximum: 1;
+                            step: 0.01;
+                            decimals: 2;
+                            value <=> Params.band-high;
+                            edited(v) => {
+                                if (v < Params.band-low + 0.01) {
+                                    Params.band-high = Math.min(1, Params.band-low + 0.01);
+                                }
+                            }
+                        }
+
+                        Segmented {
+                            label: "Padding";
+                            help: "How the image is extended to the FFT size. Reflect mirrors the edges and avoids border artefacts; Zero pads with black; Wrap tiles the image.";
+                            options: ["Zero", "Reflect", "Wrap"];
+                            current-index <=> Params.fourier-padding;
+                        }
+
+                        ToggleRow {
+                            label: "Scramble phase";
+                            help: "Randomise the phase spectrum. Turn off to apply only the frequency filter.";
+                            checked <=> Params.phase-scramble;
+                        }
+
+                        ToggleRow {
+                            label: "Grayscale";
+                            help: "Process a single luminance channel and output a grayscale image.";
+                            checked <=> Params.grayscale;
+                        }
+                    }
+
+                    if Params.method == 2: ParameterGroup {
+                        ValueSlider {
+                            label: "Block width";
+                            help: "Width of each block in pixels.";
+                            minimum: 4;
+                            maximum: 256;
+                            step: 4;
+                            suffix: " px";
+                            value <=> Params.block-width;
+                        }
+
+                        ValueSlider {
+                            label: "Block height";
+                            help: "Height of each block in pixels.";
+                            minimum: 4;
+                            maximum: 256;
+                            step: 4;
+                            suffix: " px";
+                            value <=> Params.block-height;
+                        }
+
+                        ToggleRow {
+                            label: "Smooth block edges";
+                            help: "Blend pixels across block boundaries. Turn off to keep every original pixel value exactly.";
+                            checked <=> Params.interpolate-edges;
+                        }
+                    }
+
+                    if Params.method == 3: ParameterGroup {
+                        ValueSlider {
+                            label: "Sigma";
+                            help: "Standard deviation of the Gaussian kernel in pixels. Larger values blur more.";
+                            minimum: 0.5;
+                            maximum: 25;
+                            step: 0.5;
+                            decimals: 1;
+                            suffix: " px";
+                            value <=> Params.blur-sigma;
+                        }
+                    }
+
+                    if Params.method == 4: ParameterGroup {
+                        ValueSlider {
+                            label: "Max distortion";
+                            help: "RMS pixel displacement of the warp. Higher values distort more; 5–10 px is typical.";
+                            minimum: 1;
+                            maximum: 50;
+                            step: 0.5;
+                            decimals: 1;
+                            suffix: " px";
+                            value <=> Params.max-distortion;
+                        }
+
+                        ValueSlider {
+                            label: "Warp steps";
+                            help: "The warp is applied in this many small steps. More steps give a smoother, more invertible warp; 10–20 is typical.";
+                            minimum: 1;
+                            maximum: 50;
+                            value <=> Params.warp-steps;
+                        }
+
+                        ValueSlider {
+                            label: "DCT components";
+                            help: "Spatial frequency of the random flow field. Low values give broad warps, high values fine ones.";
+                            minimum: 2;
+                            maximum: 20;
+                            value <=> Params.dct-components;
+                        }
+                    }
+                }
+
+                VerticalLayout {
+                    spacing: 14px;
+
+                    SectionTitle {
+                        text: "FACES";
+                    }
+
+                    ToggleRow {
+                        label: "Only process faces";
+                        help: "Detect faces (UltraFace model) and restrict scrambling to them.";
+                        checked <=> Params.face-detection;
+                    }
+
+                    if Params.face-detection: Segmented {
+                        label: "Background";
+                        help: "Keep: scramble the faces and leave the rest of the image untouched. Remove: output only the scrambled faces on a transparent background.";
+                        options: ["Keep", "Remove"];
+                        current-index <=> Params.background-mode;
+                    }
+                }
+            }
+        }
+
+        HelpCard { }
+    }
+}

@@ -1,41 +1,54 @@
 **Prerequisites:**
 
-*   **Rust:**  [Install Rust](https://www.rust-lang.org/tools/install) (stable version recommended).
-*   **Node.js and npm:** [Install Node.js and npm](https://nodejs.org/).
-*   **Tauri CLI:**  Install Tauri CLI globally: `npm install -g @tauri-apps/cli`
-
+*   **Rust:** [Install Rust](https://www.rust-lang.org/tools/install) (stable version recommended).
 *   **GStreamer (for Video Processing):**
-    * Install both the runtime and development packages: https://gstreamer.freedesktop.org/download/
-    *   **macOS:** GStreamer framework is expected to be installed (see `ui/src-tauri/build.rs` for hints). You might need to install it via Homebrew: `brew install gstreamer gst-plugins-base gst-plugins-good gst-plugins-ugly gst-plugins-bad`
-    *   **Linux/Windows:**  Installation of GStreamer development packages is required. 
+    *   Install both the runtime and development packages: https://gstreamer.freedesktop.org/download/
+    *   **macOS:** the official GStreamer framework installer is expected (`/Library/Frameworks/GStreamer.framework`, see `app/build.rs`).
+    *   **Linux:** `libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev` plus the `gstreamer1.0-plugins-*` packages. The UI also needs `libfontconfig1-dev libxkbcommon-dev`.
+    *   **Windows:** install the MSVC runtime and development installers.
 
-**Build Instructions:**
+**Run:**
 
-1.  **Navigate to the UI directory:**
-    ```bash
-    cd ui
-    ```
+From the repository root:
 
-2.  **Install npm dependencies:**
-    ```bash
-    npm install
-    ```
+```bash
+cargo run --release
+```
 
-3.  **Run the Tauri development command:**
-    ```bash
-    npm run tauri dev
-    ```
+For GPU-accelerated optical flow, add a feature: `cargo run --release --features webgpu` (also `cuda`, `directml`).
 
+**Project layout:**
+
+*   `app/` — the desktop app, built with [Slint](https://slint.dev). `app/ui/` holds the interface, `app/src/` the Rust code.
+*   `engine/` — all scrambling algorithms, batch and video processing.
+*   `face_detection/`, `optical_flow/`, `onnx/` — ONNX Runtime models.
+*   `video-processor/` — GStreamer decoding and encoding.
+*   `resources/models/` — ONNX model files.
+
+**Package an installer:**
+
+Installers are made with [cargo-packager](https://github.com/crabnebula-dev/cargo-packager):
+
+```bash
+cargo install cargo-packager --locked
+cargo build --release
+cd app
+cargo packager --release --formats app      # macOS .app (dmg also works)
+cargo packager --release --formats nsis     # Windows installer
+cargo packager --release --formats deb,appimage
+```
+
+Packages are written to `target/packages/`. The configuration is in `[package.metadata.packager]` in `app/Cargo.toml`.
 
 ### Extras
 
-**Q: For development, how can I embed GStreamer in the app?**
-*A: In tauri-conf.json, you can include the path to the GStreamer. Tauri will include the library in the final app. For example, in macOS, you can include the following code:*
+**Q: Where does the app look for the optical flow model?**
+*A: Next to the executable (`models/`), in `../Resources/models` inside a macOS `.app`, in `../lib/scramblery/models` for Linux packages, then in the repository's `resources/models`. Set `SCRAMBLERY_MODELS_DIR` to override.*
 
-```json
-    "macOS": {
-      "frameworks": [
-        "/Library/Frameworks/GStreamer.framework"
-      ],
-    }
+**Q: For development, how can I embed GStreamer in the app?**
+*A: On macOS, add the framework to the packager config in `app/Cargo.toml`:*
+
+```toml
+[package.metadata.packager.macos]
+frameworks = ["/Library/Frameworks/GStreamer.framework"]
 ```

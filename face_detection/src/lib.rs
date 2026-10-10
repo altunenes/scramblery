@@ -1,7 +1,7 @@
 use anyhow::Result;
 use image::{DynamicImage, GenericImageView, imageops::FilterType};
 use ndarray::Array4;
-use onnx::new_session_from_path;
+use onnx::{new_session_from_memory, new_session_from_path};
 use std::path::PathBuf;
 use log::info;
 use onnx::Session;
@@ -10,6 +10,8 @@ use ndarray::ArrayViewD;
 use std::sync::OnceLock;
 use std::sync::Mutex;
 
+
+static FACE_MODEL: &[u8] = include_bytes!("../../resources/models/version-RFB-640.onnx");
 
 static FACE_DETECTOR_SESSION: OnceLock<Mutex<Session>> = OnceLock::new();
 
@@ -59,41 +61,13 @@ pub fn load_face_detector(model_path: Option<PathBuf>) -> Result<&'static Mutex<
     if let Some(session) = FACE_DETECTOR_SESSION.get() {
         return Ok(session);
     }
-    let model_path = if let Some(path) = model_path {
-        path
-    } else {
-        #[cfg(debug_assertions)]
-        let path = PathBuf::from("resources/models/version-RFB-640.onnx");
-
-        #[cfg(not(debug_assertions))]
-        let path = {
-            let exe_path = std::env::current_exe().expect("Failed to get executable path");
-            info!("Executable path: {:?}", exe_path);
-
-            let resource_path = if cfg!(target_os = "macos") {
-                // macOS: navigate from .app/Contents/MacOS/exe to .app/Contents/Resources
-                exe_path
-                    .parent()
-                    .and_then(|p| p.parent())
-                    .map(|p| p.join("Resources/models/version-RFB-640.onnx"))
-            } else {
-                // Windows: model is directly in the models folder next to exe
-                exe_path
-                    .parent()
-                    .map(|p| p.join("models/version-RFB-640.onnx"))
-            }.expect("Failed to construct resource path");
-
-            info!("Constructed resource path: {:?}", resource_path);
-            info!("Resource path exists: {}", resource_path.exists());
-
-            resource_path
-        };
-
-        path
+    let session = match model_path {
+        Some(path) => {
+            info!("Loading face detection model from {:?}", path);
+            new_session_from_path(path)?
+        }
+        None => new_session_from_memory(FACE_MODEL)?,
     };
-
-    info!("Loading face detection model from {:?}", model_path);
-    let session = new_session_from_path(model_path)?;
     if let Err(_) = FACE_DETECTOR_SESSION.set(Mutex::new(session)) {
         info!("Warning: Face detection session was already initialized by another thread");
     }

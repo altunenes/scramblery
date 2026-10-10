@@ -14,74 +14,42 @@ jobs:
       matrix:
         include:
           - platform: macos-latest
-            args: '--target aarch64-apple-darwin --bundles app'
             features: ''
-
           - platform: macos-latest
-            args: '--target aarch64-apple-darwin --bundles app --config src-tauri/tauri.webgpu.conf.json'
             features: 'webgpu'
 
           - platform: windows-latest
-            args: ''
             features: ''
-
           - platform: windows-latest
-            args: ''
             features: 'cuda'
-
           - platform: windows-latest
-            args: ''
             features: 'webgpu'
-
-
           - platform: windows-latest
-            args: ''
             features: 'directml'
 
           # CPU-only Linux build
           - platform: ubuntu-24.04
-            args: ''
             features: ''
-
           # GPU builds require ubuntu-24.04: ORT CUDA binaries need glibc 2.38+
           - platform: ubuntu-24.04
-            args: ''
             features: 'cuda'
-
-
           - platform: ubuntu-24.04
-            args: ''
             features: 'webgpu'
     runs-on: ${{ matrix.platform }}
+    env:
+      APP_NAME: ${{ matrix.features != '' && format('scramblery-{0}', matrix.features) || 'scramblery' }}
+      FEATURES: ${{ matrix.features != '' && format('--features {0}', matrix.features) || '' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # Fix Cargo.toml case sensitivity
-      - name: Fix workspace structure
-        shell: bash
-        run: |
-          if [ -f "cargo.toml" ] && [ ! -f "Cargo.toml" ]; then
-            mv cargo.toml Cargo.toml
-          fi
-          echo "Workspace contents:"
-          ls -la
-          echo "Cargo.toml contents:"
-          cat Cargo.toml
-
-      - name: Install Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 'lts/*'
-          cache: 'npm'
-          cache-dependency-path: './ui/package-lock.json'
-
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin' || '' }}
+
+      - name: Install cargo-packager
+        run: cargo install cargo-packager --locked
 
       # Linux dependencies
       - name: Install Linux dependencies
@@ -89,14 +57,14 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev \
-            patchelf \
-            libunwind-dev \
             pkg-config \
             cmake \
             build-essential \
+            patchelf \
+            libfuse2t64 \
+            libunwind-dev \
+            libfontconfig1-dev \
+            libxkbcommon-dev \
             libglib2.0-dev \
             libgstreamer1.0-dev \
             libgstreamer-plugins-base1.0-dev \
@@ -113,17 +81,16 @@ jobs:
           GSTREAMER_VERSION="1.28.6"
           curl -L "https://gstreamer.freedesktop.org/data/pkg/osx/$GSTREAMER_VERSION/gstreamer-1.0-$GSTREAMER_VERSION-universal.pkg" -o gstreamer.pkg
           curl -L "https://gstreamer.freedesktop.org/data/pkg/osx/$GSTREAMER_VERSION/gstreamer-1.0-devel-$GSTREAMER_VERSION-universal.pkg" -o gstreamer-devel.pkg
-          
+
           sudo installer -pkg gstreamer.pkg -target /
           sudo installer -pkg gstreamer-devel.pkg -target /
-          
+
           # Set environment variables for later steps
           echo "PKG_CONFIG_PATH=/Library/Frameworks/GStreamer.framework/Versions/1.0/lib/pkgconfig" >> $GITHUB_ENV
           echo "GST_PLUGIN_PATH=/Library/Frameworks/GStreamer.framework/Versions/1.0/lib/gstreamer-1.0" >> $GITHUB_ENV
-          
+
           sudo spctl --master-disable || true
 
-      # Windows dependencies (consolidated step)
       - name: Install Windows dependencies
         if: matrix.platform == 'windows-latest'
         shell: pwsh
@@ -203,83 +170,68 @@ jobs:
           
           Write-Host "GStreamer installation completed successfully."
 
-      - name: Patch product name for GPU variant
-        if: matrix.features != ''
-        shell: bash
-        run: |
-          sed -i'' -e 's/"productName": "scramblery"/"productName": "scramblery-${{ matrix.features }}"/' ui/src-tauri/tauri.conf.json
-
-      - name: Install frontend dependencies
-        run: |
-          cd ui
-          npm install
-
-      - name: Read release notes
-        id: notes
-        shell: bash
-        run: |
-          {
-            echo 'body<<RELEASE_NOTES_EOF'
-            cat .github/RELEASE_NOTES.md
-            echo 'RELEASE_NOTES_EOF'
-          } >> "$GITHUB_OUTPUT"
-
       - name: Build the app
-        uses: tauri-apps/tauri-action@v0
+        shell: bash
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PKG_CONFIG_ALLOW_CROSS: 1
-          LD_LIBRARY_PATH: ${{ github.workspace }}/target/release
-        with:
-          projectPath: './ui'
-          tagName: ${{ github.ref_name }}
-          releaseName: 'Scramblery ${{ github.ref_name }}'
-          releaseBody: ${{ steps.notes.outputs.body }}
-          releaseDraft: false
-          prerelease: false
-          args: ${{ matrix.args }}${{ matrix.features != '' && format(' --features {0}', matrix.features) || '' }}
+        run: cargo build --release -p scramblery $FEATURES
 
-      # macOS self-signing step
-      - name: Self-sign macOS app
-        if: matrix.platform == 'macos-latest'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Configure package for this variant
+        shell: bash
         run: |
-          # Determine app name based on whether this is a GPU variant
-          if [ -n "${{ matrix.features }}" ]; then
-            APP_NAME="scramblery-${{ matrix.features }}"
-          else
-            APP_NAME="scramblery"
+          sed -i.bak -e "s/^product-name = \"scramblery\"/product-name = \"$APP_NAME\"/" app/Cargo.toml
+          if [ "${{ matrix.platform }}" = "macos-latest" ] && [ "${{ matrix.features }}" = "webgpu" ]; then
+            printf '\n[package.metadata.packager.macos]\nframeworks = ["webgpu-dylibs/libwebgpu_dawn.dylib"]\n' >> app/Cargo.toml
           fi
+          sed -n '/package.metadata.packager/,$p' app/Cargo.toml
 
-          # Try the standard output location first (for tauri apps built with target aarch64-apple-darwin)
-          APP_PATH="./target/aarch64-apple-darwin/release/bundle/macos/${APP_NAME}.app"
-          if [ -d "$APP_PATH" ]; then
-            echo "Found app bundle at $APP_PATH"
-          elif [ -f "${APP_NAME}_aarch64.app.tar.gz" ]; then
-            TARGET_DIR="./target/aarch64-apple-darwin/release/bundle/macos"
-            mkdir -p "$TARGET_DIR"
-            echo "Extracting ${APP_NAME}_aarch64.app.tar.gz to $TARGET_DIR"
-            tar -xzf "${APP_NAME}_aarch64.app.tar.gz" -C "$TARGET_DIR"
-            APP_PATH="$TARGET_DIR/${APP_NAME}.app"
-          else
-            # Fallback: find any .app in the bundle directory
-            APP_PATH=$(find ./target/aarch64-apple-darwin/release/bundle/macos -maxdepth 1 -name "*.app" | head -n 1)
-            if [ -z "$APP_PATH" ]; then
-              echo "No app bundle found to sign."
-              exit 1
-            fi
-            echo "Found app bundle at $APP_PATH"
-          fi
+      - name: Package (Windows)
+        if: matrix.platform == 'windows-latest'
+        shell: bash
+        working-directory: app
+        run: cargo packager --release --formats nsis
+
+      - name: Package (Linux)
+        if: startsWith(matrix.platform, 'ubuntu')
+        working-directory: app
+        env:
+          LD_LIBRARY_PATH: ${{ github.workspace }}/target/release
+        run: cargo packager --release --formats deb,appimage
+
+      - name: Package (macOS)
+        if: matrix.platform == 'macos-latest'
+        working-directory: app
+        run: |
+          cargo packager --release --formats app
+          APP_PATH="../target/packages/${APP_NAME}.app"
           echo "Signing app at $APP_PATH"
           codesign --force --deep --sign - "$APP_PATH"
-          echo "Verifying signature:"
           codesign --verify --deep --strict "$APP_PATH" && echo "Signature OK"
 
           VERSION=${GITHUB_REF_NAME#v}
-          DMG_NAME="${APP_NAME}_${VERSION}_aarch64.dmg"
-          echo "Creating DMG package: $DMG_NAME"
-          hdiutil create -volname "Scramblery" -srcfolder "$APP_PATH" -ov -format UDZO "$DMG_NAME"
+          hdiutil create -volname "Scramblery" -srcfolder "$APP_PATH" -ov -format UDZO "../target/packages/${APP_NAME}_${VERSION}_aarch64.dmg"
 
-          echo "Uploading $DMG_NAME to GitHub Release..."
-          gh release upload ${{ github.ref_name }} "$DMG_NAME" --clobber
+      - name: Name installers after the variant
+        if: matrix.features != '' && matrix.platform != 'macos-latest'
+        shell: bash
+        working-directory: target/packages
+        run: |
+          for f in scramblery_*-setup.exe scramblery_*.deb scramblery_*.AppImage; do
+            [ -e "$f" ] && mv "$f" "${APP_NAME}_${f#scramblery_}"
+          done
+          ls -la
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: 'Scramblery ${{ github.ref_name }}'
+          body_path: .github/RELEASE_NOTES.md
+          draft: false
+          prerelease: false
+          fail_on_unmatched_files: false
+          files: |
+            target/packages/*.dmg
+            target/packages/*-setup.exe
+            target/packages/*.deb
+            target/packages/*.AppImage
