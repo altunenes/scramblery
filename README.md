@@ -22,12 +22,19 @@ This is a "byproduct" of my research for my master's [thesis](https://www.tandfo
 
 ## Features
 
-- **Image Scrambling:** Various techniques—including advanced Fourier-based scrambling.
-- **Video Scrambling:** Efficient frame processing via GStreamer's pipeline.
-- **Batch Processing & Face Detection:** Process image directories and optionally target faces.
-- **Face Detection:** Detect facial area and scramble facial area (options for: exclude/include bg).
-- **Diffeomorphic Scrambling:** Smooth, topology-preserving spatial warping based on random DCT flow fields. See [acknowledgements](#acknowledgements).
-- **Temporal Coherence (Optical Flow):** Preserve original motion in scrambled video output using SEA-RAFT optical flow. See [acknowledgements](#acknowledgements).
+- **Image Scrambling:** Pixel, Fourier phase, block, Gaussian blur and diffeomorphic scrambling (Stojanoski & Cusack, 2014).
+- **Spatial-Frequency Control:** Scramble (or filter) a low-pass, high-pass or band-pass range given in cycles per pixel, cycles per image or cycles per degree.
+- **Analysis:** Compare original and scrambled images: mean luminance, RMS contrast, histograms, rotationally averaged amplitude spectrum and its slope, clipping and SSIM.
+- **Normalization:** Equate mean luminance and contrast, histograms or amplitude spectra across a set of images, using the methods of the SHINE toolbox (Willenbockel et al., 2010).
+- **Matching:** Match each scrambled image to its original, to fixed values or to a set average, live in the preview and in batch and video processing.
+- **Stimulus Sets:** Batch processing of folders, several differently seeded scrambles per image, and intensity series that vary only the scrambling strength, e.g. for psychometric functions.
+- **Faces and Apertures:** Restrict scrambling to detected faces (face outline from facial landmarks, ellipse or box, with soft edges), keeping or removing the background, and show stimuli through circular or elliptical windows on a uniform surround.
+- **Reproducibility:** Every result records its seed; saved images get a JSON file with the exact settings, batch runs write a CSV report with per-image statistics, and settings can be saved and loaded as recipes.
+- **Bit Depth and Linear Light:** 16-bit images are processed and saved at 16 bits, and processing can optionally run in linear light rather than on gamma-encoded values.
+- **Video Scrambling:** Frame-wise scrambling with a fixed or changing pattern, scrambling that follows the original motion (SEA-RAFT optical flow), and spatiotemporal phase scrambling that preserves spatial and temporal frequency content. Video is processed losslessly in its own colour space, at up to 10 bits, and in parallel.
+- **Command Line:** `scramblery-cli` runs every method, the analysis and normalization from scripts. See [BUILD.md](BUILD.md).
+
+How each method and statistic is defined is described in [docs/methods.md](docs/methods.md).
 
 ## Examples
 
@@ -60,7 +67,11 @@ Scramblery uses the following methods. If you use these features in your researc
 
 > Stojanoski, B., & Cusack, R. (2014). Time to wave good-bye to phase scrambling: Creating controlled scrambled images using diffeomorphic transformations. *Journal of Vision*, 14(12):6, 1–16. doi:[10.1167/14.12.6](https://doi.org/10.1167/14.12.6)
 
-**SEA-RAFT Optical Flow (Temporal Coherence):**
+**Normalization:**
+
+> Willenbockel, V., Sadr, J., Fiset, D., Horne, G. O., Gosselin, F., & Tanaka, J. W. (2010). Controlling low-level image properties: The SHINE toolbox. *Behavior Research Methods*, 42(3), 671–684. doi:[10.3758/BRM.42.3.671](https://doi.org/10.3758/BRM.42.3.671)
+
+**SEA-RAFT Optical Flow (Follow motion):**
 
 > Wang, Y., Lipson, L., & Deng, J. (2024). SEA-RAFT: Simple, Efficient, Accurate RAFT for Optical Flow. *European Conference on Computer Vision (ECCV)*. Princeton Vision & Learning Lab.
 

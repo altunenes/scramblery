@@ -17,13 +17,34 @@ cargo run --release
 
 For GPU-accelerated optical flow, add a feature: `cargo run --release --features webgpu` (also `cuda`, `directml`).
 
+**Command line:**
+
+```bash
+cargo run --release -p scramblery-cli -- --help
+cargo run --release -p scramblery-cli -- config fourier > fourier.json   # edit, then:
+cargo run --release -p scramblery-cli -- scramble input.png -o output.png -c fourier.json --seed 42
+cargo run --release -p scramblery-cli -- scramble images/ -o scrambled/ -c fourier.json
+cargo run --release -p scramblery-cli -- scramble images/ -o series/ -c fourier.json --exemplars 3 --levels 0,25,50,75,100 --match histogram
+cargo run --release -p scramblery-cli -- analyze output.png --reference input.png
+cargo run --release -p scramblery-cli -- normalize images/ -o normalized/ --method luminance
+```
+
+**Tests:**
+
+```bash
+cargo test --workspace
+```
+
+`engine/tests/properties.rs` checks the properties each method is documented to preserve. On macOS, set `DYLD_FALLBACK_LIBRARY_PATH=/Library/Frameworks/GStreamer.framework/Versions/Current/lib` so the test binaries find GStreamer.
+
 **Project layout:**
 
-*   `app/` — the desktop app, built with [Slint](https://slint.dev). `app/ui/` holds the interface, `app/src/` the Rust code.
-*   `engine/` — all scrambling algorithms, batch and video processing.
-*   `face_detection/`, `optical_flow/`, `onnx/` — ONNX Runtime models.
-*   `video-processor/` — GStreamer decoding and encoding.
-*   `resources/models/` — ONNX model files.
+*   `app/`: the desktop app, built with [Slint](https://slint.dev). `app/ui/` holds the interface, `app/src/` the Rust code.
+*   `cli/`: the `scramblery-cli` command-line tool.
+*   `engine/`: scrambling, analysis, normalization, batch and video processing.
+*   `face_detection/`, `optical_flow/`, `onnx/`: ONNX Runtime models.
+*   `video-processor/`: GStreamer decoding and encoding.
+*   `resources/models/`: ONNX model files.
 
 **Package an installer:**
 
