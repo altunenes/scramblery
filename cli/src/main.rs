@@ -41,7 +41,8 @@ enum Command {
         #[arg(long, default_value_t = 1)]
         exemplars: usize,
         /// Comma-separated strength levels for an intensity series (folder input): percent for
-        /// pixel and Fourier, sigma in px for blur, maximum distortion in px for diffeomorphic.
+        /// pixel, Fourier and local phase, sigma in px for blur, maximum distortion in px for
+        /// diffeomorphic.
         #[arg(long, value_delimiter = ',')]
         levels: Option<Vec<f32>>,
     },
@@ -174,6 +175,7 @@ enum Method {
     Block,
     Blur,
     Diffeomorphic,
+    LocalPhase,
 }
 
 impl Method {
@@ -184,6 +186,7 @@ impl Method {
             Method::Block => ScrambleType::Block(BlockOptions::default()),
             Method::Blur => ScrambleType::Blur(BlurOptions::default()),
             Method::Diffeomorphic => ScrambleType::Diffeomorphic(DiffeomorphicOptions::default()),
+            Method::LocalPhase => ScrambleType::LocalPhase(LocalPhaseOptions::default()),
         };
         ScrambleOptions { scramble_type, ..Default::default() }
     }
@@ -227,6 +230,20 @@ fn load_options(config: Option<&Path>, method: Method, seed: Option<u64>) -> Res
     Ok(options)
 }
 
+/// Fails when the settings file written for an output would replace the config file in use.
+fn keep_config(config: Option<&Path>, settings: &Path) -> Result<()> {
+    let Some(config) = config else { return Ok(()) };
+    if let (Ok(a), Ok(b)) = (config.canonicalize(), settings.canonicalize()) {
+        if a == b {
+            bail!(
+                "The settings for this output would be written to {}, which is the config file. Choose another output name or move the config.",
+                settings.display()
+            );
+        }
+    }
+    Ok(())
+}
+
 fn main() -> Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn")).init();
     match Cli::parse().command {
@@ -236,6 +253,7 @@ fn main() -> Result<()> {
                 options.matching = Some(m);
             }
             if input.is_dir() {
+                keep_config(config.as_deref(), &output.join(SETTINGS_FILE))?;
                 let batch = BatchProcessingOptions { exemplars, levels, ..BatchProcessingOptions::new(input, output.clone(), options) };
                 scramble_folder(&batch)
             } else {
@@ -245,6 +263,7 @@ fn main() -> Result<()> {
                     }
                     _ => None,
                 };
+                keep_config(config.as_deref(), &settings_path(&output))?;
                 scramble_file(&input, &output, &options, set_target.as_ref())
             }
         }
@@ -277,6 +296,7 @@ fn main() -> Result<()> {
             Ok(())
         }
         Command::Video { input, output, config, method, seed, fidelity, frame_seeds, follow_motion, spatiotemporal, matching, reference_dir, color_standard, memory_gb } => {
+            keep_config(config.as_deref(), &output.with_extension("json"))?;
             let mut scramble_options = load_options(config.as_deref(), method, seed)?;
             if let Some(m) = matching.options() {
                 scramble_options.matching = Some(m);

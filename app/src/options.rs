@@ -2,7 +2,7 @@ use engine::aperture::{ApertureOptions, ApertureShape, Surround};
 use engine::matching::{MatchOptions, MatchProperty, MatchTarget};
 use engine::{
     BackgroundMode, BlockOptions, BlurOptions, DiffeomorphicOptions, FaceDetectionOptions,
-    FourierOptions, FrequencyRange, FrequencyUnit, MaskShape, PaddingMode, RangeHandling, ScrambleOptions, ScrambleType,
+    FourierOptions, LocalPhaseOptions, FrequencyRange, FrequencyUnit, MaskShape, PaddingMode, RangeHandling, ScrambleOptions, ScrambleType,
 };
 use slint::ComponentHandle;
 
@@ -14,6 +14,22 @@ pub fn frequency_unit(ui: &AppWindow) -> FrequencyUnit {
         1 => FrequencyUnit::CyclesPerImage,
         2 => FrequencyUnit::CyclesPerDegree { pixels_per_degree: p.get_pixels_per_degree() },
         _ => FrequencyUnit::CyclesPerPixel,
+    }
+}
+
+fn padding_mode(index: i32) -> PaddingMode {
+    match index {
+        1 => PaddingMode::Reflect,
+        2 => PaddingMode::Mean,
+        _ => PaddingMode::Wrap,
+    }
+}
+
+fn padding_index(mode: PaddingMode) -> i32 {
+    match mode {
+        PaddingMode::Wrap => 0,
+        PaddingMode::Reflect => 1,
+        PaddingMode::Mean => 2,
     }
 }
 
@@ -43,11 +59,7 @@ pub fn scramble_options(ui: &AppWindow) -> ScrambleOptions {
             unit: frequency_unit(ui),
             remove_outside_range: p.get_remove_outside_range(),
             phase_scramble: p.get_phase_scramble(),
-            padding_mode: match p.get_fourier_padding() {
-                1 => PaddingMode::Reflect,
-                2 => PaddingMode::Mean,
-                _ => PaddingMode::Wrap,
-            },
+            padding_mode: padding_mode(p.get_fourier_padding()),
             grayscale: p.get_grayscale(),
         }),
         2 => ScrambleType::Block(BlockOptions {
@@ -59,6 +71,12 @@ pub fn scramble_options(ui: &AppWindow) -> ScrambleOptions {
             max_distortion: p.get_max_distortion(),
             n_steps: p.get_warp_steps().round() as u32,
             n_comp: p.get_dct_components().round() as u32,
+        }),
+        5 => ScrambleType::LocalPhase(LocalPhaseOptions {
+            intensity,
+            scales: p.get_local_scales().round().max(1.0) as u32,
+            orientations: p.get_local_orientations().round().max(1.0) as u32,
+            padding_mode: padding_mode(p.get_local_padding()),
         }),
         _ => ScrambleType::Pixel,
     };
@@ -152,11 +170,7 @@ pub fn apply_options(ui: &AppWindow, options: &ScrambleOptions) {
             }
             p.set_remove_outside_range(o.remove_outside_range);
             p.set_phase_scramble(o.phase_scramble);
-            p.set_fourier_padding(match o.padding_mode {
-                PaddingMode::Wrap => 0,
-                PaddingMode::Reflect => 1,
-                PaddingMode::Mean => 2,
-            });
+            p.set_fourier_padding(padding_index(o.padding_mode));
             p.set_grayscale(o.grayscale);
         }
         ScrambleType::Block(o) => {
@@ -174,6 +188,13 @@ pub fn apply_options(ui: &AppWindow, options: &ScrambleOptions) {
             p.set_max_distortion(o.max_distortion);
             p.set_warp_steps(o.n_steps as f32);
             p.set_dct_components(o.n_comp as f32);
+        }
+        ScrambleType::LocalPhase(o) => {
+            p.set_method(5);
+            p.set_intensity(o.intensity * 100.0);
+            p.set_local_scales(o.scales as f32);
+            p.set_local_orientations(o.orientations as f32);
+            p.set_local_padding(padding_index(o.padding_mode));
         }
     }
     p.set_face_detection(options.face_detection.is_some());

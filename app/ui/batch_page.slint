@@ -114,7 +114,7 @@ export component BatchPage inherits HorizontalLayout {
                     spacing: 6px;
 
                     Text {
-                        text: Params.method == 0 || Params.method == 1 ? "Levels (intensity, %)" : Params.method == 3 ? "Levels (sigma, px)" : "Levels (maximum distortion, px)";
+                        text: Params.method == 0 || Params.method == 1 || Params.method == 5 ? "Levels (intensity, %)" : Params.method == 3 ? "Levels (sigma, px)" : "Levels (maximum distortion, px)";
                         color: Theme.text;
                         font-size: Theme.text-md;
                     }

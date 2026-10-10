@@ -20,7 +20,7 @@ This is a "byproduct" of my research for my master's [thesis](https://www.tandfo
 
 ## Features
 
-- **Image Scrambling:** Pixel, Fourier phase, block, Gaussian blur and diffeomorphic scrambling (Stojanoski & Cusack, 2014).
+- **Image Scrambling:** Pixel, Fourier phase, local phase, block, Gaussian blur and diffeomorphic scrambling (Stojanoski & Cusack, 2014). Local phase scrambling randomises phase within Gabor-like bands of scale and orientation, so contrast stays where it was in the image.
 - **Spatial Frequency Control:** Scramble (or filter) a low-pass, high-pass or band-pass range given in cycles per pixel, cycles per image or cycles per degree.
 - **Analysis:** Compare original and scrambled images: mean luminance, RMS contrast, histograms, rotationally averaged amplitude spectrum and its slope, clipping and SSIM.
 - **Normalization:** Equate mean luminance and contrast, histograms or amplitude spectra across a set of images, using the methods of the SHINE toolbox (Willenbockel et al., 2010).
@@ -37,7 +37,7 @@ How each method and statistic is defined is described in [docs/methods.md](docs/
 ## Examples
 
 <p align="center">
-  <img src="docs/images/methods.webp" width="640" alt="The Mona Lisa and five scrambled versions: pixel, Fourier phase, block, Gaussian blur and diffeomorphic">
+  <img src="docs/images/methods.webp" width="820" alt="The Mona Lisa and six scrambled versions: pixel, Fourier phase, local phase, block, Gaussian blur and diffeomorphic">
 </p>
 
 An intensity series made with one seed: Fourier phase scrambling at 0% to 100%. Mean colour and the amplitude spectrum are kept at every level, apart from the few values clipped to the displayable range.
@@ -58,7 +58,7 @@ Every result can be checked in the Analysis view: luminance, contrast, spectral 
   <img src="docs/images/analysis.webp" width="820" alt="Analysis view comparing the original and the phase scrambled image: statistics table, luminance histograms and amplitude spectra">
 </p>
 
-*Image: Mona Lisa, Leonardo da Vinci (public domain, via Wikimedia Commons).*
+*Image: Mona Lisa, Leonardo da Vinci.*
 
 ### Video
 

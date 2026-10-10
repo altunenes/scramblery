@@ -10,6 +10,7 @@ pub enum ScrambleType {
     Block(BlockOptions),
     Blur(BlurOptions),
     Diffeomorphic(DiffeomorphicOptions),
+    LocalPhase(LocalPhaseOptions),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq)]
@@ -198,6 +199,26 @@ impl Default for FourierOptions {
             padding_mode: PaddingMode::Wrap,
             grayscale: false,
         }
+    }
+}
+
+/// Local phase scrambling with a complex steerable filter bank (see `scramble::local_phase`).
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct LocalPhaseOptions {
+    /// Scale of the random phase added to each band coefficient (0..1). At 1 the local phase is
+    /// uniformly random.
+    pub intensity: f32,
+    /// Number of octave-spaced scales, the finest centred on 1/4 cycle per pixel. Structure
+    /// coarser than the coarsest scale is kept.
+    pub scales: u32,
+    /// Number of orientations per scale.
+    pub orientations: u32,
+    pub padding_mode: PaddingMode,
+}
+
+impl Default for LocalPhaseOptions {
+    fn default() -> Self {
+        Self { intensity: 1.0, scales: 5, orientations: 4, padding_mode: PaddingMode::Reflect }
     }
 }
 
