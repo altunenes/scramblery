@@ -1,0 +1,41 @@
+import { Palette } from "std-widgets.slint";
+
+export global Theme {
+    out property <bool> dark: Palette.color-scheme != ColorScheme.light;
+
+    public function toggle() {
+        Palette.color-scheme = self.dark ? ColorScheme.light : ColorScheme.dark;
+    }
+
+    out property <color> bg: dark ? #0d0e10 : #f5f5f7;
+    out property <color> panel: dark ? #131417 : #ffffff;
+    out property <color> surface: dark ? #17181c : #ffffff;
+    out property <color> raised: dark ? #202127 : #f0f0f3;
+    out property <color> raised-hover: dark ? #272930 : #e7e7ec;
+    out property <color> canvas: dark ? #0a0a0c : #ebebef;
+    out property <color> border: dark ? #222429 : #e5e5ea;
+    out property <color> border-strong: dark ? #2e3037 : #d6d6dd;
+
+    out property <color> text: dark ? #ececef : #18191d;
+    out property <color> muted: dark ? #9799a2 : #5f616a;
+    out property <color> faint: dark ? #62656e : #9a9ca5;
+
+    out property <color> accent: dark ? #8f80fa : #5a4bd8;
+    out property <color> accent-hover: dark ? #a093ff : #4c3dc8;
+    out property <color> accent-soft: dark ? #8f80fa.with-alpha(0.15) : #5a4bd8.with-alpha(0.09);
+    out property <color> on-accent: #ffffff;
+
+    out property <color> success: dark ? #5ad08a : #17924a;
+    out property <color> danger: dark ? #f27b7b : #cf3434;
+    out property <color> danger-soft: dark ? #f27b7b.with-alpha(0.12) : #cf3434.with-alpha(0.08);
+
+    out property <length> radius-sm: 6px;
+    out property <length> radius: 8px;
+    out property <length> radius-lg: 12px;
+
+    out property <length> text-xs: 11px;
+    out property <length> text-sm: 12px;
+    out property <length> text-md: 13px;
+    out property <length> text-lg: 15px;
+    out property <length> text-xl: 22px;
+}

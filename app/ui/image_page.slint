@@ -1,0 +1,435 @@
+import { Spinner } from "std-widgets.slint";
+import { Theme } from "theme.slint";
+import { Icon, Button, Toggle, Segmented, ErrorBanner } from "widgets.slint";
+import { ScrambleSettings } from "settings.slint";
+
+export global ImageState {
+    in property <image> original;
+    in property <image> result;
+    in property <bool> has-image;
+    in property <bool> has-result;
+    in property <string> file-name;
+    in property <string> dimensions;
+    in property <bool> busy;
+    in property <string> status;
+    in property <string> error;
+    in-out property <bool> live-preview: true;
+    // 0 side by side, 1 split, 2 result only
+    in-out property <int> view-mode: 0;
+
+    callback open-image();
+    callback scramble();
+    callback save();
+    callback dismiss-error();
+}
+
+component Caption inherits Rectangle {
+    in property <string> text;
+    height: 24px;
+    width: label.preferred-width + 16px;
+    border-radius: 12px;
+    background: #000000a0;
+
+    label := Text {
+        text: root.text;
+        color: #ffffff;
+        font-size: Theme.text-xs;
+        font-weight: 600;
+    }
+}
+
+component Placeholder inherits Rectangle {
+    in property <bool> busy;
+
+    if root.busy: Spinner {
+        width: 32px;
+        height: 32px;
+        indeterminate: true;
+    }
+
+    if !root.busy: Text {
+        text: "Press Scramble to see the result";
+        color: Theme.faint;
+        font-size: Theme.text-md;
+    }
+}
+
+component Pane inherits VerticalLayout {
+    in property <string> title;
+    in property <string> detail;
+    in property <image> source;
+    in property <bool> has-source;
+    in property <bool> busy;
+    spacing: 10px;
+
+    HorizontalLayout {
+        spacing: 8px;
+
+        Text {
+            text: root.title;
+            color: Theme.text;
+            font-size: Theme.text-md;
+            font-weight: 600;
+        }
+
+        Text {
+            text: root.detail;
+            color: Theme.faint;
+            font-size: Theme.text-sm;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+        }
+    }
+
+    Rectangle {
+        border-radius: Theme.radius;
+        background: Theme.canvas;
+        clip: true;
+
+        if root.has-source: Image {
+            width: parent.width;
+            height: parent.height;
+            source: root.source;
+            image-fit: contain;
+        }
+
+        if !root.has-source: Placeholder {
+            busy: root.busy;
+        }
+
+        if root.has-source && root.busy: Rectangle {
+            x: parent.width - 40px;
+            y: 12px;
+            width: 28px;
+            height: 28px;
+            border-radius: 14px;
+            background: #000000a0;
+
+            Spinner {
+                width: 18px;
+                height: 18px;
+                indeterminate: true;
+            }
+        }
+    }
+}
+
+component SplitView inherits Rectangle {
+    in property <image> original;
+    in property <image> result;
+    in property <bool> has-result;
+    in-out property <float> split: 0.5;
+
+    border-radius: Theme.radius;
+    background: Theme.canvas;
+    clip: true;
+
+    Image {
+        width: parent.width;
+        height: parent.height;
+        source: root.original;
+        image-fit: contain;
+    }
+
+    if root.has-result: Rectangle {
+        x: 0;
+        width: parent.width * root.split;
+        height: parent.height;
+        clip: true;
+
+        Image {
+            x: 0;
+            width: root.width;
+            height: root.height;
+            source: root.result;
+            image-fit: contain;
+        }
+    }
+
+    Rectangle {
+        x: parent.width * root.split - 1px;
+        width: 2px;
+        height: parent.height;
+        background: #ffffff;
+    }
+
+    Rectangle {
+        x: parent.width * root.split - 14px;
+        y: (parent.height - 28px) / 2;
+        width: 28px;
+        height: 28px;
+        border-radius: 14px;
+        background: #ffffff;
+        drop-shadow-blur: 6px;
+        drop-shadow-color: #00000055;
+
+        Text {
+            text: "‹ ›";
+            color: #222222;
+            font-size: Theme.text-md;
+            font-weight: 700;
+        }
+    }
+
+    Caption {
+        x: 12px;
+        y: 12px;
+        text: "Scrambled";
+    }
+
+    Caption {
+        x: parent.width - self.width - 12px;
+        y: 12px;
+        text: "Original";
+    }
+
+    TouchArea {
+        mouse-cursor: ew-resize;
+        pointer-event(event) => {
+            if (event.kind == PointerEventKind.down) {
+                root.split = Math.clamp(self.mouse-x / root.width, 0, 1);
+            }
+        }
+        moved => {
+            root.split = Math.clamp(self.mouse-x / root.width, 0, 1);
+        }
+    }
+}
+
+component EmptyState inherits VerticalLayout {
+    callback open();
+    alignment: center;
+    spacing: 18px;
+
+    HorizontalLayout {
+        alignment: center;
+
+        Rectangle {
+            width: 64px;
+            height: 64px;
+            border-radius: 32px;
+            background: Theme.accent-soft;
+
+            Icon {
+                source: @image-url("icons/image.svg");
+                tint: Theme.accent;
+                width: 28px;
+                height: 28px;
+            }
+        }
+    }
+
+    VerticalLayout {
+        spacing: 6px;
+
+        Text {
+            text: "Open an image to begin";
+            color: Theme.text;
+            font-size: Theme.text-xl;
+            font-weight: 700;
+            horizontal-alignment: center;
+        }
+
+        Text {
+            text: "The result updates live as you adjust the settings on the left.";
+            color: Theme.muted;
+            font-size: Theme.text-md;
+            horizontal-alignment: center;
+        }
+    }
+
+    HorizontalLayout {
+        alignment: center;
+
+        Button {
+            text: "Open image…";
+            icon: @image-url("icons/upload.svg");
+            primary: true;
+            clicked => {
+                root.open();
+            }
+        }
+    }
+
+    Text {
+        text: "PNG · JPEG · WebP · TIFF · BMP · GIF";
+        color: Theme.faint;
+        font-size: Theme.text-sm;
+        horizontal-alignment: center;
+    }
+}
+
+component Toolbar inherits Rectangle {
+    height: 60px;
+
+    Rectangle {
+        y: parent.height - 1px;
+        height: 1px;
+        background: Theme.border;
+    }
+
+    HorizontalLayout {
+        padding-left: 24px;
+        padding-right: 16px;
+        spacing: 12px;
+
+        VerticalLayout {
+            alignment: center;
+            spacing: 2px;
+            horizontal-stretch: 1;
+            min-width: 120px;
+
+            Text {
+                text: ImageState.file-name;
+                color: Theme.text;
+                font-size: Theme.text-md;
+                font-weight: 600;
+                overflow: elide;
+            }
+
+            Text {
+                text: ImageState.dimensions;
+                color: Theme.faint;
+                font-size: Theme.text-sm;
+                overflow: elide;
+            }
+        }
+
+        VerticalLayout {
+            alignment: center;
+
+            Segmented {
+                width: 270px;
+                options: ["Side by side", "Split", "Result"];
+                current-index <=> ImageState.view-mode;
+            }
+        }
+
+        Rectangle {
+            width: 1px;
+        }
+
+        HorizontalLayout {
+            spacing: 8px;
+
+            VerticalLayout {
+                alignment: center;
+
+                Toggle {
+                    checked <=> ImageState.live-preview;
+                }
+            }
+
+            Text {
+                text: "Live";
+                color: Theme.muted;
+                font-size: Theme.text-md;
+                vertical-alignment: center;
+            }
+        }
+
+        VerticalLayout {
+            alignment: center;
+
+            Button {
+                text: "Scramble";
+                icon: @image-url("icons/shuffle.svg");
+                enabled: !ImageState.busy;
+                clicked => {
+                    ImageState.scramble();
+                }
+            }
+        }
+
+        VerticalLayout {
+            alignment: center;
+
+            Button {
+                text: "Save";
+                icon: @image-url("icons/download.svg");
+                primary: true;
+                enabled: ImageState.has-result;
+                clicked => {
+                    ImageState.save();
+                }
+            }
+        }
+
+        VerticalLayout {
+            alignment: center;
+
+            Button {
+                icon: @image-url("icons/upload.svg");
+                subtle: true;
+                clicked => {
+                    ImageState.open-image();
+                }
+            }
+        }
+    }
+}
+
+export component ImagePage inherits HorizontalLayout {
+    ScrambleSettings { }
+
+    Rectangle {
+        horizontal-stretch: 1;
+        background: Theme.bg;
+
+        if !ImageState.has-image: EmptyState {
+            open => {
+                ImageState.open-image();
+            }
+        }
+
+        if ImageState.has-image: VerticalLayout {
+            Toolbar { }
+
+            VerticalLayout {
+                padding: 24px;
+                spacing: 12px;
+
+                if ImageState.error != "": ErrorBanner {
+                    message: ImageState.error;
+                    dismiss => {
+                        ImageState.dismiss-error();
+                    }
+                }
+
+                if ImageState.view-mode == 0: HorizontalLayout {
+                    spacing: 20px;
+
+                    Pane {
+                        width: (parent.width - 20px) / 2;
+                        title: "Original";
+                        source: ImageState.original;
+                        has-source: true;
+                    }
+
+                    Pane {
+                        width: (parent.width - 20px) / 2;
+                        title: "Scrambled";
+                        detail: ImageState.status;
+                        source: ImageState.result;
+                        has-source: ImageState.has-result;
+                        busy: ImageState.busy;
+                    }
+                }
+
+                if ImageState.view-mode == 1: SplitView {
+                    original: ImageState.original;
+                    result: ImageState.result;
+                    has-result: ImageState.has-result;
+                }
+
+                if ImageState.view-mode == 2: Pane {
+                    title: "Scrambled";
+                    detail: ImageState.status;
+                    source: ImageState.result;
+                    has-source: ImageState.has-result;
+                    busy: ImageState.busy;
+                }
+            }
+        }
+    }
+}

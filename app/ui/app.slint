@@ -1,0 +1,350 @@
+import "fonts/Inter-Regular.ttf";
+import "fonts/Inter-Medium.ttf";
+import "fonts/Inter-SemiBold.ttf";
+import "fonts/Inter-Bold.ttf";
+
+import { Theme } from "theme.slint";
+import { Icon, Help } from "widgets.slint";
+import { Params } from "settings.slint";
+import { ImagePage, ImageState } from "image_page.slint";
+import { BatchPage, BatchState } from "batch_page.slint";
+import { VideoPage, VideoState } from "video_page.slint";
+
+export { Params, ImageState, BatchState, VideoState, Theme }
+
+export global AppInfo {
+    in property <string> version;
+    callback open-url(string);
+}
+
+component RailItem inherits Rectangle {
+    in property <string> label;
+    in property <image> icon;
+    in property <bool> selected;
+    in property <bool> working;
+    callback clicked;
+
+    width: 60px;
+    height: 56px;
+    border-radius: Theme.radius;
+    background: root.selected ? Theme.accent-soft : touch.has-hover ? Theme.raised : transparent;
+    animate background { duration: 120ms; }
+
+    VerticalLayout {
+        alignment: center;
+        spacing: 4px;
+
+        HorizontalLayout {
+            alignment: center;
+
+            Icon {
+                source: root.icon;
+                width: 20px;
+                height: 20px;
+                tint: root.selected ? Theme.accent : Theme.muted;
+            }
+        }
+
+        Text {
+            text: root.label;
+            color: root.selected ? Theme.accent : Theme.muted;
+            font-size: Theme.text-xs;
+            font-weight: root.selected ? 600 : 500;
+            horizontal-alignment: center;
+        }
+    }
+
+    if root.working: Rectangle {
+        x: parent.width - 14px;
+        y: 8px;
+        width: 7px;
+        height: 7px;
+        border-radius: 3.5px;
+        background: Theme.accent;
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => {
+            root.clicked();
+        }
+    }
+}
+
+component LinkRow inherits Rectangle {
+    in property <string> label;
+    in property <string> detail;
+    in property <image> icon;
+    callback clicked;
+
+    height: 56px;
+    border-radius: Theme.radius;
+    background: touch.has-hover ? Theme.raised : transparent;
+
+    HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 12px;
+        spacing: 14px;
+
+        VerticalLayout {
+            alignment: center;
+
+            Icon {
+                source: root.icon;
+            }
+        }
+
+        VerticalLayout {
+            alignment: center;
+            spacing: 2px;
+
+            Text {
+                text: root.label;
+                color: Theme.text;
+                font-size: Theme.text-md;
+                font-weight: 600;
+            }
+
+            Text {
+                text: root.detail;
+                color: Theme.muted;
+                font-size: Theme.text-sm;
+            }
+        }
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => {
+            root.clicked();
+        }
+    }
+}
+
+component AboutPage inherits Rectangle {
+    background: Theme.bg;
+
+    VerticalLayout {
+        alignment: center;
+
+        HorizontalLayout {
+            alignment: center;
+
+            VerticalLayout {
+                width: 480px;
+                spacing: 28px;
+
+                HorizontalLayout {
+                    spacing: 18px;
+
+                    Image {
+                        source: @image-url("../icons/128x128.png");
+                        width: 64px;
+                        height: 64px;
+                    }
+
+                    VerticalLayout {
+                        alignment: center;
+                        spacing: 4px;
+
+                        Text {
+                            text: "Scramblery";
+                            color: Theme.text;
+                            font-size: 28px;
+                            font-weight: 700;
+                        }
+
+                        Text {
+                            text: "Version " + AppInfo.version + " · GPL-3.0";
+                            color: Theme.muted;
+                            font-size: Theme.text-md;
+                        }
+                    }
+                }
+
+                Text {
+                    height: 60px;
+                    text: "Controlled image and video scrambling for vision science and psychophysics: pixel, Fourier phase, block, blur and diffeomorphic methods, with optional face-only processing.";
+                    color: Theme.muted;
+                    font-size: Theme.text-md;
+                    wrap: word-wrap;
+                }
+
+                VerticalLayout {
+                    spacing: 2px;
+
+                    LinkRow {
+                        label: "Cite Scramblery";
+                        detail: "doi.org/10.5281/zenodo.7484576";
+                        icon: @image-url("icons/book.svg");
+                        clicked => {
+                            AppInfo.open-url("https://doi.org/10.5281/zenodo.7484576");
+                        }
+                    }
+
+                    LinkRow {
+                        label: "Source code";
+                        detail: "github.com/altunenes/scramblery";
+                        icon: @image-url("icons/code.svg");
+                        clicked => {
+                            AppInfo.open-url("https://github.com/altunenes/scramblery");
+                        }
+                    }
+
+                    LinkRow {
+                        label: "Report an issue";
+                        detail: "Bugs, questions and feature requests";
+                        icon: @image-url("icons/message.svg");
+                        clicked => {
+                            AppInfo.open-url("https://github.com/altunenes/scramblery/issues");
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+export component AppWindow inherits Window {
+    title: "Scramblery";
+    icon: @image-url("../icons/128x128@2x.png");
+    preferred-width: 1320px;
+    preferred-height: 840px;
+    min-width: 1040px;
+    min-height: 660px;
+    background: Theme.bg;
+    default-font-family: "Inter";
+    default-font-size: Theme.text-md;
+
+    in-out property <int> page: 0;
+
+    changed page => {
+        Help.owner = "";
+    }
+
+    HorizontalLayout {
+        Rectangle {
+            width: 76px;
+            background: Theme.bg;
+
+            Rectangle {
+                x: parent.width - 1px;
+                width: 1px;
+                background: Theme.border;
+            }
+
+            VerticalLayout {
+                padding-top: 16px;
+                padding-bottom: 12px;
+                spacing: 6px;
+                alignment: start;
+
+                HorizontalLayout {
+                    alignment: center;
+                    padding-bottom: 14px;
+
+                    Image {
+                        source: @image-url("../icons/128x128.png");
+                        width: 32px;
+                        height: 32px;
+                    }
+                }
+
+                HorizontalLayout {
+                    alignment: center;
+
+                    RailItem {
+                        label: "Image";
+                        icon: @image-url("icons/image.svg");
+                        selected: root.page == 0;
+                        working: ImageState.busy && root.page != 0;
+                        clicked => {
+                            root.page = 0;
+                        }
+                    }
+                }
+
+                HorizontalLayout {
+                    alignment: center;
+
+                    RailItem {
+                        label: "Batch";
+                        icon: @image-url("icons/layers.svg");
+                        selected: root.page == 1;
+                        working: BatchState.busy && root.page != 1;
+                        clicked => {
+                            root.page = 1;
+                        }
+                    }
+                }
+
+                HorizontalLayout {
+                    alignment: center;
+
+                    RailItem {
+                        label: "Video";
+                        icon: @image-url("icons/video.svg");
+                        selected: root.page == 2;
+                        working: VideoState.busy && root.page != 2;
+                        clicked => {
+                            root.page = 2;
+                        }
+                    }
+                }
+            }
+
+            VerticalLayout {
+                y: parent.height - self.height;
+                height: 140px;
+                padding-bottom: 12px;
+                spacing: 6px;
+                alignment: end;
+
+                HorizontalLayout {
+                    alignment: center;
+
+                    RailItem {
+                        label: Theme.dark ? "Light" : "Dark";
+                        icon: Theme.dark ? @image-url("icons/sun.svg") : @image-url("icons/moon.svg");
+                        clicked => {
+                            Theme.toggle();
+                        }
+                    }
+                }
+
+                HorizontalLayout {
+                    alignment: center;
+
+                    RailItem {
+                        label: "About";
+                        icon: @image-url("icons/info.svg");
+                        selected: root.page == 3;
+                        clicked => {
+                            root.page = 3;
+                        }
+                    }
+                }
+            }
+        }
+
+        Rectangle {
+            horizontal-stretch: 1;
+
+            ImagePage {
+                visible: root.page == 0;
+            }
+
+            BatchPage {
+                visible: root.page == 1;
+            }
+
+            VideoPage {
+                visible: root.page == 2;
+            }
+
+            AboutPage {
+                visible: root.page == 3;
+            }
+        }
+    }
+}

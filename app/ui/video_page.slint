@@ -1,0 +1,188 @@
+import { Theme } from "theme.slint";
+import { Button, Card, PathRow, ProgressBar, ErrorBanner, PageHeader, Segmented, ToggleRow, ValueSlider } from "widgets.slint";
+import { ScrambleSettings } from "settings.slint";
+import { Workspace } from "batch_page.slint";
+
+export global VideoState {
+    in property <string> input-path;
+    in property <string> output-path;
+    // 0 Lossless, 1 HighQuality, 2 Fast
+    in-out property <int> fidelity: 2;
+    in-out property <bool> temporal-coherence;
+    in-out property <float> keyframe-interval: 30;
+    in-out property <float> blend-frames: 0;
+    in-out property <bool> export-flow;
+    in property <string> flow-dir;
+    in property <bool> busy;
+    in property <bool> done;
+    in property <float> progress; // 0..100
+    in property <string> error;
+
+    callback pick-input();
+    callback pick-output();
+    callback pick-flow-dir();
+    callback start();
+    callback open-output();
+    callback dismiss-error();
+}
+
+export component VideoPage inherits HorizontalLayout {
+    ScrambleSettings { }
+
+    Workspace {
+        PageHeader {
+            title: "Video processing";
+            subtitle: "Scramble every frame with the settings on the left. Audio is copied unchanged.";
+        }
+
+        Card {
+            title: "Files";
+
+            PathRow {
+                label: "Input video";
+                path: VideoState.input-path;
+                placeholder: "MP4, MOV, AVI or MKV";
+                icon: @image-url("icons/video.svg");
+                choose => {
+                    VideoState.pick-input();
+                }
+            }
+
+            PathRow {
+                label: "Output file";
+                path: VideoState.output-path;
+                placeholder: "Next to the input, as …_scrambled.mp4";
+                icon: @image-url("icons/download.svg");
+                action: "Change…";
+                choose => {
+                    VideoState.pick-output();
+                }
+            }
+        }
+
+        Card {
+            title: "Encoding";
+            subtitle: VideoState.fidelity == 0 ? "Exact pixels at full 4:4:4 colour, identical on every machine. Large files."
+                : VideoState.fidelity == 1 ? "Full 4:4:4 colour with light compression. Identical across machines."
+                : "GPU encoder at 4:2:0 colour. Small files, but output varies between machines.";
+
+            Segmented {
+                help: "Lossless or High quality are recommended for stimulus material: Fast discards three quarters of the colour detail and depends on the machine's encoder.";
+                label: "Fidelity";
+                options: ["Lossless", "High quality", "Fast"];
+                current-index <=> VideoState.fidelity;
+            }
+        }
+
+        Card {
+            title: "Motion";
+            subtitle: "Keyframes are scrambled fresh; frames in between follow the original motion.";
+
+            VerticalLayout {
+                spacing: 14px;
+
+                ToggleRow {
+                    label: "Temporal coherence (optical flow)";
+                    help: "Estimates motion with the SEA-RAFT optical flow model and warps the previous scrambled frame along it, so the scramble moves with the original video instead of flickering.";
+                    checked <=> VideoState.temporal-coherence;
+                }
+
+                if VideoState.temporal-coherence: VerticalLayout {
+                    spacing: 14px;
+
+                    ValueSlider {
+                        label: "Keyframe interval";
+                        help: "A fresh scramble every N frames. 0 = only the first frame. Higher values give smoother motion but accumulate more warp error.";
+                        maximum: 120;
+                        suffix: " frames";
+                        value <=> VideoState.keyframe-interval;
+                    }
+
+                    ValueSlider {
+                        label: "Keyframe blend";
+                        help: "Crossfade over this many frames at each keyframe. 0 = abrupt switch.";
+                        maximum: 10;
+                        suffix: " frames";
+                        value <=> VideoState.blend-frames;
+                    }
+
+                    ToggleRow {
+                        label: "Export flow fields (.flo)";
+                        help: "Save the estimated optical flow of every frame in Middlebury .flo format.";
+                        checked <=> VideoState.export-flow;
+                    }
+
+                    if VideoState.export-flow: PathRow {
+                        label: "Flow folder";
+                        path: VideoState.flow-dir;
+                        choose => {
+                            VideoState.pick-flow-dir();
+                        }
+                    }
+                }
+            }
+        }
+
+        Card {
+            title: VideoState.busy ? "Processing…" : VideoState.done ? "Finished" : "Run";
+
+            VerticalLayout {
+                spacing: 16px;
+
+                if VideoState.busy || VideoState.done: VerticalLayout {
+                    spacing: 8px;
+
+                    HorizontalLayout {
+                        Text {
+                            text: VideoState.busy ? "Encoding frames" : VideoState.output-path;
+                            color: Theme.text;
+                            font-size: Theme.text-md;
+                            overflow: elide;
+                            horizontal-stretch: 1;
+                        }
+
+                        Text {
+                            text: Math.round(VideoState.progress) + "%";
+                            color: Theme.muted;
+                            font-size: Theme.text-md;
+                        }
+                    }
+
+                    ProgressBar {
+                        progress: VideoState.progress / 100;
+                    }
+                }
+
+                if VideoState.error != "": ErrorBanner {
+                    message: VideoState.error;
+                    dismiss => {
+                        VideoState.dismiss-error();
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: 8px;
+                    alignment: end;
+
+                    if VideoState.done: Button {
+                        text: "Show in folder";
+                        icon: @image-url("icons/folder.svg");
+                        clicked => {
+                            VideoState.open-output();
+                        }
+                    }
+
+                    Button {
+                        text: VideoState.busy ? "Processing…" : "Process video";
+                        icon: @image-url("icons/shuffle.svg");
+                        primary: true;
+                        enabled: !VideoState.busy && VideoState.input-path != "";
+                        clicked => {
+                            VideoState.start();
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

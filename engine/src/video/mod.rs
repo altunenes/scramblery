@@ -1,11 +1,12 @@
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use anyhow::Result;
-use video_processor::{VideoProcessor, VideoFrameExt, VideoFidelity};
+use video_processor::{VideoProcessor, VideoFrameExt};
+pub use video_processor::VideoFidelity;
 use image::{DynamicImage, RgbaImage};
 use serde::{Serialize, Deserialize};
 use log::info;
-use crate::scramble::{ScrambleType, ScrambleOptions, TemporalCoherenceOptions, FaceDetectionOptions};
+use crate::scramble::{ScrambleOptions, TemporalCoherenceOptions, FaceDetectionOptions};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct VideoProcessingOptions {
@@ -20,57 +21,7 @@ pub struct VideoProcessingOptions {
 /// Apply scrambling to a single frame based on the scramble options.
 /// When face detection is enabled, only face regions are scrambled (background stays intact).
 fn scramble_frame(image: &RgbaImage, scramble_options: &ScrambleOptions) -> Result<DynamicImage> {
-    let (width, height) = image.dimensions();
-    let dyn_image = DynamicImage::ImageRgba8(image.clone());
-
-    match &scramble_options.scramble_type {
-        ScrambleType::Pixel => {
-            crate::scramble::scramble_pixels(&dyn_image, scramble_options)
-        }
-        ScrambleType::Fourier(fourier_opts) => {
-            let mut scrambler = crate::scramble::FourierScrambler::new(
-                width as usize,
-                height as usize,
-                fourier_opts.clone(),
-                scramble_options.seed,
-            );
-            if let Some(face_opts) = &scramble_options.face_detection {
-                scrambler.scramble_with_face_detection(&dyn_image, face_opts)
-            } else {
-                scrambler.scramble(&dyn_image)
-            }
-        }
-        ScrambleType::Block(block_opts) => {
-            let mut scrambler = crate::scramble::BlockScrambler::new(
-                block_opts.clone(),
-                scramble_options.seed,
-            );
-            if let Some(face_opts) = &scramble_options.face_detection {
-                scrambler.scramble_with_face_detection(&dyn_image, face_opts)
-            } else {
-                scrambler.scramble(&dyn_image)
-            }
-        }
-        ScrambleType::Blur(blur_opts) => {
-            let scrambler = crate::scramble::BlurScrambler::new(blur_opts.clone());
-            if let Some(face_opts) = &scramble_options.face_detection {
-                scrambler.scramble_with_face_detection(&dyn_image, face_opts)
-            } else {
-                scrambler.scramble(&dyn_image)
-            }
-        }
-        ScrambleType::Diffeomorphic(diff_opts) => {
-            let mut scrambler = crate::scramble::DiffeomorphicScrambler::new(
-                diff_opts.clone(),
-                scramble_options.seed,
-            );
-            if let Some(face_opts) = &scramble_options.face_detection {
-                scrambler.scramble_with_face_detection(&dyn_image, face_opts)
-            } else {
-                scrambler.scramble(&dyn_image)
-            }
-        }
-    }
+    crate::scramble::scramble_image(&DynamicImage::ImageRgba8(image.clone()), scramble_options)
 }
 
 /// Detect face regions on the given image. Returns bounding boxes.

@@ -138,9 +138,23 @@ pub fn new_session_from_path(path: PathBuf) -> Result<Session> {
 }
 
 pub fn new_session_from_path_with_config(path: PathBuf, config: &ModelConfig) -> Result<Session> {
-    Lazy::force(&ENV);
     info!("Creating new ONNX session from path: {:?} with config: {:?}", path, config);
+    let session = session_builder(config)?.commit_from_file(path)?;
+    info!("ONNX session created successfully");
+    Ok(session)
+}
 
+/// Creates a session from in-memory model bytes.
+pub fn new_session_from_memory(bytes: &[u8]) -> Result<Session> {
+    let config = ModelConfig::default();
+    info!("Creating new ONNX session from memory ({} bytes) with config: {:?}", bytes.len(), config);
+    let session = session_builder(&config)?.commit_from_memory(bytes)?;
+    info!("ONNX session created successfully");
+    Ok(session)
+}
+
+fn session_builder(config: &ModelConfig) -> Result<ort::session::builder::SessionBuilder> {
+    Lazy::force(&ENV);
     let mut builder = Session::builder()?
         .with_optimization_level(GraphOptimizationLevel::Level3).map_err(|e| ort::Error::new(e.message().to_string()))?
         .with_intra_threads(config.intra_threads).map_err(|e| ort::Error::new(e.message().to_string()))?
@@ -149,11 +163,41 @@ pub fn new_session_from_path_with_config(path: PathBuf, config: &ModelConfig) ->
     if let Some(ref configure) = config.configure {
         builder = configure(builder)?;
     }
+    Ok(builder)
+}
 
-    let session = builder.commit_from_file(path)?;
+/// Environment variable that overrides the directory bundled models are loaded from.
+pub const MODELS_DIR_ENV: &str = "SCRAMBLERY_MODELS_DIR";
 
-    info!("ONNX session created successfully");
-    Ok(session)
+/// Locates a bundled model file by name.
+///
+/// Search order:
+/// 1. `$SCRAMBLERY_MODELS_DIR/<name>`
+/// 2. Next to the installed executable: `<exe dir>/models` (Windows, AppImage),
+///    `<exe dir>/../Resources/models` (macOS .app), `<exe dir>/../lib/scramblery/models` (Linux .deb)
+/// 3. The repository's `resources/models` (development builds)
+pub fn find_model(name: &str) -> Result<PathBuf> {
+    let mut candidates: Vec<PathBuf> = Vec::new();
+
+    if let Some(dir) = std::env::var_os(MODELS_DIR_ENV) {
+        candidates.push(PathBuf::from(dir).join(name));
+    }
+
+    if let Some(exe_dir) = std::env::current_exe().ok().and_then(|p| p.parent().map(PathBuf::from)) {
+        candidates.push(exe_dir.join("models").join(name));
+        candidates.push(exe_dir.join("../Resources/models").join(name));
+        candidates.push(exe_dir.join("../lib/scramblery/models").join(name));
+    }
+
+    candidates.push(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../resources/models").join(name));
+
+    match candidates.iter().find(|p| p.is_file()) {
+        Some(path) => {
+            info!("Found model {} at {:?}", name, path);
+            Ok(path.clone())
+        }
+        None => anyhow::bail!("Model {} not found. Searched: {:?}", name, candidates),
+    }
 }
 
 pub use ort::value::{Tensor, Value};

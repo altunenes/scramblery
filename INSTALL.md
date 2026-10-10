@@ -48,4 +48,4 @@ Installing "runtime installer" should be enough, but if you want to develop and 
 
 ### Ubuntu
 
-Unfortunately, I couldn't test the app on Ubuntu, but it should work. I only suspect the path problem to finding the face detection model (on here: https://github.com/altunenes/scramblery/blob/c5c7692eacb6d0fd36b2e50de7718adfc8385d3c/face_detection/src/lib.rs#L52). I don't remember how the Tauri build deb handle the embedding paths. But it should be easy to fix if its not working. Please just open an issue/PR if you encounter any problem so we can fix it :)
+Install the `.deb` package, or make the `.AppImage` executable (`chmod +x`) and run it. GStreamer must be installed from your distribution's packages (see above). I couldn't test every distribution, so please open an issue/PR if you hit a problem :)

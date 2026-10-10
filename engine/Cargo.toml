@@ -10,7 +10,6 @@ webgpu = ["face_detection/webgpu", "optical_flow/webgpu"]
 directml = ["face_detection/directml", "optical_flow/directml"]
 
 [dependencies]
-base64 = "0.22.1"
 rayon = "1.10.0"
 num-complex = "0.4.6"
 itertools = "0.14.0"

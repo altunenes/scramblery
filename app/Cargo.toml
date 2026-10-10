@@ -1,0 +1,39 @@
+[package]
+name = "scramblery"
+version = "3.0.3"
+description = "Image and video scrambling for vision science"
+authors = ["@altunenes"]
+license = "GPL-3.0-only"
+edition = "2021"
+
+[features]
+cuda = ["engine/cuda"]
+migraphx = ["engine/migraphx"]
+webgpu = ["engine/webgpu"]
+directml = ["engine/directml"]
+
+[dependencies]
+engine = { path = "../engine" }
+image = { workspace = true }
+anyhow = { workspace = true }
+log = { workspace = true }
+slint = "1.18.1"
+rfd = "0.17.2"
+open = "5.4.4"
+env_logger = "0.11.11"
+
+[build-dependencies]
+slint-build = "1.18.1"
+
+[package.metadata.packager]
+product-name = "scramblery"
+identifier = "com.scramblery.app"
+publisher = "altunenes"
+homepage = "https://github.com/altunenes/scramblery"
+license-file = "../LICENSE"
+category = "Education"
+out-dir = "../target/packages"
+binaries-dir = "../target/release"
+binaries = [{ path = "scramblery", main = true }]
+icons = ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"]
+resources = [{ src = "../resources/models/searaft_flow_512x288.onnx", target = "models/searaft_flow_512x288.onnx" }]

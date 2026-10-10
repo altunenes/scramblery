@@ -1,0 +1,171 @@
+import { ScrollView } from "std-widgets.slint";
+import { Theme } from "theme.slint";
+import { Button, Card, PathRow, ProgressBar, ErrorBanner, Stat, PageHeader } from "widgets.slint";
+import { ScrambleSettings } from "settings.slint";
+
+export global BatchState {
+    in property <string> input-dir;
+    in property <string> output-dir;
+    in property <bool> busy;
+    in property <bool> done;
+    in property <int> processed;
+    in property <int> total;
+    in property <int> succeeded;
+    in property <int> failed;
+    in property <[string]> failures;
+    in property <string> error;
+
+    callback pick-input();
+    callback pick-output();
+    callback start();
+    callback open-output();
+    callback dismiss-error();
+}
+
+export component Workspace inherits Rectangle {
+    background: Theme.bg;
+    horizontal-stretch: 1;
+
+    ScrollView {
+        HorizontalLayout {
+            alignment: center;
+            padding-left: 32px;
+            padding-right: 32px;
+
+            VerticalLayout {
+                alignment: start;
+                min-width: 420px;
+                preferred-width: 680px;
+                max-width: 680px;
+                horizontal-stretch: 1;
+                padding-top: 40px;
+                padding-bottom: 40px;
+                spacing: 20px;
+
+                @children
+            }
+        }
+    }
+}
+
+export component BatchPage inherits HorizontalLayout {
+    ScrambleSettings { }
+
+    Workspace {
+        PageHeader {
+            title: "Batch processing";
+            subtitle: "Scramble every image in a folder with the settings on the left.";
+        }
+
+        Card {
+            title: "Folders";
+            subtitle: "JPEG, PNG, GIF and WebP files are processed. File names are kept.";
+
+            PathRow {
+                label: "Input folder";
+                path: BatchState.input-dir;
+                choose => {
+                    BatchState.pick-input();
+                }
+            }
+
+            PathRow {
+                label: "Output folder";
+                path: BatchState.output-dir;
+                choose => {
+                    BatchState.pick-output();
+                }
+            }
+        }
+
+        Card {
+            title: BatchState.busy ? "Processing…" : BatchState.done ? "Finished" : "Run";
+            subtitle: BatchState.busy || BatchState.done ? "" : "Every image is processed in parallel using all CPU cores.";
+
+            VerticalLayout {
+                spacing: 16px;
+
+                if BatchState.busy || BatchState.done: VerticalLayout {
+                    spacing: 8px;
+
+                    HorizontalLayout {
+                        Text {
+                            text: BatchState.total == 0 ? "Scanning folder…" : "\{BatchState.processed} of \{BatchState.total} images";
+                            color: Theme.text;
+                            font-size: Theme.text-md;
+                            horizontal-stretch: 1;
+                        }
+
+                        Text {
+                            text: BatchState.total == 0 ? "" : Math.round(BatchState.processed / BatchState.total * 100) + "%";
+                            color: Theme.muted;
+                            font-size: Theme.text-md;
+                        }
+                    }
+
+                    ProgressBar {
+                        progress: BatchState.total == 0 ? 0 : BatchState.processed / BatchState.total;
+                    }
+                }
+
+                if BatchState.done: HorizontalLayout {
+                    spacing: 40px;
+                    alignment: start;
+
+                    Stat {
+                        label: "Succeeded";
+                        value: BatchState.succeeded;
+                        color: Theme.success;
+                    }
+
+                    Stat {
+                        label: "Failed";
+                        value: BatchState.failed;
+                        color: BatchState.failed > 0 ? Theme.danger : Theme.text;
+                    }
+                }
+
+                if BatchState.done && BatchState.failures.length > 0: VerticalLayout {
+                    spacing: 4px;
+
+                    for failure in BatchState.failures: Text {
+                        text: failure;
+                        color: Theme.danger;
+                        font-size: Theme.text-sm;
+                        overflow: elide;
+                    }
+                }
+
+                if BatchState.error != "": ErrorBanner {
+                    message: BatchState.error;
+                    dismiss => {
+                        BatchState.dismiss-error();
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: 8px;
+                    alignment: end;
+
+                    if BatchState.done: Button {
+                        text: "Open output folder";
+                        icon: @image-url("icons/folder.svg");
+                        clicked => {
+                            BatchState.open-output();
+                        }
+                    }
+
+                    Button {
+                        text: BatchState.busy ? "Processing…" : "Process images";
+                        icon: @image-url("icons/shuffle.svg");
+                        primary: true;
+                        enabled: !BatchState.busy && BatchState.input-dir != "" && BatchState.output-dir != "";
+                        clicked => {
+                            BatchState.start();
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

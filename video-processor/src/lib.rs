@@ -4,7 +4,6 @@ use gstreamer_video as gst_video;
 use gstreamer_app as gst_app;
 use std::path::Path;
 use log::{info, error, debug};
-use gst::prelude::*;
 use gstreamer_pbutils::Discoverer;
 pub use gst_video::video_frame::{VideoFrame, Readable, Writable, VideoFrameExt};
 use gstreamer_pbutils::prelude::*;
