@@ -208,8 +208,13 @@ jobs:
           codesign --force --deep --sign - "$APP_PATH"
           codesign --verify --deep --strict "$APP_PATH" && echo "Signature OK"
 
+          # The disk image holds the app and a link to /Applications to drag it onto.
+          STAGE="../target/packages/dmg"
+          rm -rf "$STAGE" && mkdir -p "$STAGE"
+          cp -R "$APP_PATH" "$STAGE/"
+          ln -s /Applications "$STAGE/Applications"
           VERSION=${GITHUB_REF_NAME#v}
-          hdiutil create -volname "Scramblery" -srcfolder "$APP_PATH" -ov -format UDZO "../target/packages/${APP_NAME}_${VERSION}_aarch64.dmg"
+          hdiutil create -volname "Scramblery" -srcfolder "$STAGE" -ov -format UDZO "../target/packages/${APP_NAME}_${VERSION}_aarch64.dmg"
 
       - name: Name installers after the variant
         if: matrix.features != '' && matrix.platform != 'macos-latest'
