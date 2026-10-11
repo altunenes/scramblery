@@ -176,6 +176,26 @@ jobs:
           PKG_CONFIG_ALLOW_CROSS: 1
         run: cargo build --release -p scramblery $FEATURES
 
+
+      - name: Bundle ONNX Runtime provider libraries
+        if: matrix.features != '' && matrix.platform != 'macos-latest'
+        shell: bash
+        run: |
+          mkdir -p app/ort-libs
+          for f in target/release/*.dll target/release/*.so target/release/*.so.*; do
+            [ -e "$f" ] && cp -L "$f" app/ort-libs/
+          done
+          ls -la app/ort-libs
+          if [ -z "$(ls -A app/ort-libs)" ]; then
+            echo "::warning::No provider libraries found in target/release"
+          elif [ "${{ matrix.platform }}" = "windows-latest" ]; then
+            # NSIS installs resources next to the executable.
+            sed -i.bak -e '/^resources = \[/s/\]$/, "ort-libs\/*"]/' app/Cargo.toml
+          else
+            # The .deb installs the executable to /usr/bin.
+            printf '\n[package.metadata.packager.deb]\nfiles = { "ort-libs" = "usr/bin" }\n' >> app/Cargo.toml
+          fi
+
       - name: Configure package for this variant
         shell: bash
         run: |
