@@ -4,6 +4,13 @@ fn main() {
     let config = slint_build::CompilerConfiguration::new().with_style("fluent".into());
     slint_build::compile_with_config("ui/app.slint", config).expect("Slint UI failed to compile");
 
+    // Icon shown for the .exe in Explorer, shortcuts and the taskbar.
+    #[cfg(windows)]
+    winresource::WindowsResource::new()
+        .set_icon("icons/icon.ico")
+        .compile()
+        .expect("Windows resources failed to compile");
+
     let target = env::var("CARGO_CFG_TARGET_OS");
     if target == Ok("macos".to_string()) {
         env::set_var(
