@@ -2,6 +2,7 @@ use std::fmt;
 use std::path::PathBuf;
 use log::{info, debug};
 use once_cell::sync::Lazy;
+use std::sync::Mutex;
 use anyhow::Result;
 use ort::session::builder::GraphOptimizationLevel;
 use ort::ep::CPU;
@@ -91,63 +92,117 @@ fn coreml_cache_dir() -> String {
     dir.to_string_lossy().into_owned()
 }
 
-/// Global ONNX Runtime environment initialization
-pub static ENV: Lazy<()> = Lazy::new(|| {
-    info!("Initializing ONNX Runtime environment");
-
-    let mut providers: Vec<ort::ep::ExecutionProviderDispatch> = Vec::new();
+/// The GPU execution providers compiled into this build, in order of preference.
+fn gpu_providers() -> Vec<(&'static str, ort::ep::ExecutionProviderDispatch)> {
+    #[allow(unused_mut)]
+    let mut providers: Vec<(&'static str, ort::ep::ExecutionProviderDispatch)> = Vec::new();
 
     #[cfg(target_os = "macos")]
     {
         use ort::ep::coreml::{ComputeUnits, CoreML, ModelFormat};
-        providers.push(
+        providers.push((
+            "CoreML",
             CoreML::default()
                 .with_compute_units(ComputeUnits::CPUAndGPU)
                 .with_model_format(ModelFormat::MLProgram)
                 .with_static_input_shapes(true)
                 .with_model_cache_dir(coreml_cache_dir())
                 .build(),
-        );
+        ));
     }
 
     #[cfg(feature = "cuda")]
-    {
-        providers.push(ort::ep::CUDA::default().build());
-    }
+    providers.push(("CUDA", ort::ep::CUDA::default().build()));
 
     #[cfg(feature = "migraphx")]
-    {
-        providers.push(ort::ep::MIGraphX::default().build());
-    }
+    providers.push(("MIGraphX", ort::ep::MIGraphX::default().build()));
 
     #[cfg(feature = "webgpu")]
-    {
-        providers.push(ort::ep::WebGPU::default().build());
-    }
+    providers.push(("WebGPU", ort::ep::WebGPU::default().build()));
 
     #[cfg(all(feature = "directml", target_os = "windows"))]
     {
         use ort::ep::directml::{DeviceFilter, DirectML, PerformancePreference};
-        providers.push(
+        providers.push((
+            "DirectML",
             DirectML::default()
                 .with_performance_preference(PerformancePreference::HighPerformance)
                 .with_device_filter(DeviceFilter::Gpu)
                 .build(),
-        );
+        ));
     }
 
-    providers.push(CPU::default().build().error_on_failure());
+    providers
+}
 
-    let success = ort::init()
-        .with_execution_providers(providers)
-        .with_name("onnx_runtime")
-        .commit();
+/// Global ONNX Runtime environment initialization. Execution providers are chosen per session.
+pub static ENV: Lazy<()> = Lazy::new(|| {
+    info!("Initializing ONNX Runtime environment");
+    let success = ort::init().with_name("onnx_runtime").commit();
     if !success {
         debug!("Failed to initialize ONNX Runtime environment");
         panic!("ONNX Runtime initialization failed");
     }
     info!("ONNX Runtime environment initialized successfully");
 });
+
+static DEVICE: Mutex<Option<String>> = Mutex::new(None);
+
+/// Where the most recently created GPU-capable session runs, e.g. "CUDA" or
+/// "CPU (CUDA not available)". None before any such session exists.
+pub fn device() -> Option<String> {
+    DEVICE.lock().ok()?.clone()
+}
+
+fn set_device(device: String) {
+    info!("ONNX session runs on {device}");
+    if let Ok(mut slot) = DEVICE.lock() {
+        *slot = Some(device);
+    }
+}
+
+fn builder_error(e: ort::Error<ort::session::builder::SessionBuilder>) -> ort::Error {
+    ort::Error::new(e.message().to_string())
+}
+
+fn cpu_builder(config: &ModelConfig) -> Result<ort::session::builder::SessionBuilder> {
+    Ok(session_builder(config)?
+        .with_no_environment_execution_providers()
+        .map_err(builder_error)?
+        .with_execution_providers([CPU::default().build()])
+        .map_err(builder_error)?)
+}
+
+/// Commits a session on the first GPU provider that registers and loads the model, else on the CPU.
+fn commit_preferring_gpu(
+    config: &ModelConfig,
+    commit: impl Fn(&mut ort::session::builder::SessionBuilder) -> ort::Result<Session>,
+) -> Result<Session> {
+    let mut failed = Vec::new();
+    for (name, provider) in gpu_providers() {
+        let builder = session_builder(config)?
+            .with_no_environment_execution_providers()
+            .map_err(builder_error)?;
+        match builder.with_execution_providers([provider.error_on_failure()]) {
+            Ok(mut builder) => match commit(&mut builder) {
+                Ok(session) => {
+                    set_device(name.to_string());
+                    return Ok(session);
+                }
+                Err(e) => log::warn!("{name} could not load the model: {e}"),
+            },
+            Err(e) => log::warn!("{name} is not available: {}", e.message()),
+        }
+        failed.push(name);
+    }
+    let session = commit(&mut cpu_builder(config)?)?;
+    set_device(if failed.is_empty() {
+        "CPU".to_string()
+    } else {
+        format!("CPU ({} not available)", failed.join(", "))
+    });
+    Ok(session)
+}
 
 pub fn new_session_from_path(path: PathBuf) -> Result<Session> {
     let config = ModelConfig::default();
@@ -156,7 +211,7 @@ pub fn new_session_from_path(path: PathBuf) -> Result<Session> {
 
 pub fn new_session_from_path_with_config(path: PathBuf, config: &ModelConfig) -> Result<Session> {
     info!("Creating new ONNX session from path: {:?} with config: {:?}", path, config);
-    let session = session_builder(config)?.commit_from_file(path)?;
+    let session = commit_preferring_gpu(config, |builder| builder.commit_from_file(&path))?;
     info!("ONNX session created successfully");
     Ok(session)
 }
@@ -165,7 +220,7 @@ pub fn new_session_from_path_with_config(path: PathBuf, config: &ModelConfig) ->
 pub fn new_session_from_memory(bytes: &[u8]) -> Result<Session> {
     let config = ModelConfig::default();
     info!("Creating new ONNX session from memory ({} bytes) with config: {:?}", bytes.len(), config);
-    let session = session_builder(&config)?.commit_from_memory(bytes)?;
+    let session = commit_preferring_gpu(&config, |builder| builder.commit_from_memory(bytes))?;
     info!("ONNX session created successfully");
     Ok(session)
 }
@@ -175,13 +230,7 @@ pub fn new_session_from_memory(bytes: &[u8]) -> Result<Session> {
 pub fn new_deterministic_session_from_memory(bytes: &[u8]) -> Result<Session> {
     let config = ModelConfig { intra_threads: 1, ..ModelConfig::default() };
     info!("Creating CPU-only ONNX session from memory ({} bytes)", bytes.len());
-    let session = session_builder(&config)?
-        .with_no_environment_execution_providers()
-        .map_err(|e| ort::Error::new(e.message().to_string()))?
-        .with_execution_providers([CPU::default().build()])
-        .map_err(|e| ort::Error::new(e.message().to_string()))?
-        .commit_from_memory(bytes)?;
-    Ok(session)
+    Ok(cpu_builder(&config)?.commit_from_memory(bytes)?)
 }
 
 fn session_builder(config: &ModelConfig) -> Result<ort::session::builder::SessionBuilder> {

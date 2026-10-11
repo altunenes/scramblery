@@ -573,6 +573,12 @@ fn process_following(frame: &mut YuvFrame, options: &VideoProcessingOptions, scr
 /// keyframes, the previous result is moved along the optical flow wherever the motion estimate
 /// is reliable, and a fresh scramble is used elsewhere. The settings, including the base seed,
 /// are written to `<output>.json`.
+/// Loads the optical flow model and returns where it runs, e.g. "CUDA" or "CPU (CUDA not available)".
+pub fn optical_flow_device() -> Result<String> {
+    optical_flow::load_optical_flow_model(None)?;
+    Ok(onnx::device().unwrap_or_else(|| "CPU".to_string()))
+}
+
 pub fn process_video(options: &VideoProcessingOptions, progress_callback: impl Fn(f32) + Send + Sync + 'static) -> Result<VideoReport> {
     process_video_with(options, None, progress_callback)
 }

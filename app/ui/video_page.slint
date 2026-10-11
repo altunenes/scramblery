@@ -24,6 +24,8 @@ export global VideoState {
     in property <bool> done;
     in property <float> progress; // 0..100
     in property <string> error;
+    // Where optical flow runs while following motion, e.g. "CUDA" or "CPU (CUDA not available)".
+    in property <string> device;
 
     callback pick-input();
     callback pick-output();
@@ -174,7 +176,7 @@ export component VideoPage inherits HorizontalLayout {
 
                     HorizontalLayout {
                         Text {
-                            text: VideoState.busy ? "Encoding frames" : VideoState.output-path;
+                            text: !VideoState.busy ? VideoState.output-path : VideoState.device != "" ? "Encoding frames · optical flow on " + VideoState.device : "Encoding frames";
                             color: Theme.text;
                             font-size: Theme.text-md;
                             overflow: elide;

@@ -3,7 +3,7 @@ use gstreamer as gst;
 use gstreamer_video as gst_video;
 use gstreamer_app as gst_app;
 use std::path::Path;
-use log::{info, error, debug};
+use log::{info, warn, error, debug};
 use gstreamer_pbutils::Discoverer;
 use gst_video::prelude::*;
 use gstreamer_pbutils::prelude::*;
@@ -236,44 +236,25 @@ fn make_h264_encoder(fidelity: VideoFidelity) -> Result<(gst::Element, &'static 
         VideoFidelity::Fast => {}
     }
 
-    if let Ok(enc) = gst::ElementFactory::make("vtenc_h264")
-        .property("bitrate", 2048u32) 
-        .property("max-keyframe-interval", 25i32)
-        .property("realtime", true)
-        .property("allow-frame-reordering", false)
-        .build()
-    {
-        info!("Using VideoToolbox H.264 encoder (hardware)");
-        return Ok((enc, "NV12"));
-    }
-
-    if let Ok(enc) = gst::ElementFactory::make("mfh264enc")
-        .property("bitrate", 2048u32)
-        .property("max-keyframe-interval", 25u32)
-        .build()
-    {
-        info!("Using Media Foundation H.264 encoder (hardware)");
-        return Ok((enc, "NV12"));
-    }
-
-    if let Ok(enc) = gst::ElementFactory::make("nvh264enc")
-        .property("bitrate", 2048u32)
-        .property("gop-size", 25u32)
-        .property_from_str("preset", "low-latency-hp")
-        .property_from_str("rc-mode", "cbr")
-        .build()
-    {
-        info!("Using NVENC H.264 encoder (hardware)");
-        return Ok((enc, "NV12"));
-    }
-
-    if let Ok(enc) = gst::ElementFactory::make("vaapih264enc")
-        .property("bitrate", 2048u32)
-        .property("keyframe-period", 25u32)
-        .build()
-    {
-        info!("Using VA-API H.264 encoder (hardware)");
-        return Ok((enc, "NV12"));
+    let hardware: [(&str, &str, &[(&str, &str)]); 4] = [
+        ("vtenc_h264", "VideoToolbox", &[("bitrate", "2048"), ("max-keyframe-interval", "25"), ("realtime", "true"), ("allow-frame-reordering", "false")]),
+        ("mfh264enc", "Media Foundation", &[("bitrate", "2048"), ("gop-size", "25")]),
+        ("nvh264enc", "NVENC", &[("bitrate", "2048"), ("gop-size", "25"), ("preset", "low-latency-hp"), ("rc-mode", "cbr")]),
+        ("vaapih264enc", "VA-API", &[("bitrate", "2048"), ("keyframe-period", "25")]),
+    ];
+    for (factory, name, properties) in hardware {
+        if let Ok(enc) = gst::ElementFactory::make(factory).build() {
+            // Property names differ between GStreamer versions, and setting a missing one panics.
+            for (property, value) in properties {
+                if enc.has_property(property) {
+                    enc.set_property_from_str(property, value);
+                } else {
+                    warn!("{factory} has no property {property}; leaving it at its default");
+                }
+            }
+            info!("Using {name} H.264 encoder (hardware)");
+            return Ok((enc, "NV12"));
+        }
     }
 
     let enc = gst::ElementFactory::make("x264enc")
@@ -478,10 +459,12 @@ impl VideoProcessor {
                     } else {
                         let absolute_path = std::fs::canonicalize(input_path)
                             .unwrap_or(input_path.to_path_buf());
-                        let path_str = absolute_path.to_str().unwrap()
-                            .trim_start_matches("\\?\\")
-                            .replace("\\", "/");
-                        format!("file:///{}", path_str)
+                        // canonicalize gives \\?\C:\... on Windows, which is not a valid file URI path.
+                        let path_str = absolute_path.to_string_lossy();
+                        let path_str = path_str.trim_start_matches(r"\\?\");
+                        gst::glib::filename_to_uri(path_str, None)
+                            .map(|uri| uri.to_string())
+                            .unwrap_or_else(|_| format!("file:///{}", path_str.replace('\\', "/")))
                     };
 
                     info!("Trying to discover URI: {}", uri);

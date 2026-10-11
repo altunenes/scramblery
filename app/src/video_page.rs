@@ -64,6 +64,7 @@ fn start(ui: &AppWindow) {
     state.set_done(false);
     state.set_progress(0.0);
     state.set_error("".into());
+    state.set_device("".into());
 
     let progress_ui = ui.as_weak();
     let done_ui = ui.as_weak();
@@ -96,10 +97,28 @@ fn start(ui: &AppWindow) {
             },
             None => None,
         };
-        let outcome = engine::process_video_with(&options, set_target, move |progress| {
-            let _ = progress_ui.upgrade_in_event_loop(move |ui| {
-                ui.global::<VideoState>().set_progress(progress);
-            });
+        if options.temporal_coherence.is_some() {
+            if let Ok(device) = engine::optical_flow_device() {
+                let _ = progress_ui.upgrade_in_event_loop(move |ui| {
+                    ui.global::<VideoState>().set_device(device.into());
+                });
+            }
+        }
+        // A panic must end the run with an error; otherwise the page waits forever.
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            engine::process_video_with(&options, set_target, move |progress| {
+                let _ = progress_ui.upgrade_in_event_loop(move |ui| {
+                    ui.global::<VideoState>().set_progress(progress);
+                });
+            })
+        }))
+        .unwrap_or_else(|panic| {
+            let message = panic
+                .downcast_ref::<String>()
+                .map(String::as_str)
+                .or_else(|| panic.downcast_ref::<&str>().copied())
+                .unwrap_or("unexpected internal error");
+            Err(anyhow::anyhow!("{message}"))
         });
 
         let _ = done_ui.upgrade_in_event_loop(move |ui| {
