@@ -65,7 +65,7 @@ Every result can be checked in the Analysis view: luminance, contrast, spectral 
 Faces are detected in every frame; spatiotemporal scrambling randomises the phase across space and time together.
 
 <p align="center">
-  <img src="docs/images/video.webp" width="640" alt="A video in four versions: original, faces scrambled within the face outline, faces block-scrambled, and spatiotemporal phase scrambling">
+  <img src="docs/images/video.webp" width="640" alt="A video in four versions: original, faces scrambled within an ellipse, faces block-scrambled, and spatiotemporal phase scrambling">
 </p>
 
 Temporal modes on a fast head movement, phase scrambled at 100%. *Fixed pattern* applies one scramble to every frame; *Spatiotemporal* scrambles space and time together, keeping spatial and temporal frequency content; *Follow motion* uses optical flow (SEA-RAFT) to move the scramble with the content, so the motion of the original is kept while its form is not. Combined with face detection (here with the background removed), only the face is scrambled and the scramble moves with it.
