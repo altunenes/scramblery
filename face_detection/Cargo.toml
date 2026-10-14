@@ -8,6 +8,7 @@ cuda = ["onnx/cuda"]
 migraphx = ["onnx/migraphx"]
 webgpu = ["onnx/webgpu"]
 directml = ["onnx/directml"]
+openvino = ["onnx/openvino"]
 
 [dependencies]
 image = { workspace = true }
