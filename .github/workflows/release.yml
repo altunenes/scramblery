@@ -43,6 +43,7 @@ jobs:
             features: 'openvino'
     runs-on: ${{ matrix.platform }}
     env:
+      GSTREAMER_MACOS: '1.28.6'
       APP_NAME: ${{ matrix.features != '' && format('scramblery-{0}', matrix.features) || 'scramblery' }}
       FEATURES: ${{ matrix.features != '' && format('--features {0}', matrix.features) || '' }}
     steps:
@@ -80,13 +81,27 @@ jobs:
             gstreamer1.0-plugins-ugly
 
       # macOS dependencies and Gatekeeper workaround
+      # gstreamer.freedesktop.org is often slow or unavailable, so the packages are downloaded once and cached.
+      - name: Cache GStreamer packages
+        if: matrix.platform == 'macos-latest'
+        uses: actions/cache@v4
+        with:
+          path: gst-pkgs
+          key: macos-gstreamer-${{ env.GSTREAMER_MACOS }}
+
       - name: Install macOS dependencies
         if: matrix.platform == 'macos-latest'
         run: |
-          # Download and install official GStreamer packages
-          GSTREAMER_VERSION="1.28.6"
-          curl -fL --http1.1 --retry 5 --retry-all-errors --retry-delay 10 -C - "https://gstreamer.freedesktop.org/data/pkg/osx/$GSTREAMER_VERSION/gstreamer-1.0-$GSTREAMER_VERSION-universal.pkg" -o gstreamer.pkg
-          curl -fL --http1.1 --retry 5 --retry-all-errors --retry-delay 10 -C - "https://gstreamer.freedesktop.org/data/pkg/osx/$GSTREAMER_VERSION/gstreamer-1.0-devel-$GSTREAMER_VERSION-universal.pkg" -o gstreamer-devel.pkg
+          GSTREAMER_VERSION="$GSTREAMER_MACOS"
+          mkdir -p gst-pkgs
+          for f in "gstreamer-1.0-$GSTREAMER_VERSION-universal.pkg" "gstreamer-1.0-devel-$GSTREAMER_VERSION-universal.pkg"; do
+            [ -s "gst-pkgs/$f" ] && continue
+            curl -fL --http1.1 --retry 10 --retry-all-errors --retry-delay 15 \
+              "https://gstreamer.freedesktop.org/data/pkg/osx/$GSTREAMER_VERSION/$f" -o "gst-pkgs/$f.part"
+            mv "gst-pkgs/$f.part" "gst-pkgs/$f"
+          done
+          cp "gst-pkgs/gstreamer-1.0-$GSTREAMER_VERSION-universal.pkg" gstreamer.pkg
+          cp "gst-pkgs/gstreamer-1.0-devel-$GSTREAMER_VERSION-universal.pkg" gstreamer-devel.pkg
 
           sudo installer -pkg gstreamer.pkg -target /
           sudo installer -pkg gstreamer-devel.pkg -target /
