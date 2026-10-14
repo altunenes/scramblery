@@ -34,6 +34,8 @@ const HALF_WEIGHT_DISTORTION: f32 = 1.5;
 /// Weight of the current frame's scramble at each pixel's own position in the follow-motion
 /// blend; it shows where both layers are distorted (e.g. background uncovered by motion).
 const STILL_WEIGHT: f32 = 0.1;
+/// Radial frequency bands over which the part of the original a scramble keeps is estimated.
+const KEPT_BANDS: usize = 48;
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Default)]
 pub enum FrameSeeds {
@@ -126,6 +128,8 @@ struct State {
     prev_original: Option<Planes>,
     /// Follow motion: two layers, renewed in turn (see `process_following`).
     layers: [Option<Layer>; 2],
+    /// How much of the original the scramble keeps, from the latest layer renewal.
+    kept: Option<Vec<[f64; KEPT_BANDS]>>,
     prev_mask: Option<FaceMask>,
     frames_since_face: usize,
     frames_without_faces: usize,
@@ -142,6 +146,7 @@ struct State {
 /// One layer of follow motion: a scramble and, for every pixel, the position in it that the
 /// motion has carried there (x and y planes).
 struct Layer {
+    /// What the scramble changed when the layer was renewed (see `kept_transfer`).
     reference: Planes,
     coords: Planes,
 }
@@ -401,6 +406,65 @@ fn distortion(coords: &Planes) -> Vec<f32> {
         .collect()
 }
 
+fn radial_band(kx: usize, ky: usize, w: usize, h: usize) -> usize {
+    let r = crate::spectral::radial_frequency(kx, ky, w, h) / std::f64::consts::FRAC_1_SQRT_2;
+    ((r * KEPT_BANDS as f64) as usize).min(KEPT_BANDS - 1)
+}
+
+/// How much of the original each channel of a scramble keeps, per radial frequency band: the
+/// least-squares gain `Σ Re(S·conj(O)) / Σ |O|²` over the band, limited to 0..1. It is 1 where
+/// the scramble leaves frequencies unchanged (outside a Fourier frequency range), near 0 where it
+/// randomises them, and the transfer function of a linear filter such as blur.
+fn kept_transfer(original: &Planes, scrambled: &Planes) -> Vec<[f64; KEPT_BANDS]> {
+    let (w, h) = (original.width, original.height);
+    original
+        .color
+        .iter()
+        .zip(&scrambled.color)
+        .map(|(o, s)| {
+            let (mut fo, mut fs) = (crate::spectral::to_complex(o), crate::spectral::to_complex(s));
+            crate::spectral::fft2(&mut fo, w, h, false);
+            crate::spectral::fft2(&mut fs, w, h, false);
+            let (mut num, mut den) = ([0.0; KEPT_BANDS], [0.0; KEPT_BANDS]);
+            for i in 0..w * h {
+                let b = radial_band(i % w, i / w, w, h);
+                num[b] += (fs[i] * fo[i].conj()).re;
+                den[b] += fo[i].norm_sqr();
+            }
+            std::array::from_fn(|b| if den[b] > 0.0 { (num[b] / den[b]).clamp(0.0, 1.0) } else { 0.0 })
+        })
+        .collect()
+}
+
+/// The part of `planes` that a scramble with this transfer keeps.
+fn kept_part(planes: &Planes, transfer: &[[f64; KEPT_BANDS]]) -> Planes {
+    let (w, h) = (planes.width, planes.height);
+    let color = planes
+        .color
+        .iter()
+        .zip(transfer)
+        .map(|(p, gain)| {
+            if gain.iter().all(|&g| g == 0.0) {
+                return vec![0.0; w * h];
+            }
+            let mut f = crate::spectral::to_complex(p);
+            crate::spectral::fft2(&mut f, w, h, false);
+            f.par_iter_mut().enumerate().for_each(|(i, v)| *v *= gain[radial_band(i % w, i / w, w, h)]);
+            crate::spectral::fft2(&mut f, w, h, true);
+            f.iter().map(|v| v.re as f32).collect()
+        })
+        .collect();
+    Planes { color, alpha: None, ..planes.clone() }
+}
+
+/// `a + sign * b` for every plane.
+fn combine(a: &Planes, b: &Planes, sign: f32) -> Planes {
+    Planes {
+        color: a.color.iter().zip(&b.color).map(|(x, y)| x.iter().zip(y).map(|(x, y)| x + sign * y).collect()).collect(),
+        ..a.clone()
+    }
+}
+
 /// `a * x0 + (1 - a) * x1` per pixel, with the contrast of the layers kept. A plain mix of uncorrelated
 /// textures lowers their contrast (by up to a factor of sqrt(2)), which would mark the moving
 /// areas, so the deviations from the means are divided by `sqrt(a² + b² + 2abρ)`, where `b` is
@@ -655,16 +719,27 @@ fn process_following(frame: &mut YuvFrame, options: &VideoProcessingOptions, scr
     // over time, so each layer is renewed with the current frame's scramble every `period`
     // frames, half a period after the other, when its weight in the blend is zero. Where a
     // layer is locally distorted, the other one is weighted up, and where both are (background
-    // uncovered by fast motion), the current frame's scramble in place takes over.
+    // uncovered by fast motion), the current frame's scramble in place takes over. What the
+    // scramble keeps of the original (e.g. frequencies outside a Fourier range) always comes from
+    // the current frame; the layers only carry what it changed, so they never show the content
+    // of earlier frames.
     let period = tc.keyframe_interval.max(2);
     let (w, h) = (original.width, original.height);
     let flow = flow.as_ref().map(|f| smooth_flow(f, FLOW_SMOOTHING * w.min(h) as f32));
+    let phases = [index % period, (index + period / 2) % period];
+    let renew = |k: usize| flow.is_none() || state.layers[k].is_none() || phases[k] == 0;
+    if renew(0) || renew(1) || state.kept.is_none() {
+        state.kept = Some(kept_transfer(&original, &fresh));
+    }
+    let kept = kept_part(&original, state.kept.as_ref().expect("transfer is set above"));
+    let changed = combine(&fresh, &kept, -1.0);
+    let renewals = [renew(0), renew(1)];
     let mut weighted = Vec::with_capacity(2);
     for (k, layer) in state.layers.iter_mut().enumerate() {
-        let phase = (index + k * period / 2) % period;
+        let phase = phases[k];
         match (layer.as_mut(), &flow) {
-            (Some(l), Some(flow)) if phase != 0 => l.coords = warp(&l.coords, flow),
-            _ => *layer = Some(Layer { reference: fresh.clone(), coords: identity_coords(w, h) }),
+            (Some(l), Some(flow)) if !renewals[k] => l.coords = warp(&l.coords, flow),
+            _ => *layer = Some(Layer { reference: changed.clone(), coords: identity_coords(w, h) }),
         }
         let weight = 1.0 - (2.0 * phase as f32 / period as f32 - 1.0).abs();
         weighted.push((weight, layer.as_ref().expect("layer is set above")));
@@ -681,7 +756,7 @@ fn process_following(frame: &mut YuvFrame, options: &VideoProcessingOptions, scr
         &f0.iter().zip(&f1).map(|(x, y)| x / (x + y).max(1e-6)).collect::<Vec<f32>>(),
     );
     let moving: Vec<f32> = f0.iter().zip(&f1).map(|(x, y)| (x + y) / (x + y + STILL_WEIGHT)).collect();
-    let scrambled = blend_layers(&layers, &fresh, &moving);
+    let scrambled = combine(&kept, &blend_layers(&layers, &changed, &moving), 1.0);
 
     let output = composite(&original, scrambled, mask.as_ref(), scramble);
     let written = with_aperture(output, scramble, mask.as_ref());
@@ -748,6 +823,7 @@ pub fn process_video_with(
         frame: 0,
         prev_original: None,
         layers: [None, None],
+        kept: None,
         prev_mask: None,
         frames_since_face: 0,
         frames_without_faces: 0,
@@ -927,6 +1003,17 @@ mod tests {
         for x in 0..20 {
             assert!((moved.color[0][x] - reference.color[0][x + 4]).abs() < 1e-5);
         }
+    }
+
+    #[test]
+    fn kept_part_separates_what_a_scramble_leaves_unchanged() {
+        let original = planes(64, 64, |x, y| ((x * 3 + y * 5) % 17) as f32 / 16.0);
+        // A scramble that keeps everything keeps the whole image; one that keeps nothing, none.
+        let all = kept_part(&original, &kept_transfer(&original, &original));
+        assert!(all.color[0].iter().zip(&original.color[0]).all(|(a, b)| (a - b).abs() < 1e-4));
+        let blurred = crate::scramble::blur::scramble(&original, 2.0);
+        let transfer = kept_transfer(&original, &blurred);
+        assert!(transfer[0][0] > 0.99 && transfer[0][KEPT_BANDS - 1] < 0.05);
     }
 
     #[test]
