@@ -626,7 +626,18 @@ impl VideoProcessor {
                         }
                         gst::FlowError::Eos
                     })?;
-                    let buffer = sample.buffer_owned().ok_or(gst::FlowError::Error)?;
+                    let mut buffer = sample.buffer_owned().ok_or(gst::FlowError::Error)?;
+                    // prevent trimmed videos problematic:
+                    if let Some(segment) = sample.segment().and_then(|s| s.downcast_ref::<gst::ClockTime>()) {
+                        if let Some(pts) = buffer.pts() {
+                            let Some(running) = segment.to_running_time(pts) else {
+                                return Ok(gst::FlowSuccess::Ok);
+                            };
+                            let buffer = buffer.make_mut();
+                            buffer.set_pts(running);
+                            buffer.set_dts(gst::ClockTime::NONE);
+                        }
+                    }
                     let caps = sample.caps().ok_or(gst::FlowError::Error)?;
 
                     let mut pending = pending.lock().map_err(|_| gst::FlowError::Error)?;

@@ -11,6 +11,7 @@ pub use video_processor::VideoFidelity;
 
 use crate::matching::Target;
 use crate::planes::Planes;
+use crate::scramble::aperture::FaceBox;
 use crate::scramble::{postprocess, scramble_planes, BackgroundMode, ScrambleOptions, TemporalCoherenceOptions};
 use crate::seed;
 
@@ -120,7 +121,7 @@ struct State {
     frame: usize,
     prev_original: Option<Planes>,
     prev_scrambled: Option<Planes>,
-    prev_mask: Option<Vec<f32>>,
+    prev_mask: Option<FaceMask>,
     frames_since_face: usize,
     frames_without_faces: usize,
     chunks: usize,
@@ -148,7 +149,14 @@ impl State {
     }
 }
 
-fn detect_mask(image: &RgbaImage, options: &ScrambleOptions) -> Result<Option<Vec<f32>>> {
+/// Face weights of a frame and the face boxes they were made from.
+#[derive(Clone)]
+struct FaceMask {
+    weights: Vec<f32>,
+    boxes: Vec<FaceBox>,
+}
+
+fn detect_mask(image: &RgbaImage, options: &ScrambleOptions) -> Result<Option<FaceMask>> {
     let Some(face_opts) = &options.face_detection else { return Ok(None) };
     let session = face_detection::load_face_detector(None)?;
     let regions = face_detection::detect_face_regions(
@@ -161,7 +169,10 @@ fn detect_mask(image: &RgbaImage, options: &ScrambleOptions) -> Result<Option<Ve
         return Ok(None);
     }
     let image = DynamicImage::ImageRgba8(image.clone());
-    Ok(Some(crate::scramble::mask::image_weights(&image, &regions, face_opts)?))
+    Ok(Some(FaceMask {
+        weights: crate::scramble::mask::image_weights(&image, &regions, face_opts)?,
+        boxes: regions.iter().map(FaceBox::from).collect(),
+    }))
 }
 
 /// Colour planes with three channels, expanding a grayscale result.
@@ -348,7 +359,7 @@ fn keyframe_blend(tc: &TemporalCoherenceOptions, frame: usize) -> f32 {
 
 /// Face mask for one frame: the detected faces, or the previous mask for up to
 /// `FACE_HOLD_FRAMES` frames when none are found (moved along `flow` when given).
-fn resolve_mask(detected: Option<Vec<f32>>, flow: Option<&optical_flow::FlowField>, planes: &Planes, state: &mut State) -> Vec<f32> {
+fn resolve_mask(detected: Option<FaceMask>, flow: Option<&optical_flow::FlowField>, planes: &Planes, state: &mut State) -> FaceMask {
     if let Some(mask) = detected {
         state.frames_since_face = 0;
         return mask;
@@ -358,17 +369,27 @@ fn resolve_mask(detected: Option<Vec<f32>>, flow: Option<&optical_flow::FlowFiel
     match &state.prev_mask {
         Some(prev) if state.frames_since_face <= FACE_HOLD_FRAMES => match flow {
             Some(flow) => {
-                let p = Planes { color: vec![prev.clone()], alpha: None, ..planes.clone() };
-                warp(&p, flow).color.remove(0)
+                let p = Planes { color: vec![prev.weights.clone()], alpha: None, ..planes.clone() };
+                FaceMask { weights: warp(&p, flow).color.remove(0), boxes: prev.boxes.iter().map(|b| move_box(b, flow)).collect() }
             }
             None => prev.clone(),
         },
-        _ => vec![0.0; planes.len()],
+        _ => FaceMask { weights: vec![0.0; planes.len()], boxes: Vec::new() },
     }
 }
 
+/// A box moved with the content at its centre. The flow is backward (see `warp`), so content
+/// at `c` moves to about `c - flow(c)`.
+fn move_box(b: &FaceBox, flow: &optical_flow::FlowField) -> FaceBox {
+    let (w, h) = (flow.width, flow.height);
+    let (cx, cy) = ((b.x0 + b.x1) / 2.0, (b.y0 + b.y1) / 2.0);
+    let i = (cy.clamp(0.0, (h - 1) as f32) as usize) * w + cx.clamp(0.0, (w - 1) as f32) as usize;
+    let (dx, dy) = (flow.data[i], flow.data[w * h + i]);
+    FaceBox { x0: b.x0 - dx, y0: b.y0 - dy, x1: b.x1 - dx, y1: b.y1 - dy }
+}
+
 /// Scrambled frame inside the face mask, original (or black) outside it.
-fn composite(original: &Planes, scrambled: Planes, mask: Option<&Vec<f32>>, scramble: &ScrambleOptions) -> Planes {
+fn composite(original: &Planes, scrambled: Planes, mask: Option<&FaceMask>, scramble: &ScrambleOptions) -> Planes {
     match (mask, &scramble.face_detection) {
         (Some(mask), Some(face_opts)) => {
             let background = match face_opts.background_mode {
@@ -378,16 +399,16 @@ fn composite(original: &Planes, scrambled: Planes, mask: Option<&Vec<f32>>, scra
                     ..original.clone()
                 },
             };
-            mix(&background, &scrambled, mask)
+            mix(&background, &scrambled, &mask.weights)
         }
         _ => scrambled,
     }
 }
 
 /// The aperture is applied to what is written, not to the state carried to the next frame.
-fn with_aperture(mut planes: Planes, scramble: &ScrambleOptions) -> Planes {
+fn with_aperture(mut planes: Planes, scramble: &ScrambleOptions, mask: Option<&FaceMask>) -> Planes {
     if let Some(aperture) = &scramble.aperture {
-        crate::scramble::aperture::apply(&mut planes, aperture);
+        crate::scramble::aperture::apply(&mut planes, aperture, mask.map(|m| m.boxes.as_slice()));
     }
     planes
 }
@@ -410,7 +431,7 @@ fn process_independent(frames: &mut [YuvFrame], options: &VideoProcessingOptions
         .zip(work)
         .map(|(frame, (planes, mask))| -> Result<(u64, u64)> {
             let scrambled = fresh_scramble(&planes, scramble, frame_seed(options, base_seed, frame.index), target.as_deref())?;
-            let output = with_aperture(composite(&planes, scrambled, mask.as_ref(), scramble), scramble);
+            let output = with_aperture(composite(&planes, scrambled, mask.as_ref(), scramble), scramble, mask.as_ref());
             planes_to_yuv(&output, frame);
             Ok(out_of_range(&output))
         })
@@ -421,8 +442,8 @@ fn process_independent(frames: &mut [YuvFrame], options: &VideoProcessingOptions
 
 /// Converts frames to RGB and finds face masks: detection in parallel, the hold-over of masks
 /// for frames without a detected face in frame order.
-fn prepare(frames: &[YuvFrame], scramble: &ScrambleOptions, state: &mut State) -> Result<Vec<(Planes, Option<Vec<f32>>)>> {
-    let prepared: Vec<(Planes, Option<Vec<f32>>)> = frames
+fn prepare(frames: &[YuvFrame], scramble: &ScrambleOptions, state: &mut State) -> Result<Vec<(Planes, Option<FaceMask>)>> {
+    let prepared: Vec<(Planes, Option<FaceMask>)> = frames
         .par_iter()
         .map(|frame| {
             let planes = yuv_to_planes(frame);
@@ -467,7 +488,7 @@ fn crossfade(from: &Planes, to: &Planes, u: f32) -> Planes {
 /// their scramble is kept, and where the next volume starts it is crossfaded into the new one.
 fn process_spatiotemporal(frames: &mut [YuvFrame], st: &spatiotemporal::SpatiotemporalOptions, scramble: &ScrambleOptions, base_seed: u64, state: &mut State) -> Result<()> {
     let output = frames.iter().position(|f| f.lookahead).unwrap_or(frames.len());
-    let (originals, masks): (Vec<Planes>, Vec<Option<Vec<f32>>>) = prepare(&frames[..output], scramble, state)?.into_iter().unzip();
+    let (originals, masks): (Vec<Planes>, Vec<Option<FaceMask>>) = prepare(&frames[..output], scramble, state)?.into_iter().unzip();
     let lookahead: Vec<Planes> = frames[output..].par_iter().map(yuv_to_planes).collect();
     let linear = scramble.linear_light;
     let to_space = |p: &Planes| if linear { p.to_linear() } else { p.clone() };
@@ -496,7 +517,7 @@ fn process_spatiotemporal(frames: &mut [YuvFrame], st: &spatiotemporal::Spatiote
             if linear {
                 result = result.to_encoded();
             }
-            let output = with_aperture(composite(&planes, as_rgb(result), mask.as_ref(), scramble), scramble);
+            let output = with_aperture(composite(&planes, as_rgb(result), mask.as_ref(), scramble), scramble, mask.as_ref());
             planes_to_yuv(&output, frame);
             Ok(out_of_range(&output))
         })
@@ -537,7 +558,7 @@ fn process_following(frame: &mut YuvFrame, options: &VideoProcessingOptions, scr
             let warped = warp(prev_scrambled, flow);
             let mut weight = reliability(&original, &warp(prev_original, flow), flow);
             if let Some(prev_mask) = &state.prev_mask {
-                let p = Planes { color: vec![prev_mask.clone()], alpha: None, ..original.clone() };
+                let p = Planes { color: vec![prev_mask.weights.clone()], alpha: None, ..original.clone() };
                 let source_scrambled = warp(&p, flow).color.remove(0);
                 weight.iter_mut().zip(source_scrambled).for_each(|(w, s)| *w *= s);
             }
@@ -553,7 +574,7 @@ fn process_following(frame: &mut YuvFrame, options: &VideoProcessingOptions, scr
     };
 
     let output = composite(&original, scrambled, mask.as_ref(), scramble);
-    let written = with_aperture(output.clone(), scramble);
+    let written = with_aperture(output.clone(), scramble, mask.as_ref());
     planes_to_yuv(&written, frame);
     state.count([out_of_range(&written)]);
     state.prev_original = Some(original);
