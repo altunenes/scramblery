@@ -245,7 +245,7 @@ fn keep_config(config: Option<&Path>, settings: &Path) -> Result<()> {
 }
 
 fn main() -> Result<()> {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn")).init();
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn,ort=error")).init();
     match Cli::parse().command {
         Command::Scramble { input, output, config, method, seed, matching, reference_dir, exemplars, levels } => {
             let mut options = load_options(config.as_deref(), method, seed)?;

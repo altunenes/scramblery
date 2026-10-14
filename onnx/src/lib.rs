@@ -1,6 +1,6 @@
 use std::fmt;
 use std::path::PathBuf;
-use log::{info, debug};
+use log::info;
 use once_cell::sync::Lazy;
 use std::sync::Mutex;
 use anyhow::Result;
@@ -20,6 +20,8 @@ pub enum ExecutionProvider {
     WebGPU,
     #[cfg(all(feature = "directml", target_os = "windows"))]
     DirectML,
+    #[cfg(feature = "openvino")]
+    OpenVINO,
 }
 
 impl Default for ExecutionProvider {
@@ -37,6 +39,8 @@ impl Default for ExecutionProvider {
             { return ExecutionProvider::CUDA; }
             #[cfg(feature = "migraphx")]
             { return ExecutionProvider::MIGraphX; }
+            #[cfg(feature = "openvino")]
+            { return ExecutionProvider::OpenVINO; }
             ExecutionProvider::CPU
         }
     }
@@ -120,6 +124,10 @@ fn gpu_providers() -> Vec<(&'static str, ort::ep::ExecutionProviderDispatch)> {
     #[cfg(feature = "webgpu")]
     providers.push(("WebGPU", ort::ep::WebGPU::default().build()));
 
+    // Intel GPUs; OpenVINO's own CPU path is left to the default CPU provider.
+    #[cfg(feature = "openvino")]
+    providers.push(("OpenVINO", ort::ep::OpenVINO::default().with_device_type("GPU").build()));
+
     #[cfg(all(feature = "directml", target_os = "windows"))]
     {
         use ort::ep::directml::{DeviceFilter, DirectML, PerformancePreference};
@@ -135,15 +143,10 @@ fn gpu_providers() -> Vec<(&'static str, ort::ep::ExecutionProviderDispatch)> {
     providers
 }
 
-/// Global ONNX Runtime environment initialization. Execution providers are chosen per session.
-pub static ENV: Lazy<()> = Lazy::new(|| {
+/// see ort rc14: release notes.
+static ENV: Lazy<std::result::Result<ort::environment::Environment, String>> = Lazy::new(|| {
     info!("Initializing ONNX Runtime environment");
-    let success = ort::init().with_name("onnx_runtime").commit();
-    if !success {
-        debug!("Failed to initialize ONNX Runtime environment");
-        panic!("ONNX Runtime initialization failed");
-    }
-    info!("ONNX Runtime environment initialized successfully");
+    ort::init().with_name("scramblery").build().map_err(|e| e.to_string())
 });
 
 static DEVICE: Mutex<Option<String>> = Mutex::new(None);
@@ -170,6 +173,9 @@ fn cpu_builder(config: &ModelConfig) -> Result<ort::session::builder::SessionBui
         .with_no_environment_execution_providers()
         .map_err(builder_error)?
         .with_execution_providers([CPU::default().build()])
+        .map_err(builder_error)?
+        // https://github.com/pykeio/ort/issues/662
+        .with_auto_device(ort::session::builder::AutoDevicePolicy::PreferCPU)
         .map_err(builder_error)?)
 }
 
@@ -234,8 +240,10 @@ pub fn new_deterministic_session_from_memory(bytes: &[u8]) -> Result<Session> {
 }
 
 fn session_builder(config: &ModelConfig) -> Result<ort::session::builder::SessionBuilder> {
-    Lazy::force(&ENV);
-    let mut builder = Session::builder()?
+    let env = ENV
+        .as_ref()
+        .map_err(|e| anyhow::anyhow!("ONNX Runtime initialization failed: {e}"))?;
+    let mut builder = Session::builder(env)?
         .with_optimization_level(GraphOptimizationLevel::Level3).map_err(|e| ort::Error::new(e.message().to_string()))?
         .with_intra_threads(config.intra_threads).map_err(|e| ort::Error::new(e.message().to_string()))?
         .with_inter_threads(config.inter_threads).map_err(|e| ort::Error::new(e.message().to_string()))?;
