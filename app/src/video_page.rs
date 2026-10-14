@@ -31,7 +31,6 @@ fn start(ui: &AppWindow) {
             export_flow,
             flow_output_dir: export_flow.then(|| PathBuf::from(flow_dir.as_str())),
             keyframe_interval: state.get_keyframe_interval().round() as usize,
-            blend_frames: state.get_blend_frames().round() as usize,
         })
     } else {
         None

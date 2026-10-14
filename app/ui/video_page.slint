@@ -15,8 +15,7 @@ export global VideoState {
     // 0 Auto, 1 BT.601, 2 BT.709, 3 BT.2020
     in-out property <int> color-standard: 0;
     in property <string> report;
-    in-out property <float> keyframe-interval: 30;
-    in-out property <float> blend-frames: 0;
+    in-out property <float> keyframe-interval: 12;
     in-out property <bool> export-flow;
     in property <string> flow-dir;
     in property <string> seed;
@@ -98,14 +97,14 @@ export component VideoPage inherits HorizontalLayout {
             title: "Temporal behaviour";
             subtitle: VideoState.temporal-mode == 0 ? "The same scramble (noise, warp or permutation) is applied to every frame, so the pattern is stable over time."
                 : VideoState.temporal-mode == 1 ? "Every frame gets a new scramble: dynamic noise that changes from frame to frame."
-                : VideoState.temporal-mode == 2 ? "The scramble moves with the content, following optical flow; unreliable regions get a fresh scramble."
+                : VideoState.temporal-mode == 2 ? "The scramble moves with the content, following optical flow; where motion stretches it, the scramble in place shows."
                 : "Space and time are phase-scrambled together, preserving spatial and temporal frequency content. Replaces the method on the left.";
 
             VerticalLayout {
                 spacing: 14px;
 
                 Segmented {
-                    help: "Fixed applies the same scramble to every frame and is the usual choice for frame by frame methods. Per frame produces flickering dynamic noise. Follow motion estimates optical flow (SEA-RAFT) and moves the previous scramble with the content; it is much slower, and moving shapes stay visible, so it is not meant for anonymisation. Spatiotemporal phase scrambles space and time together in a 3D Fourier transform, preserving spatial and temporal frequency content.";
+                    help: "Fixed applies the same scramble to every frame and is the usual choice for frame by frame methods. Per frame produces flickering dynamic noise. Follow motion estimates optical flow (SEA-RAFT) and moves the scramble with the content; it is much slower, and moving shapes stay visible, so it is not meant for anonymisation. Spatiotemporal phase scrambles space and time together in a 3D Fourier transform, preserving spatial and temporal frequency content.";
                     label: "Frames";
                     options: ["Fixed", "Per frame", "Follow motion", "Spatiotemporal"];
                     current-index <=> VideoState.temporal-mode;
@@ -132,19 +131,12 @@ export component VideoPage inherits HorizontalLayout {
                     spacing: 14px;
 
                     ValueSlider {
-                        label: "Keyframe interval";
-                        help: "A fresh scramble every N frames. 0 = only the first frame. Higher values give smoother motion but accumulate more warp error.";
-                        maximum: 120;
+                        label: "Refresh interval";
+                        help: "The moved scramble is renewed every N frames, crossfaded so that renewals are not visible. Shorter intervals keep fast motion from stretching the texture; longer ones keep the texture with the content for longer.";
+                        minimum: 4;
+                        maximum: 60;
                         suffix: " frames";
                         value <=> VideoState.keyframe-interval;
-                    }
-
-                    ValueSlider {
-                        label: "Keyframe blend";
-                        help: "Crossfade over this many frames at each keyframe. 0 = abrupt switch.";
-                        maximum: 10;
-                        suffix: " frames";
-                        value <=> VideoState.blend-frames;
                     }
 
                     ToggleRow {

@@ -91,8 +91,9 @@ enum Command {
         /// `fixed` applies the same scramble to every frame; `per-frame` makes dynamic noise.
         #[arg(long, value_enum, default_value_t = Seeds::Fixed)]
         frame_seeds: Seeds,
-        /// Follow the original motion with optical flow, with a fresh scramble every N frames.
-        #[arg(long, value_name = "KEYFRAME_INTERVAL", conflicts_with = "spatiotemporal")]
+        /// Follow the original motion with optical flow; the moved scramble is renewed every N
+        /// frames (12 is a good start).
+        #[arg(long, value_name = "REFRESH_INTERVAL", conflicts_with = "spatiotemporal")]
         follow_motion: Option<usize>,
         /// Phase-scramble blocks of frames as spatiotemporal volumes with this intensity (0..1),
         /// instead of applying the method frame by frame.
@@ -319,7 +320,6 @@ fn main() -> Result<()> {
                     export_flow: false,
                     flow_output_dir: None,
                     keyframe_interval,
-                    blend_frames: 0,
                 }),
                 spatiotemporal: spatiotemporal.map(|intensity| engine::video::spatiotemporal::SpatiotemporalOptions { intensity }),
                 color_standard: color_standard.map(|s| match s {
