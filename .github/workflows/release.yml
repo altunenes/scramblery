@@ -260,7 +260,9 @@ jobs:
           cp -R "$APP_PATH" "$STAGE/"
           ln -s /Applications "$STAGE/Applications"
           VERSION=${GITHUB_REF_NAME#v}
-          hdiutil create -volname "Scramblery" -srcfolder "$STAGE" -ov -format UDZO "../target/packages/${APP_NAME}_${VERSION}_aarch64.dmg"
+          # hdiutil can underestimate the image size from -srcfolder, so the size is set explicitly.
+          SIZE_MB=$(( $(du -sm "$STAGE" | cut -f1) + 200 ))
+          hdiutil create -volname "Scramblery" -srcfolder "$STAGE" -size "${SIZE_MB}m" -ov -format UDZO "../target/packages/${APP_NAME}_${VERSION}_aarch64.dmg"
 
       - name: Name installers after the variant
         if: matrix.features != '' && matrix.platform != 'macos-latest'
