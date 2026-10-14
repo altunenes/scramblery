@@ -118,7 +118,7 @@ export global Params {
         "Cuts the image into a grid of blocks and shuffles their positions. Edge blocks are only exchanged with blocks of the same size, so every pixel is kept.",
         "Blurs the image with a Gaussian kernel. Fine detail is removed while the coarse layout stays intact.",
         "Warps the image with a smooth random flow field. Low-level properties stay close to the original while shapes become unrecognisable. Stojanoski & Cusack (2014), Journal of Vision 14(12):6.",
-        "Splits the image into Gabor-like bands of scale and orientation and randomises the local phase in each while keeping the local amplitude. Unlike Fourier phase scrambling, contrast stays where it was: textured regions stay textured and plain regions stay plain, while their structure is lost. The mean and the coarsest layout are kept.",
+        "Splits the image into Gabor-like bands of scale and orientation and randomises the local phase in each, keeping the local amplitude. Unlike Fourier phase scrambling, contrast stays where it was: textured regions stay textured, plain ones stay plain. The mean and coarse layout are kept.",
     ];
 }
 
