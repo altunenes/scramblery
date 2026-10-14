@@ -1345,7 +1345,7 @@ checksum = "a3d8a32ae18130a3c84dd492d4215c3d913c3b07c6b63c2eb3eb7ff1101ab7bf"
 
 [[package]]
 name = "engine"
-version = "4.2.0"
+version = "4.3.0"
 dependencies = [
  "anyhow",
  "face_detection",
@@ -5164,7 +5164,7 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "scramblery"
-version = "4.2.0"
+version = "4.3.0"
 dependencies = [
  "anyhow",
  "engine",
@@ -5181,7 +5181,7 @@ dependencies = [
 
 [[package]]
 name = "scramblery-cli"
-version = "4.2.0"
+version = "4.3.0"
 dependencies = [
  "anyhow",
  "clap",
