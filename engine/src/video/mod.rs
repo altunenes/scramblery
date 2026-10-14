@@ -30,10 +30,10 @@ const FLOW_SMOOTHING: f32 = 0.01;
 /// they are blended, as a fraction of the shorter frame side.
 const LAYER_STATISTICS_SMOOTHING: f32 = 0.03;
 /// Distortion of a follow-motion layer (see `distortion`) at which its weight is halved.
-const HALF_WEIGHT_DISTORTION: f32 = 1.5;
+const HALF_WEIGHT_DISTORTION: f32 = 1.25;
 /// Weight of the current frame's scramble at each pixel's own position in the follow-motion
 /// blend; it shows where both layers are distorted (e.g. background uncovered by motion).
-const STILL_WEIGHT: f32 = 0.1;
+const STILL_WEIGHT: f32 = 0.25;
 /// Radial frequency bands over which the part of the original a scramble keeps is estimated.
 const KEPT_BANDS: usize = 48;
 
@@ -406,15 +406,27 @@ fn distortion(coords: &Planes) -> Vec<f32> {
         .collect()
 }
 
+/// Band 0 holds only the mean; the other bands split the radial frequencies evenly.
 fn radial_band(kx: usize, ky: usize, w: usize, h: usize) -> usize {
+    if kx == 0 && ky == 0 {
+        return 0;
+    }
     let r = crate::spectral::radial_frequency(kx, ky, w, h) / std::f64::consts::FRAC_1_SQRT_2;
-    ((r * KEPT_BANDS as f64) as usize).min(KEPT_BANDS - 1)
+    1 + ((r * (KEPT_BANDS - 1) as f64) as usize).min(KEPT_BANDS - 2)
 }
 
 /// How much of the original each channel of a scramble keeps, per radial frequency band: the
-/// least-squares gain `Σ Re(S·conj(O)) / Σ |O|²` over the band, limited to 0..1. It is 1 where
-/// the scramble leaves frequencies unchanged (outside a Fourier frequency range), near 0 where it
-/// randomises them, and the transfer function of a linear filter such as blur.
+/// least-squares gain `g = Σ Re(S·conj(O)) / Σ |O|²` over the band. It is 1 where the scramble
+/// leaves frequencies unchanged (outside a Fourier frequency range), the transfer function of a
+/// linear filter such as blur, and near 0 where phases are randomised. With few coefficients in a
+/// band, random phases can give a sizeable `g` by chance. Each term varies as `|S||O| cos φ`, and
+/// a real image's coefficients come in conjugate pairs with the same `cos φ`, so the standard
+/// deviation under random phases is `σ = sqrt(Σ |S|²|O|²) / Σ |O|²`; the gain is shrunk to
+/// `(g - 2σ) / (1 - 2σ)`, limited to 0..1, which keeps 1 at 1 (exactly kept bands stay 1 however
+/// few coefficients they have). The mean is its own band (the
+/// ratio of the means). The other bands are estimated with the means removed and the borders
+/// tapered (a Tukey window over 10% of each side), so that the jump between opposite edges, which
+/// the transform treats as periodic, is not counted as kept detail.
 fn kept_transfer(original: &Planes, scrambled: &Planes) -> Vec<[f64; KEPT_BANDS]> {
     let (w, h) = (original.width, original.height);
     original
@@ -422,16 +434,45 @@ fn kept_transfer(original: &Planes, scrambled: &Planes) -> Vec<[f64; KEPT_BANDS]
         .iter()
         .zip(&scrambled.color)
         .map(|(o, s)| {
-            let (mut fo, mut fs) = (crate::spectral::to_complex(o), crate::spectral::to_complex(s));
+            let mean = |v: &[f32]| v.iter().map(|&x| x as f64).sum::<f64>() / v.len().max(1) as f64;
+            let (mo, ms) = (mean(o), mean(s));
+            let taper = |i: usize, n: usize| -> f64 {
+                let edge = (0.1 * n as f64).max(1.0);
+                let d = (i as f64 + 0.5).min(n as f64 - i as f64 - 0.5);
+                if d >= edge { 1.0 } else { 0.5 - 0.5 * (std::f64::consts::PI * d / edge).cos() }
+            };
+            let window = |v: &[f32], m: f64| -> Vec<num_complex::Complex64> {
+                (0..w * h).map(|i| num_complex::Complex64::new((v[i] as f64 - m) * taper(i % w, w) * taper(i / w, h), 0.0)).collect()
+            };
+            let (mut fo, mut fs) = (window(o, mo), window(s, ms));
             crate::spectral::fft2(&mut fo, w, h, false);
             crate::spectral::fft2(&mut fs, w, h, false);
-            let (mut num, mut den) = ([0.0; KEPT_BANDS], [0.0; KEPT_BANDS]);
+            let (mut num, mut den, mut var, mut err) = ([0.0; KEPT_BANDS], [0.0; KEPT_BANDS], [0.0; KEPT_BANDS], [0.0; KEPT_BANDS]);
             for i in 0..w * h {
                 let b = radial_band(i % w, i / w, w, h);
                 num[b] += (fs[i] * fo[i].conj()).re;
                 den[b] += fo[i].norm_sqr();
+                var[b] += fs[i].norm_sqr() * fo[i].norm_sqr();
+                err[b] += (fs[i] - fo[i]).norm_sqr();
             }
-            std::array::from_fn(|b| if den[b] > 0.0 { (num[b] / den[b]).clamp(0.0, 1.0) } else { 0.0 })
+            std::array::from_fn(|b| {
+                if b == 0 {
+                    return if mo.abs() > 1e-9 { (ms / mo).clamp(0.0, 1.0) } else { 1.0 };
+                }
+                if den[b] <= 0.0 {
+                    return 0.0;
+                }
+                // Exact agreement does not happen by chance.
+                if err[b] <= 1e-8 * den[b] {
+                    return 1.0;
+                }
+                let g = num[b] / den[b];
+                let margin = 2.0 * var[b].sqrt() / den[b];
+                if margin >= 1.0 {
+                    return 0.0;
+                }
+                ((g - margin) / (1.0 - margin)).clamp(0.0, 1.0)
+            })
         })
         .collect()
 }
@@ -1007,13 +1048,22 @@ mod tests {
 
     #[test]
     fn kept_part_separates_what_a_scramble_leaves_unchanged() {
-        let original = planes(64, 64, |x, y| ((x * 3 + y * 5) % 17) as f32 / 16.0);
-        // A scramble that keeps everything keeps the whole image; one that keeps nothing, none.
-        let all = kept_part(&original, &kept_transfer(&original, &original));
-        assert!(all.color[0].iter().zip(&original.color[0]).all(|(a, b)| (a - b).abs() < 1e-4));
-        let blurred = crate::scramble::blur::scramble(&original, 2.0);
-        let transfer = kept_transfer(&original, &blurred);
-        assert!(transfer[0][0] > 0.99 && transfer[0][KEPT_BANDS - 1] < 0.05);
+        // A scramble that keeps everything keeps the whole image.
+        let noise = planes(128, 128, |x, y| (((x as u32 * 73 + y as u32 * 151) ^ 99).wrapping_mul(2654435761) >> 24) as f32 / 255.0);
+        let all = kept_part(&noise, &kept_transfer(&noise, &noise));
+        assert!(all.color[0].iter().zip(&noise.color[0]).all(|(a, b)| (a - b).abs() < 1e-3));
+        // Blur keeps low frequencies and removes high ones.
+        let transfer = kept_transfer(&noise, &crate::scramble::blur::scramble(&noise, 2.0));
+        assert!(transfer[0][4] > 0.5 && transfer[0][20] < 0.2 && transfer[0][40] < 0.05, "{:?}", transfer[0]);
+        // A full phase scramble keeps the mean and nothing else, also at the lowest frequencies.
+        let blobs = planes(96, 64, |x, y| (((x as f32 / 9.0).sin() * (y as f32 / 7.0).cos()) + 1.0) / 2.0);
+        let options = crate::scramble::FourierOptions::default();
+        for seed in 0..8 {
+            let scrambled = crate::scramble::fourier::scramble(&blobs, &options, &mut seed::rng(seed));
+            let transfer = kept_transfer(&blobs, &scrambled);
+            assert!(transfer[0][0] > 0.99, "seed {seed}: mean {}", transfer[0][0]);
+            assert!(transfer[0][1..].iter().all(|&g| g < 0.05), "seed {seed}: {:?}", transfer[0]);
+        }
     }
 
     #[test]
