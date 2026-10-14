@@ -15,7 +15,7 @@ From the repository root:
 cargo run --release
 ```
 
-For optical flow on the GPU, add a feature: `cargo run --release --features webgpu` (also `cuda`, `directml`).
+For optical flow on the GPU, add a feature: `cargo run --release --features webgpu` (also `cuda`, `directml`, `openvino`, `migraphx`).
 
 **Command line:**
 

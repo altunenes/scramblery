@@ -28,7 +28,7 @@ Installing "runtime installer" should be enough, but if you want to develop and 
 
 *A: Yes, we can. But installing Gstreamer is not a big deal like installing CUDA or something. It's just a few clicks and a few MBs. So, I think it's not worth the effort to embed the necessary dlls/libs also it would make the app size larger and harder to maintain.*
 
-**Q: I see `-cuda`, `-directml` and `-webgpu` installers. Do I need those?**
+**Q: I see `-cuda`, `-directml`, `-webgpu`, `-openvino` and `-migraphx` installers. Do I need those?**
 
 *A: Only if you want GPU acceleration for optical flow (the "Follow motion" option when scrambling video). Everything else behaves identically, and every build falls back to CPU when its runtime isn't present, so the plain installer is always a safe choice.*
 
@@ -38,11 +38,15 @@ Installing "runtime installer" should be enough, but if you want to develop and 
 | *(plain)* | Windows / Linux | No, runs on CPU |
 | `-directml` | Windows | No, works on any DirectX 12 GPU |
 | `-webgpu` | macOS / Windows / Linux | No |
-| `-cuda` | Windows / Linux | Yes, NVIDIA CUDA |
+| `-cuda` | Windows / Linux | Yes, NVIDIA CUDA 13 and cuDNN 9 |
+| `-openvino` | Windows / Linux | Yes, Intel OpenVINO (Intel GPUs) |
+| `-migraphx` | Linux | Yes, AMD ROCm with MIGraphX |
+
+*On Linux, use the `.deb` of a GPU build; the AppImage always runs on CPU. While following motion, the app shows whether optical flow runs on the GPU or the CPU.*
 
 *On Windows the plain installer runs on CPU. If you want GPU acceleration without installing anything extra, use `-directml`.*
 
-*The CUDA builds deliberately don't bundle the CUDA runtime. It's an install of several gigabytes, and shipping it would make the download enormous.*
+*The CUDA, OpenVINO and MIGraphX builds deliberately don't bundle their vendor runtimes. These are large installs, and shipping them would make the download enormous.*
 
 
 
