@@ -56,7 +56,7 @@ pub fn scramble_image_with(
     let encoded = Planes::from_image(image);
     let planes = if options.linear_light { encoded.to_linear() } else { encoded };
 
-    let (mut result, faces_detected) = match &options.face_detection {
+    let (mut result, faces) = match &options.face_detection {
         None => (scramble_planes(&planes, options, seed), None),
         Some(face_opts) => {
             let (result, faces) = scramble_faces(image, &planes, options, face_opts, seed)?;
@@ -68,13 +68,13 @@ pub fn scramble_image_with(
         result = result.to_encoded();
     }
     if let Some(aperture) = &options.aperture {
-        aperture::apply(&mut result, aperture);
+        aperture::apply(&mut result, aperture, faces.as_deref());
     }
     let clipped_fraction = result.clip();
 
     Ok(ScrambleOutput {
         image: result.to_image(),
-        report: ScrambleReport { seed, clipped_fraction, faces_detected, contrast_scale },
+        report: ScrambleReport { seed, clipped_fraction, faces_detected: faces.map(|f| f.len()), contrast_scale },
     })
 }
 
@@ -132,7 +132,7 @@ fn scramble_faces(
     options: &ScrambleOptions,
     face_opts: &FaceDetectionOptions,
     seed: u64,
-) -> crate::Result<(Planes, usize)> {
+) -> crate::Result<(Planes, Vec<aperture::FaceBox>)> {
     let session = face_detection::load_face_detector(None)?;
     let regions = face_detection::detect_face_regions(
         image,
@@ -159,7 +159,7 @@ fn scramble_faces(
         let patch = scramble_planes(&base.crop(r.x, r.y, r.width, r.height), options, seed::derive(seed, index as u64));
         blend_patch(&mut result, &patch, &r.weights, r.x, r.y, face_opts.background_mode);
     }
-    Ok((result, regions.len()))
+    Ok((result, regions.iter().map(aperture::FaceBox::from).collect()))
 }
 
 /// Blends a scrambled patch into `result` at (x, y) with per-pixel `weights`. With a removed

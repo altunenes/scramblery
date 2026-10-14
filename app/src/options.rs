@@ -1,4 +1,4 @@
-use engine::aperture::{ApertureOptions, ApertureShape, Surround};
+use engine::aperture::{ApertureCentre, ApertureOptions, ApertureShape, Surround};
 use engine::matching::{MatchOptions, MatchProperty, MatchTarget};
 use engine::{
     BackgroundMode, BlockOptions, BlurOptions, DiffeomorphicOptions, FaceDetectionOptions,
@@ -97,6 +97,7 @@ pub fn scramble_options(ui: &AppWindow) -> ScrambleOptions {
         ..Default::default()
     });
 
+    let aperture_on_faces = face_detection.is_some() && p.get_aperture_centre() == 1;
     ScrambleOptions {
         scramble_type,
         intensity,
@@ -105,13 +106,14 @@ pub fn scramble_options(ui: &AppWindow) -> ScrambleOptions {
         matching: match_options(ui),
         aperture: p.get_aperture().then(|| ApertureOptions {
             shape: if p.get_aperture_shape() == 1 { ApertureShape::Ellipse } else { ApertureShape::Circle },
-            size: p.get_aperture_size() / 100.0,
+            size: if aperture_on_faces { p.get_aperture_face_size() } else { p.get_aperture_size() } / 100.0,
             feather: p.get_aperture_feather() / 100.0,
             surround: match p.get_aperture_surround() {
                 1 => Surround::MeanColor,
                 2 => Surround::Gray(p.get_aperture_gray()),
                 _ => Surround::MeanLuminance,
             },
+            centre: if aperture_on_faces { ApertureCentre::Faces } else { ApertureCentre::Image },
         }),
         linear_light: p.get_linear_light(),
         out_of_range: if p.get_out_of_range() == 1 { RangeHandling::CompressContrast } else { RangeHandling::Clip },
@@ -230,7 +232,13 @@ pub fn apply_options(ui: &AppWindow, options: &ScrambleOptions) {
     p.set_aperture(options.aperture.is_some());
     if let Some(a) = &options.aperture {
         p.set_aperture_shape(if a.shape == ApertureShape::Ellipse { 1 } else { 0 });
-        p.set_aperture_size(a.size * 100.0);
+        if a.centre == ApertureCentre::Faces {
+            p.set_aperture_centre(1);
+            p.set_aperture_face_size(a.size * 100.0);
+        } else {
+            p.set_aperture_centre(if options.face_detection.is_some() { 0 } else { 1 });
+            p.set_aperture_size(a.size * 100.0);
+        }
         p.set_aperture_feather(a.feather * 100.0);
         p.set_aperture_surround(match a.surround {
             Surround::MeanLuminance => 0,

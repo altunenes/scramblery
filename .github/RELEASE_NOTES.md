@@ -1,4 +1,4 @@
-- ONNX Runtime updated to 1.31 (ort 2.0.0-rc.14), with fixes for the WebGPU and CoreML providers, and many improvements for cpu and gpu performance and gpu ep stability.
-- New builds: `-openvino` (Windows, Linux) for Intel GPUs and `-migraphx` (Linux) for AMD GPUs.
+- Show through a window: with face detection on, the window can now be centred on each detected face ("Centre on: Faces"), and follows the faces through a video. Its size is relative to the face box.
+- Fixed a black start in scrambled videos made from trimmed clips (MP4 edit lists, e.g. clips cut in QuickTime or Photos): the video started late against the audio.
 
-CUDA builds need CUDA 13 and cuDNN 9, OpenVINO builds need Intel OpenVINO, and MIGraphX builds need ROCm. On Linux, use the `.deb` for GPU. While following motion, the app shows whether optical flow runs on the GPU or the CPU. See [INSTALL.md](https://github.com/altunenes/scramblery/blob/main/INSTALL.md).
+CUDA builds need CUDA 13 and cuDNN 9, OpenVINO builds need Intel OpenVINO, and MIGraphX builds need ROCm. On Linux, use the `.deb` for GPU. See [INSTALL.md](https://github.com/altunenes/scramblery/blob/main/INSTALL.md).

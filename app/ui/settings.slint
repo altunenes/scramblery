@@ -48,8 +48,11 @@ export global Params {
     in-out property <bool> aperture: false;
     // 0 Circle, 1 Ellipse
     in-out property <int> aperture-shape: 0;
-    // Size and soft edge in percent.
+    // 0 Image, 1 Faces (with face detection)
+    in-out property <int> aperture-centre: 1;
+    // Size and soft edge in percent; the size on faces is relative to the face box.
     in-out property <float> aperture-size: 90;
+    in-out property <float> aperture-face-size: 150;
     in-out property <float> aperture-feather: 15;
     // 0 Mean grey, 1 Mean colour, 2 Custom grey
     in-out property <int> aperture-surround: 0;
@@ -566,8 +569,15 @@ export component ScrambleSettings inherits Rectangle {
 
                     ToggleRow {
                         label: "Show through a window";
-                        help: "Show the result through a centred circular or elliptical window; the surround is filled with a uniform colour. Applied last, after scrambling and matching.";
+                        help: "Show the result through a circular or elliptical window; the surround is filled with a uniform colour. Applied last, after scrambling and matching.";
                         checked <=> Params.aperture;
+                    }
+
+                    if Params.aperture && Params.face-detection: Segmented {
+                        label: "Centre on";
+                        help: "Image: one window at the centre. Faces: one window on each detected face, following it through a video; where no face is found, only the surround is shown.";
+                        options: ["Image", "Faces"];
+                        current-index <=> Params.aperture-centre;
                     }
 
                     if Params.aperture: Segmented {
@@ -577,13 +587,22 @@ export component ScrambleSettings inherits Rectangle {
                         current-index <=> Params.aperture-shape;
                     }
 
-                    if Params.aperture: ValueSlider {
+                    if Params.aperture && !(Params.face-detection && Params.aperture-centre == 1): ValueSlider {
                         label: "Size";
                         help: "Window diameter relative to the image; 100% touches the edges.";
                         minimum: 10;
                         maximum: 100;
                         suffix: "%";
                         value <=> Params.aperture-size;
+                    }
+
+                    if Params.aperture && Params.face-detection && Params.aperture-centre == 1: ValueSlider {
+                        label: "Size";
+                        help: "Window size relative to each face box; at 100% the window passes through the box corners.";
+                        minimum: 50;
+                        maximum: 400;
+                        suffix: "%";
+                        value <=> Params.aperture-face-size;
                     }
 
                     if Params.aperture: ValueSlider {
