@@ -173,6 +173,9 @@ fn cpu_builder(config: &ModelConfig) -> Result<ort::session::builder::SessionBui
         .with_no_environment_execution_providers()
         .map_err(builder_error)?
         .with_execution_providers([CPU::default().build()])
+        .map_err(builder_error)?
+        // https://github.com/pykeio/ort/issues/662
+        .with_auto_device(ort::session::builder::AutoDevicePolicy::PreferCPU)
         .map_err(builder_error)?)
 }
 
