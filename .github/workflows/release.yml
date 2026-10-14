@@ -26,6 +26,8 @@ jobs:
             features: 'webgpu'
           - platform: windows-latest
             features: 'directml'
+          - platform: windows-latest
+            features: 'openvino'
 
           # CPU-only Linux build
           - platform: ubuntu-24.04
@@ -35,6 +37,10 @@ jobs:
             features: 'cuda'
           - platform: ubuntu-24.04
             features: 'webgpu'
+          - platform: ubuntu-24.04
+            features: 'migraphx'
+          - platform: ubuntu-24.04
+            features: 'openvino'
     runs-on: ${{ matrix.platform }}
     env:
       APP_NAME: ${{ matrix.features != '' && format('scramblery-{0}', matrix.features) || 'scramblery' }}

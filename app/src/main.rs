@@ -15,7 +15,7 @@ use slint::ComponentHandle;
 slint::include_modules!();
 
 fn main() -> Result<(), slint::PlatformError> {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info,ort=error")).init();
 
     let ui = AppWindow::new()?;
 
