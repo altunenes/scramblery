@@ -96,8 +96,13 @@ jobs:
           mkdir -p gst-pkgs
           for f in "gstreamer-1.0-$GSTREAMER_VERSION-universal.pkg" "gstreamer-1.0-devel-$GSTREAMER_VERSION-universal.pkg"; do
             [ -s "gst-pkgs/$f" ] && continue
-            curl -fL --http1.1 --retry 10 --retry-all-errors --retry-delay 15 \
-              "https://gstreamer.freedesktop.org/data/pkg/osx/$GSTREAMER_VERSION/$f" -o "gst-pkgs/$f.part"
+            # The server often closes the connection mid-transfer, so each attempt resumes the partial file.
+            n=0
+            until curl -fL --http1.1 -C - "https://gstreamer.freedesktop.org/data/pkg/osx/$GSTREAMER_VERSION/$f" -o "gst-pkgs/$f.part"; do
+              n=$((n+1))
+              [ "$n" -ge 40 ] && { echo "Download of $f failed"; exit 1; }
+              sleep 15
+            done
             mv "gst-pkgs/$f.part" "gst-pkgs/$f"
           done
           cp "gst-pkgs/gstreamer-1.0-$GSTREAMER_VERSION-universal.pkg" gstreamer.pkg
