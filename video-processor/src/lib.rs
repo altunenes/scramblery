@@ -229,6 +229,9 @@ fn make_faithful_encoder(quantizer: u32) -> Result<(gst::Element, &'static str)>
     Ok((enc, "Y444"))
 }
 
+/// gst element, display name, and properties as (name, value) strings.
+type HardwareEncoder = (&'static str, &'static str, &'static [(&'static str, &'static str)]);
+
 fn make_h264_encoder(fidelity: VideoFidelity) -> Result<(gst::Element, &'static str)> {
     match fidelity {
         VideoFidelity::Lossless => return make_faithful_encoder(0),
@@ -236,7 +239,7 @@ fn make_h264_encoder(fidelity: VideoFidelity) -> Result<(gst::Element, &'static 
         VideoFidelity::Fast => {}
     }
 
-    let hardware: [(&str, &str, &[(&str, &str)]); 4] = [
+    let hardware: [HardwareEncoder; 4] = [
         ("vtenc_h264", "VideoToolbox", &[("bitrate", "2048"), ("max-keyframe-interval", "25"), ("realtime", "true"), ("allow-frame-reordering", "false")]),
         ("mfh264enc", "Media Foundation", &[("bitrate", "2048"), ("gop-size", "25")]),
         ("nvh264enc", "NVENC", &[("bitrate", "2048"), ("gop-size", "25"), ("preset", "low-latency-hp"), ("rc-mode", "cbr")]),
