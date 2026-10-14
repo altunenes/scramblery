@@ -1,5 +1,5 @@
 # Scramblery  
-[![DOI](https://zenodo.org/badge/449034134.svg)](https://zenodo.org/badge/latestdoi/449034134) [![Release](https://github.com/altunenes/scramblery/actions/workflows/release.yml/badge.svg)](https://github.com/altunenes/scramblery/actions/workflows/release.yml)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.7484576.svg)](https://doi.org/10.5281/zenodo.7484576) [![Release](https://github.com/altunenes/scramblery/actions/workflows/release.yml/badge.svg)](https://github.com/altunenes/scramblery/actions/workflows/release.yml)
 
 ---
 
@@ -102,4 +102,6 @@ Scramblery uses the following methods. If you use these features in your researc
 
 ## Citation
 
-Altun, E. (2025). altunenes/scramblery: Scramblery v2.0.0 (v2.0.0). Zenodo. https://doi.org/10.5281/zenodo.7484576
+Please cite Scramblery with the DOI that covers all versions, and mention the version you used (shown in the app and in the JSON settings saved with each result):
+
+> Altun, E. Scramblery (Version x.y.z) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.7484576

@@ -1,0 +1,15 @@
+cff-version: 1.2.0
+message: "If you use Scramblery in your research, please cite it with the DOI below, which covers all versions."
+title: Scramblery
+type: software
+authors:
+  - family-names: Altun
+    given-names: Enes
+doi: 10.5281/zenodo.7484576
+license: GPL-3.0-only
+repository-code: "https://github.com/altunenes/scramblery"
+keywords:
+  - image scrambling
+  - phase scrambling
+  - vision science
+  - psychophysics
