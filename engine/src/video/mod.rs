@@ -23,13 +23,19 @@ pub const FACE_HOLD_FRAMES: usize = 15;
 /// Frames over which consecutive spatiotemporal volumes are crossfaded.
 pub const SPATIOTEMPORAL_OVERLAP: usize = 8;
 
-/// Luminance error (0..1) between a motion-compensated previous frame and the current frame
-/// below which a warped pixel is fully trusted, and above which it is replaced.
-const RELIABLE_ERROR: f32 = 0.03;
-const UNRELIABLE_ERROR: f32 = 0.10;
-/// Standard deviation of the Gaussian that smooths the follow-motion weights, as a fraction of
-/// the shorter frame side.
-const WEIGHT_SMOOTHING: f32 = 0.03;
+/// Standard deviation of the Gaussian that smooths the optical flow before the scramble is
+/// moved along it, as a fraction of the shorter frame side.
+const FLOW_SMOOTHING: f32 = 0.01;
+/// Standard deviation of the Gaussian over which the two follow-motion layers are compared when
+/// they are blended, as a fraction of the shorter frame side.
+const LAYER_STATISTICS_SMOOTHING: f32 = 0.03;
+/// Distortion of a follow-motion layer (see `distortion`) at which its weight is halved.
+const HALF_WEIGHT_DISTORTION: f32 = 1.5;
+/// Weight of the current frame's scramble at each pixel's own position in the follow-motion
+/// blend; it shows where both layers are distorted (e.g. background uncovered by motion).
+const STILL_WEIGHT: f32 = 0.1;
+/// Radial frequency bands over which the part of the original a scramble keeps is estimated.
+const KEPT_BANDS: usize = 48;
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Default)]
 pub enum FrameSeeds {
@@ -120,7 +126,10 @@ pub struct VideoReport {
 struct State {
     frame: usize,
     prev_original: Option<Planes>,
-    prev_scrambled: Option<Planes>,
+    /// Follow motion: two layers, renewed in turn (see `process_following`).
+    layers: [Option<Layer>; 2],
+    /// How much of the original the scramble keeps, from the latest layer renewal.
+    kept: Option<Vec<[f64; KEPT_BANDS]>>,
     prev_mask: Option<FaceMask>,
     frames_since_face: usize,
     frames_without_faces: usize,
@@ -132,6 +141,14 @@ struct State {
     /// Colour samples written so far, and how many of them were outside 0..1.
     samples: u64,
     clipped: u64,
+}
+
+/// One layer of follow motion: a scramble and, for every pixel, the position in it that the
+/// motion has carried there (x and y planes).
+struct Layer {
+    /// What the scramble changed when the layer was renewed (see `kept_transfer`).
+    reference: Planes,
+    coords: Planes,
 }
 
 /// Number of colour samples and of those outside 0..1, which the display range cannot show.
@@ -306,24 +323,186 @@ fn bilinear(values: &[f32], w: usize, h: usize, x: f32, y: f32) -> f32 {
         + values[y1 * w + x1] * fx * fy
 }
 
-/// Per-pixel weight (0..1) of the motion-compensated previous result: low where the warped
-/// previous original disagrees with the current frame (occlusions, failed motion estimates)
-/// or where the motion comes from outside the frame.
-fn reliability(current: &Planes, warped_original: &Planes, flow: &optical_flow::FlowField) -> Vec<f32> {
-    let (w, h) = (current.width, current.height);
-    let (a, b) = (current.luminance(), warped_original.luminance());
+/// Samples every plane of `planes` at the positions in `coords` (x and y planes) with
+/// Catmull-Rom interpolation, which keeps more fine detail than bilinear at fractional positions.
+fn remap(planes: &Planes, coords: &Planes) -> Planes {
+    let (w, h) = (planes.width, planes.height);
+    let (xs, ys) = (&coords.color[0], &coords.color[1]);
+    let sample = |plane: &Vec<f32>| -> Vec<f32> { (0..w * h).into_par_iter().map(|i| bicubic(plane, w, h, xs[i], ys[i])).collect() };
+    Planes {
+        color: planes.color.iter().map(sample).collect(),
+        alpha: planes.alpha.as_ref().map(sample),
+        ..planes.clone()
+    }
+}
+
+fn bicubic(values: &[f32], w: usize, h: usize, x: f32, y: f32) -> f32 {
+    let x = x.clamp(0.0, (w - 1) as f32);
+    let y = y.clamp(0.0, (h - 1) as f32);
+    let (x0, y0) = (x.floor(), y.floor());
+    let (wx, wy) = (catmull_rom(x - x0), catmull_rom(y - y0));
+    let at = |i: f32, n: usize| (i.max(0.0) as usize).min(n - 1);
+    let mut sum = 0.0;
+    for (j, wy) in wy.iter().enumerate() {
+        let row = at(y0 + j as f32 - 1.0, h) * w;
+        for (i, wx) in wx.iter().enumerate() {
+            sum += wx * wy * values[row + at(x0 + i as f32 - 1.0, w)];
+        }
+    }
+    sum
+}
+
+/// Catmull-Rom weights of the four samples around a position `t` (0..1) past the second.
+fn catmull_rom(t: f32) -> [f32; 4] {
+    let (t2, t3) = (t * t, t * t * t);
+    [
+        0.5 * (-t3 + 2.0 * t2 - t),
+        0.5 * (3.0 * t3 - 5.0 * t2 + 2.0),
+        0.5 * (-3.0 * t3 + 4.0 * t2 + t),
+        0.5 * (t3 - t2),
+    ]
+}
+
+/// Coordinates of every pixel's own position.
+fn identity_coords(w: usize, h: usize) -> Planes {
+    let xs = (0..w * h).map(|i| (i % w) as f32).collect();
+    let ys = (0..w * h).map(|i| (i / w) as f32).collect();
+    Planes { width: w, height: h, color: vec![xs, ys], alpha: None, sixteen_bit: false }
+}
+
+fn smooth_flow(flow: &optical_flow::FlowField, sigma: f32) -> optical_flow::FlowField {
+    let (w, h) = (flow.width, flow.height);
+    let blur = |v: &[f32]| crate::scramble::blur::gaussian_blur(v, w, h, sigma);
+    let mut data = blur(&flow.data[..w * h]);
+    data.extend(blur(&flow.data[w * h..]));
+    optical_flow::FlowField { width: w, height: h, data }
+}
+
+/// How far the carried positions are from a rigid motion at each pixel: with `s1 >= s2` the
+/// singular values of their Jacobian, the larger of `s1` and `1 / s2`, so 1 for a rigid motion
+/// and larger where the texture is stretched or compressed in any direction.
+fn distortion(coords: &Planes) -> Vec<f32> {
+    let (w, h) = (coords.width, coords.height);
+    let (xs, ys) = (&coords.color[0], &coords.color[1]);
+    let d = |v: &[f32], i: usize, dx: bool| -> f32 {
+        let (x, y) = (i % w, i / w);
+        if dx {
+            let (a, b) = (x.saturating_sub(1), (x + 1).min(w - 1));
+            (v[y * w + b] - v[y * w + a]) / (b - a).max(1) as f32
+        } else {
+            let (a, b) = (y.saturating_sub(1), (y + 1).min(h - 1));
+            (v[b * w + x] - v[a * w + x]) / (b - a).max(1) as f32
+        }
+    };
     (0..w * h)
         .into_par_iter()
         .map(|i| {
-            let x = (i % w) as f32 + flow.data[i];
-            let y = (i / w) as f32 + flow.data[w * h + i];
-            if x < 0.0 || y < 0.0 || x > (w - 1) as f32 || y > (h - 1) as f32 {
-                return 0.0;
-            }
-            let err = (a[i] - b[i]).abs();
-            ((UNRELIABLE_ERROR - err) / (UNRELIABLE_ERROR - RELIABLE_ERROR)).clamp(0.0, 1.0)
+            let (a, b, c, e) = (d(xs, i, true), d(xs, i, false), d(ys, i, true), d(ys, i, false));
+            let q = ((a + e) * (a + e) + (c - b) * (c - b)).sqrt() / 2.0;
+            let r = ((a - e) * (a - e) + (c + b) * (c + b)).sqrt() / 2.0;
+            let (s1, s2) = (q + r, (q - r).abs());
+            s1.max(1.0 / s2.max(1e-3))
         })
         .collect()
+}
+
+fn radial_band(kx: usize, ky: usize, w: usize, h: usize) -> usize {
+    let r = crate::spectral::radial_frequency(kx, ky, w, h) / std::f64::consts::FRAC_1_SQRT_2;
+    ((r * KEPT_BANDS as f64) as usize).min(KEPT_BANDS - 1)
+}
+
+/// How much of the original each channel of a scramble keeps, per radial frequency band: the
+/// least-squares gain `Σ Re(S·conj(O)) / Σ |O|²` over the band, limited to 0..1. It is 1 where
+/// the scramble leaves frequencies unchanged (outside a Fourier frequency range), near 0 where it
+/// randomises them, and the transfer function of a linear filter such as blur.
+fn kept_transfer(original: &Planes, scrambled: &Planes) -> Vec<[f64; KEPT_BANDS]> {
+    let (w, h) = (original.width, original.height);
+    original
+        .color
+        .iter()
+        .zip(&scrambled.color)
+        .map(|(o, s)| {
+            let (mut fo, mut fs) = (crate::spectral::to_complex(o), crate::spectral::to_complex(s));
+            crate::spectral::fft2(&mut fo, w, h, false);
+            crate::spectral::fft2(&mut fs, w, h, false);
+            let (mut num, mut den) = ([0.0; KEPT_BANDS], [0.0; KEPT_BANDS]);
+            for i in 0..w * h {
+                let b = radial_band(i % w, i / w, w, h);
+                num[b] += (fs[i] * fo[i].conj()).re;
+                den[b] += fo[i].norm_sqr();
+            }
+            std::array::from_fn(|b| if den[b] > 0.0 { (num[b] / den[b]).clamp(0.0, 1.0) } else { 0.0 })
+        })
+        .collect()
+}
+
+/// The part of `planes` that a scramble with this transfer keeps.
+fn kept_part(planes: &Planes, transfer: &[[f64; KEPT_BANDS]]) -> Planes {
+    let (w, h) = (planes.width, planes.height);
+    let color = planes
+        .color
+        .iter()
+        .zip(transfer)
+        .map(|(p, gain)| {
+            if gain.iter().all(|&g| g == 0.0) {
+                return vec![0.0; w * h];
+            }
+            let mut f = crate::spectral::to_complex(p);
+            crate::spectral::fft2(&mut f, w, h, false);
+            f.par_iter_mut().enumerate().for_each(|(i, v)| *v *= gain[radial_band(i % w, i / w, w, h)]);
+            crate::spectral::fft2(&mut f, w, h, true);
+            f.iter().map(|v| v.re as f32).collect()
+        })
+        .collect();
+    Planes { color, alpha: None, ..planes.clone() }
+}
+
+/// `a + sign * b` for every plane.
+fn combine(a: &Planes, b: &Planes, sign: f32) -> Planes {
+    Planes {
+        color: a.color.iter().zip(&b.color).map(|(x, y)| x.iter().zip(y).map(|(x, y)| x + sign * y).collect()).collect(),
+        ..a.clone()
+    }
+}
+
+/// `a * x0 + (1 - a) * x1` per pixel, with the contrast of the layers kept. A plain mix of uncorrelated
+/// textures lowers their contrast (by up to a factor of sqrt(2)), which would mark the moving
+/// areas, so the deviations from the means are divided by `sqrt(a² + b² + 2abρ)`, where `b` is
+/// `1 - a` and `ρ` the local correlation of the layers' luminance. Where the layers agree
+/// (`ρ` = 1), this is a plain mix.
+fn blend_layers(x0: &Planes, x1: &Planes, a: &[f32]) -> Planes {
+    let (w, h) = (x0.width, x0.height);
+    let mean = |v: &[f32]| v.iter().sum::<f32>() / v.len().max(1) as f32;
+    let deviation = |v: Vec<f32>| -> Vec<f32> {
+        let m = mean(&v);
+        v.into_iter().map(|x| x - m).collect()
+    };
+    let (d0, d1) = (deviation(x0.luminance()), deviation(x1.luminance()));
+    let sigma = LAYER_STATISTICS_SMOOTHING * w.min(h) as f32;
+    let local = |v: Vec<f32>| crate::scramble::blur::gaussian_blur(&v, w, h, sigma);
+    let c01 = local(d0.iter().zip(&d1).map(|(x, y)| x * y).collect());
+    let c00 = local(d0.iter().map(|x| x * x).collect());
+    let c11 = local(d1.iter().map(|x| x * x).collect());
+    let scale: Vec<f32> = (0..w * h)
+        .map(|i| {
+            let rho = (c01[i] / (c00[i] * c11[i]).sqrt().max(1e-12)).clamp(0.0, 1.0);
+            let (a, b) = (a[i], 1.0 - a[i]);
+            1.0 / (a * a + b * b + 2.0 * a * b * rho).sqrt()
+        })
+        .collect();
+    let blend = |p0: &Vec<f32>, p1: &Vec<f32>| -> Vec<f32> {
+        let (m0, m1) = (mean(p0), mean(p1));
+        (0..w * h)
+            .map(|i| {
+                let (a, b) = (a[i], 1.0 - a[i]);
+                a * m0 + b * m1 + (a * (p0[i] - m0) + b * (p1[i] - m1)) * scale[i]
+            })
+            .collect()
+    };
+    Planes {
+        color: x0.color.iter().zip(&x1.color).map(|(p0, p1)| blend(p0, p1)).collect(),
+        ..x0.clone()
+    }
 }
 
 /// `a * (1 - t) + b * t` per pixel, for every plane.
@@ -338,22 +517,6 @@ fn mix(a: &Planes, b: &Planes, t: &[f32]) -> Planes {
             _ => a.alpha.clone(),
         },
         ..a.clone()
-    }
-}
-
-/// Weight of a fresh scramble when crossfading around keyframes (0 = warped only).
-fn keyframe_blend(tc: &TemporalCoherenceOptions, frame: usize) -> f32 {
-    if tc.blend_frames == 0 || tc.keyframe_interval == 0 {
-        return 0.0;
-    }
-    let since = frame % tc.keyframe_interval;
-    let until = tc.keyframe_interval - since;
-    if until <= tc.blend_frames {
-        1.0 - until as f32 / (tc.blend_frames + 1) as f32
-    } else if since <= tc.blend_frames {
-        1.0 - since as f32 / (tc.blend_frames + 1) as f32
-    } else {
-        0.0
     }
 }
 
@@ -550,35 +713,56 @@ fn process_following(frame: &mut YuvFrame, options: &VideoProcessingOptions, scr
         None
     };
 
-    // Motion-compensated previous result, trusted only where the motion estimate holds and,
-    // with faces, only where the source pixel was itself scrambled.
-    let keyframe = index == 0 || (tc.keyframe_interval > 0 && index.is_multiple_of(tc.keyframe_interval));
-    let scrambled = match (&flow, &state.prev_scrambled, &state.prev_original) {
-        (Some(flow), Some(prev_scrambled), Some(prev_original)) if !keyframe => {
-            let warped = warp(prev_scrambled, flow);
-            let mut weight = reliability(&original, &warp(prev_original, flow), flow);
-            if let Some(prev_mask) = &state.prev_mask {
-                let p = Planes { color: vec![prev_mask.weights.clone()], alpha: None, ..original.clone() };
-                let source_scrambled = warp(&p, flow).color.remove(0);
-                weight.iter_mut().zip(source_scrambled).for_each(|(w, s)| *w *= s);
-            }
-            let fresh_weight = keyframe_blend(tc, index);
-            let replace: Vec<f32> = weight.iter().map(|w| 1.0 - w * (1.0 - fresh_weight)).collect();
-            // The weights come from the original frames and follow their edges (eyes, mouth,
-            // outlines). Smoothing them keeps those details from being drawn into the output.
-            let sigma = WEIGHT_SMOOTHING * original.width.min(original.height) as f32;
-            let replace = crate::scramble::blur::gaussian_blur(&replace, original.width, original.height, sigma);
-            mix(&warped, &fresh, &replace)
+    // Two layers carry the scramble along the motion. Each keeps, for every pixel, a position in
+    // its scramble that is moved along the flow, and samples the scramble once at that position,
+    // so the texture is not resampled (and blurred) from frame to frame. Moved texture stretches
+    // over time, so each layer is renewed with the current frame's scramble every `period`
+    // frames, half a period after the other, when its weight in the blend is zero. Where a
+    // layer is locally distorted, the other one is weighted up, and where both are (background
+    // uncovered by fast motion), the current frame's scramble in place takes over. What the
+    // scramble keeps of the original (e.g. frequencies outside a Fourier range) always comes from
+    // the current frame; the layers only carry what it changed, so they never show the content
+    // of earlier frames.
+    let period = tc.keyframe_interval.max(2);
+    let (w, h) = (original.width, original.height);
+    let flow = flow.as_ref().map(|f| smooth_flow(f, FLOW_SMOOTHING * w.min(h) as f32));
+    let phases = [index % period, (index + period / 2) % period];
+    let renew = |k: usize| flow.is_none() || state.layers[k].is_none() || phases[k] == 0;
+    if renew(0) || renew(1) || state.kept.is_none() {
+        state.kept = Some(kept_transfer(&original, &fresh));
+    }
+    let kept = kept_part(&original, state.kept.as_ref().expect("transfer is set above"));
+    let changed = combine(&fresh, &kept, -1.0);
+    let renewals = [renew(0), renew(1)];
+    let mut weighted = Vec::with_capacity(2);
+    for (k, layer) in state.layers.iter_mut().enumerate() {
+        let phase = phases[k];
+        match (layer.as_mut(), &flow) {
+            (Some(l), Some(flow)) if !renewals[k] => l.coords = warp(&l.coords, flow),
+            _ => *layer = Some(Layer { reference: changed.clone(), coords: identity_coords(w, h) }),
         }
-        _ => fresh,
+        let weight = 1.0 - (2.0 * phase as f32 / period as f32 - 1.0).abs();
+        weighted.push((weight, layer.as_ref().expect("layer is set above")));
+    }
+    let sigma = FLOW_SMOOTHING * w.min(h) as f32;
+    let fit = |l: &Layer, weight: f32| -> Vec<f32> {
+        let d = crate::scramble::blur::gaussian_blur(&distortion(&l.coords), w, h, sigma);
+        d.iter().map(|d| weight / (1.0 + ((d - 1.0) / (HALF_WEIGHT_DISTORTION - 1.0)).powi(2))).collect()
     };
+    let (f0, f1) = (fit(weighted[0].1, weighted[0].0), fit(weighted[1].1, weighted[1].0));
+    let layers = blend_layers(
+        &remap(&weighted[0].1.reference, &weighted[0].1.coords),
+        &remap(&weighted[1].1.reference, &weighted[1].1.coords),
+        &f0.iter().zip(&f1).map(|(x, y)| x / (x + y).max(1e-6)).collect::<Vec<f32>>(),
+    );
+    let moving: Vec<f32> = f0.iter().zip(&f1).map(|(x, y)| (x + y) / (x + y + STILL_WEIGHT)).collect();
+    let scrambled = combine(&kept, &blend_layers(&layers, &changed, &moving), 1.0);
 
     let output = composite(&original, scrambled, mask.as_ref(), scramble);
-    let written = with_aperture(output.clone(), scramble, mask.as_ref());
+    let written = with_aperture(output, scramble, mask.as_ref());
     planes_to_yuv(&written, frame);
     state.count([out_of_range(&written)]);
     state.prev_original = Some(original);
-    state.prev_scrambled = Some(output);
     state.prev_mask = mask;
     state.frame += 1;
     Ok(())
@@ -590,9 +774,8 @@ fn process_following(frame: &mut YuvFrame, options: &VideoProcessingOptions, scr
 /// and range, so a frame that is left unchanged is written back unchanged. Each frame is
 /// scrambled as a whole with the frame's seed (`frame_seeds`); with face detection, the result
 /// is shown only inside the faces detected in that frame. Independent frames are processed in
-/// parallel batches. With `temporal_coherence`, frames are processed in order: between
-/// keyframes, the previous result is moved along the optical flow wherever the motion estimate
-/// is reliable, and a fresh scramble is used elsewhere. The settings, including the base seed,
+/// parallel batches. With `temporal_coherence`, frames are processed in order and the scramble
+/// is moved along the optical flow (see `process_following`). The settings, including the base seed,
 /// are written to `<output>.json`.
 /// Loads the optical flow model and returns where it runs, e.g. "CUDA" or "CPU (CUDA not available)".
 pub fn optical_flow_device() -> Result<String> {
@@ -639,7 +822,8 @@ pub fn process_video_with(
     let state = Arc::new(Mutex::new(State {
         frame: 0,
         prev_original: None,
-        prev_scrambled: None,
+        layers: [None, None],
+        kept: None,
         prev_mask: None,
         frames_since_face: 0,
         frames_without_faces: 0,
@@ -807,16 +991,39 @@ mod tests {
     }
 
     #[test]
-    fn reliability_drops_where_motion_compensation_fails() {
-        let current = planes(16, 8, |x, _| x as f32 / 16.0);
-        let flow = uniform_flow(16, 8, 0.0, 0.0);
-        assert!(reliability(&current, &current, &flow).iter().all(|&w| w == 1.0));
-        let different = planes(16, 8, |x, _| 1.0 - x as f32 / 16.0);
-        let w = reliability(&current, &different, &flow);
-        assert_eq!(w[0], 0.0);
-        // Motion pointing outside the frame is never trusted.
-        let outside = reliability(&current, &current, &uniform_flow(16, 8, -3.0, 0.0));
-        assert_eq!(outside[0], 0.0);
-        assert_eq!(outside[10], 1.0);
+    fn carried_coordinates_move_the_texture_without_blurring_it() {
+        let reference = planes(32, 8, |x, y| ((x * 7 + y * 13) % 5) as f32 / 4.0);
+        let flow = uniform_flow(32, 8, 0.5, 0.0);
+        let mut coords = identity_coords(32, 8);
+        for _ in 0..8 {
+            coords = warp(&coords, &flow);
+        }
+        // Eight half-pixel steps move the texture by exactly 4 pixels.
+        let moved = remap(&reference, &coords);
+        for x in 0..20 {
+            assert!((moved.color[0][x] - reference.color[0][x + 4]).abs() < 1e-5);
+        }
+    }
+
+    #[test]
+    fn kept_part_separates_what_a_scramble_leaves_unchanged() {
+        let original = planes(64, 64, |x, y| ((x * 3 + y * 5) % 17) as f32 / 16.0);
+        // A scramble that keeps everything keeps the whole image; one that keeps nothing, none.
+        let all = kept_part(&original, &kept_transfer(&original, &original));
+        assert!(all.color[0].iter().zip(&original.color[0]).all(|(a, b)| (a - b).abs() < 1e-4));
+        let blurred = crate::scramble::blur::scramble(&original, 2.0);
+        let transfer = kept_transfer(&original, &blurred);
+        assert!(transfer[0][0] > 0.99 && transfer[0][KEPT_BANDS - 1] < 0.05);
+    }
+
+    #[test]
+    fn layer_blend_keeps_contrast_and_leaves_agreeing_layers_unchanged() {
+        let noise = |seed: u32| planes(64, 64, |x, y| (((x as u32 * 73 + y as u32 * 151) ^ seed).wrapping_mul(2654435761) >> 24) as f32 / 255.0);
+        let (a, b) = (noise(1), noise(99));
+        let sd = |p: &Planes| crate::analysis::mean_sd(&p.color[0]).1;
+        let mid = blend_layers(&a, &b, &[0.5; 64 * 64]);
+        assert!((sd(&mid) - sd(&a)).abs() / sd(&a) < 0.1, "{} vs {}", sd(&mid), sd(&a));
+        let same = blend_layers(&a, &a, &[0.3; 64 * 64]);
+        assert!(same.color[0].iter().zip(&a.color[0]).all(|(x, y)| (x - y).abs() < 1e-4));
     }
 }
