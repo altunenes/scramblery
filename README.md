@@ -8,7 +8,7 @@
 </p>
 
 Scramblery is a tool designed to scramble images and videos for scientific, privacy, or artistic purposes. It offers various scrambling techniques, including pixel shuffling and frequency domain manipulation using Fourier transforms. 
-This is a "byproduct" of my research for my master's [thesis](https://www.tandfonline.com/doi/full/10.1080/13506285.2024.2415721) along with [butter2d](https://github.com/altunenes/butter2d) :-) 
+This is a "byproduct" of my research for my master's [thesis](https://www.tandfonline.com/doi/full/10.1080/13506285.2024.2415721) [thesis2](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4341900) along with [butter2d](https://github.com/altunenes/butter2d) :-) 
 
 
 ---
@@ -58,7 +58,6 @@ Every result can be checked in the Analysis view: luminance, contrast, spectral 
   <img src="docs/images/analysis.webp" width="820" alt="Analysis view comparing the original and the phase scrambled image: statistics table, luminance histograms and amplitude spectra">
 </p>
 
-*Image: Mona Lisa, Leonardo da Vinci.*
 
 ### Video
 
