@@ -4,7 +4,7 @@ default-members = ["app"]
 resolver = "2"
 
 [workspace.package]
-version = "4.3.0"
+version = "4.4.0"
 
 [profile.dev.package.engine]
 opt-level = 3
