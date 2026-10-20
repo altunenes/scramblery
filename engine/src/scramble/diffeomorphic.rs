@@ -10,7 +10,18 @@ use crate::seed;
 
 pub fn scramble(input: &Planes, options: &DiffeomorphicOptions, rng: &mut seed::Rng) -> Planes {
     let (warp_x, warp_y) = make_warp_field(input.width, input.height, options, rng);
-    let warp = |plane: &Vec<f32>| apply_warp(plane, input.width, input.height, &warp_x, &warp_y);
+    apply(input, &warp_x, &warp_y)
+}
+
+/// The warp that `scramble` applies with the same `rng`: absolute source coordinates for every
+/// output pixel.
+pub fn warp_field(width: usize, height: usize, options: &DiffeomorphicOptions, rng: &mut seed::Rng) -> (Vec<f32>, Vec<f32>) {
+    make_warp_field(width, height, options, rng)
+}
+
+/// Samples every plane of `input` at the absolute source coordinates `warp_x`, `warp_y`.
+pub fn apply(input: &Planes, warp_x: &[f32], warp_y: &[f32]) -> Planes {
+    let warp = |plane: &Vec<f32>| apply_warp(plane, input.width, input.height, warp_x, warp_y);
     Planes {
         color: input.color.par_iter().map(warp).collect(),
         alpha: input.alpha.as_ref().map(warp),
