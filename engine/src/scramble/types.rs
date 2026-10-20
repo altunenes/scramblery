@@ -267,8 +267,7 @@ impl Default for DiffeomorphicOptions {
 pub struct TemporalCoherenceOptions {
     pub export_flow: bool,
     pub flow_output_dir: Option<PathBuf>,
-    /// Frames after which each of the two layers that carry the scramble along the motion is
-    /// renewed (at least 2). Shorter periods limit how far moved texture stretches; longer
-    /// periods keep it with the content for longer.
+    /// Refresh interval in frames (at least 2). Shorter stretches the moved texture less; longer
+    /// keeps it with the content longer.
     pub keyframe_interval: usize,
 }

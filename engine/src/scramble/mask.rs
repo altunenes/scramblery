@@ -1,12 +1,9 @@
-//! Weights of the processed region of a face.
+//! Weights of the processed region of a face: `weight * scrambled + (1 - weight) * original`.
 //!
-//! With normalised coordinates `u`, `v` in -1..1 across the box, the distance from the centre is
-//! `d = max(|u|, |v|)` for a rectangle and `d = sqrt(u² + v²)` for the inscribed ellipse. The
-//! weight is 1 for `d <= 1 - f`, 0 for `d >= 1`, and follows the smoothstep curve `t²(3 - 2t)`
-//! with `t = (1 - d) / f` in between, where `f` is the feather fraction. For a face outline, the
-//! normalised depth inside the polygon is its distance to the nearest edge divided by half the
-//! smaller side of the polygon's bounding box, and the same curve applies. The output is
-//! `weight * scrambled + (1 - weight) * original`.
+//! With `u`, `v` in -1..1 across the box, `d = max(|u|, |v|)` (rectangle) or `sqrt(u² + v²)`
+//! (ellipse). The weight is 1 inside `1 - f`, 0 outside 1, and smoothstep `t²(3 - 2t)` between,
+//! `t = (1 - d) / f`, `f` the feather. Outlines use the distance to the nearest edge over half
+//! the bounding box's smaller side.
 
 use face_detection::FaceRegion;
 use image::DynamicImage;

@@ -12,7 +12,8 @@ pub use video_processor::VideoFidelity;
 use crate::matching::Target;
 use crate::planes::Planes;
 use crate::scramble::aperture::FaceBox;
-use crate::scramble::{postprocess, scramble_planes, BackgroundMode, ScrambleOptions, TemporalCoherenceOptions};
+use crate::scramble::local_phase::PhaseOffsets;
+use crate::scramble::{postprocess, scramble_planes, BackgroundMode, ScrambleOptions, ScrambleType, TemporalCoherenceOptions};
 use crate::seed;
 
 pub mod spatiotemporal;
@@ -23,19 +24,19 @@ pub const FACE_HOLD_FRAMES: usize = 15;
 /// Frames over which consecutive spatiotemporal volumes are crossfaded.
 pub const SPATIOTEMPORAL_OVERLAP: usize = 8;
 
-/// Standard deviation of the Gaussian that smooths the optical flow before the scramble is
-/// moved along it, as a fraction of the shorter frame side.
+// Follow motion. Sizes are fractions of the shorter frame side.
+/// Gaussian smoothing of the flow.
 const FLOW_SMOOTHING: f32 = 0.01;
-/// Standard deviation of the Gaussian over which the two follow-motion layers are compared when
-/// they are blended, as a fraction of the shorter frame side.
+/// Window for the local correlation in `blend_layers`.
 const LAYER_STATISTICS_SMOOTHING: f32 = 0.03;
-/// Distortion of a follow-motion layer (see `distortion`) at which its weight is halved.
+/// Layer distortion (see `distortion`) at which its weight is halved.
 const HALF_WEIGHT_DISTORTION: f32 = 1.25;
-/// Weight of the current frame's scramble at each pixel's own position in the follow-motion
-/// blend; it shows where both layers are distorted (e.g. background uncovered by motion).
+/// Weight of the current frame's own scramble; it takes over where both layers fail.
 const STILL_WEIGHT: f32 = 0.25;
-/// Radial frequency bands over which the part of the original a scramble keeps is estimated.
+/// Radial bands for estimating what a scramble keeps (see `kept_transfer`).
 const KEPT_BANDS: usize = 48;
+/// Allowed miss in pixels (plus 5% of the motion) of a forward-then-back flow round trip.
+const ROUND_TRIP_TOLERANCE: f32 = 1.0;
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Default)]
 pub enum FrameSeeds {
@@ -126,10 +127,8 @@ pub struct VideoReport {
 struct State {
     frame: usize,
     prev_original: Option<Planes>,
-    /// Follow motion: two layers, renewed in turn (see `process_following`).
-    layers: [Option<Layer>; 2],
-    /// How much of the original the scramble keeps, from the latest layer renewal.
-    kept: Option<Vec<[f64; KEPT_BANDS]>>,
+    /// Follow motion: the frame that closed the previous interval, which opens the next one.
+    keyframe: Option<Keyframe>,
     prev_mask: Option<FaceMask>,
     frames_since_face: usize,
     frames_without_faces: usize,
@@ -143,12 +142,43 @@ struct State {
     clipped: u64,
 }
 
-/// One layer of follow motion: a scramble and, for every pixel, the position in it that the
-/// motion has carried there (x and y planes).
-struct Layer {
-    /// What the scramble changed when the layer was renewed (see `kept_transfer`).
-    reference: Planes,
-    coords: Planes,
+/// A frame where a follow-motion interval starts or ends, and what is carried from it.
+struct Keyframe {
+    index: usize,
+    carried: Carried,
+}
+
+/// What follow motion carries from a keyframe.
+enum Carried {
+    /// What the scramble changed and how much of the original it keeps (see `kept_transfer`).
+    Texture { changed: Planes, transfer: Vec<[f64; KEPT_BANDS]> },
+    /// The displacement of a diffeomorphic scramble's warp (see `displacement`).
+    Warp(Planes),
+    /// The random phase offsets of a local phase scramble.
+    Phase(PhaseOffsets),
+}
+
+impl Keyframe {
+    fn texture(&self) -> (&Planes, &[[f64; KEPT_BANDS]]) {
+        match &self.carried {
+            Carried::Texture { changed, transfer } => (changed, transfer),
+            _ => unreachable!("keyframes of this scramble carry a texture"),
+        }
+    }
+
+    fn warp(&self) -> &Planes {
+        match &self.carried {
+            Carried::Warp(field) => field,
+            _ => unreachable!("keyframes of a diffeomorphic scramble carry a warp"),
+        }
+    }
+
+    fn phase(&self) -> &PhaseOffsets {
+        match &self.carried {
+            Carried::Phase(offsets) => offsets,
+            _ => unreachable!("keyframes of a local phase scramble carry phase offsets"),
+        }
+    }
 }
 
 /// Number of colour samples and of those outside 0..1, which the display range cannot show.
@@ -323,12 +353,37 @@ fn bilinear(values: &[f32], w: usize, h: usize, x: f32, y: f32) -> f32 {
         + values[y1 * w + x1] * fx * fy
 }
 
-/// Samples every plane of `planes` at the positions in `coords` (x and y planes) with
-/// Catmull-Rom interpolation, which keeps more fine detail than bilinear at fractional positions.
-fn remap(planes: &Planes, coords: &Planes) -> Planes {
+/// Samples `planes` at `coords` (x and y planes), Catmull-Rom.
+///
+/// With `cell` (block size, 1 x 1 for pixels) whole cells are copied instead: each grid cell
+/// looks up its centre and takes the source cell containing it. Interpolating blocks or pixel
+/// noise blurs them and rotates blocks; this keeps a mosaic of intact cells that moves in
+/// steps of one cell.
+fn remap(planes: &Planes, coords: &Planes, cell: Option<(usize, usize)>) -> Planes {
     let (w, h) = (planes.width, planes.height);
     let (xs, ys) = (&coords.color[0], &coords.color[1]);
-    let sample = |plane: &Vec<f32>| -> Vec<f32> { (0..w * h).into_par_iter().map(|i| bicubic(plane, w, h, xs[i], ys[i])).collect() };
+    let source: Vec<usize> = match cell {
+        None => Vec::new(),
+        Some((cw, ch)) => (0..w * h)
+            .into_par_iter()
+            .map(|i| {
+                let (x, y) = (i % w, i / w);
+                let (x0, y0) = (x - x % cw, y - y % ch);
+                let cx = (x0 as f32 + (cw - 1) as f32 / 2.0).min((w - 1) as f32);
+                let cy = (y0 as f32 + (ch - 1) as f32 / 2.0).min((h - 1) as f32);
+                let snap = |v: f32, size: usize, n: usize| ((((v + 0.5) / size as f32).floor().max(0.0) as usize) * size).min(n - 1);
+                let sx = (snap(bilinear(xs, w, h, cx, cy), cw, w) + x - x0).min(w - 1);
+                let sy = (snap(bilinear(ys, w, h, cx, cy), ch, h) + y - y0).min(h - 1);
+                sy * w + sx
+            })
+            .collect(),
+    };
+    let sample = |plane: &Vec<f32>| -> Vec<f32> {
+        if cell.is_some() {
+            return source.par_iter().map(|&j| plane[j]).collect();
+        }
+        (0..w * h).into_par_iter().map(|i| bicubic(plane, w, h, xs[i], ys[i])).collect()
+    };
     Planes {
         color: planes.color.iter().map(sample).collect(),
         alpha: planes.alpha.as_ref().map(sample),
@@ -363,6 +418,33 @@ fn catmull_rom(t: f32) -> [f32; 4] {
     ]
 }
 
+/// Reliability of the flow `there`, checked against the flow `back`: 1 where the round trip
+/// returns to the pixel, 0 where it misses by twice `ROUND_TRIP_TOLERANCE`. Misses mark content
+/// that is covered, uncovered or leaves the frame.
+fn round_trip(there: &optical_flow::FlowField, back: &optical_flow::FlowField) -> Vec<f32> {
+    let (w, h) = (there.width, there.height);
+    let (bx, by) = back.data.split_at(w * h);
+    (0..w * h)
+        .into_par_iter()
+        .map(|i| {
+            let (dx, dy) = (there.data[i], there.data[w * h + i]);
+            let (x, y) = ((i % w) as f32 + dx, (i / w) as f32 + dy);
+            let miss = (dx + bilinear(bx, w, h, x, y)).hypot(dy + bilinear(by, w, h, x, y));
+            let tolerance = ROUND_TRIP_TOLERANCE + 0.05 * dx.hypot(dy);
+            (2.0 - miss / tolerance).clamp(0.0, 1.0)
+        })
+        .collect()
+}
+
+/// Values of one plane moved along `flow` (see `warp`).
+fn carry(values: &[f32], flow: &optical_flow::FlowField) -> Vec<f32> {
+    let (w, h) = (flow.width, flow.height);
+    (0..w * h)
+        .into_par_iter()
+        .map(|i| bilinear(values, w, h, (i % w) as f32 + flow.data[i], (i / w) as f32 + flow.data[w * h + i]))
+        .collect()
+}
+
 /// Coordinates of every pixel's own position.
 fn identity_coords(w: usize, h: usize) -> Planes {
     let xs = (0..w * h).map(|i| (i % w) as f32).collect();
@@ -378,9 +460,8 @@ fn smooth_flow(flow: &optical_flow::FlowField, sigma: f32) -> optical_flow::Flow
     optical_flow::FlowField { width: w, height: h, data }
 }
 
-/// How far the carried positions are from a rigid motion at each pixel: with `s1 >= s2` the
-/// singular values of their Jacobian, the larger of `s1` and `1 / s2`, so 1 for a rigid motion
-/// and larger where the texture is stretched or compressed in any direction.
+/// Stretch of the carried positions: `max(s1, 1 / s2)` from the singular values of their
+/// Jacobian, 1 for rigid motion.
 fn distortion(coords: &Planes) -> Vec<f32> {
     let (w, h) = (coords.width, coords.height);
     let (xs, ys) = (&coords.color[0], &coords.color[1]);
@@ -415,18 +496,14 @@ fn radial_band(kx: usize, ky: usize, w: usize, h: usize) -> usize {
     1 + ((r * (KEPT_BANDS - 1) as f64) as usize).min(KEPT_BANDS - 2)
 }
 
-/// How much of the original each channel of a scramble keeps, per radial frequency band: the
-/// least-squares gain `g = Σ Re(S·conj(O)) / Σ |O|²` over the band. It is 1 where the scramble
-/// leaves frequencies unchanged (outside a Fourier frequency range), the transfer function of a
-/// linear filter such as blur, and near 0 where phases are randomised. With few coefficients in a
-/// band, random phases can give a sizeable `g` by chance. Each term varies as `|S||O| cos φ`, and
-/// a real image's coefficients come in conjugate pairs with the same `cos φ`, so the standard
-/// deviation under random phases is `σ = sqrt(Σ |S|²|O|²) / Σ |O|²`; the gain is shrunk to
-/// `(g - 2σ) / (1 - 2σ)`, limited to 0..1, which keeps 1 at 1 (exactly kept bands stay 1 however
-/// few coefficients they have). The mean is its own band (the
-/// ratio of the means). The other bands are estimated with the means removed and the borders
-/// tapered (a Tukey window over 10% of each side), so that the jump between opposite edges, which
-/// the transform treats as periodic, is not counted as kept detail.
+/// What each channel of a scramble keeps of the original per radial band: the least-squares
+/// gain `g = Σ Re(S·conj(O)) / Σ |O|²`. It is 1 for untouched frequencies, the transfer
+/// function for blur, and near 0 for random phases.
+///
+/// Bands with few coefficients can show a sizeable `g` by chance, so I shrink it to
+/// `(g - 2σ) / (1 - 2σ)` with `σ = sqrt(Σ |S|²|O|²) / Σ |O|²` (conjugate pairs counted), which
+/// leaves exact 1s alone. The mean is its own band. The other bands use mean-removed planes with
+/// a 10% Tukey border, so the wrap-around edge is not counted as kept detail.
 fn kept_transfer(original: &Planes, scrambled: &Planes) -> Vec<[f64; KEPT_BANDS]> {
     let (w, h) = (original.width, original.height);
     original
@@ -506,11 +583,28 @@ fn combine(a: &Planes, b: &Planes, sign: f32) -> Planes {
     }
 }
 
-/// `a * x0 + (1 - a) * x1` per pixel, with the contrast of the layers kept. A plain mix of uncorrelated
-/// textures lowers their contrast (by up to a factor of sqrt(2)), which would mark the moving
-/// areas, so the deviations from the means are divided by `sqrt(a² + b² + 2abρ)`, where `b` is
-/// `1 - a` and `ρ` the local correlation of the layers' luminance. Where the layers agree
-/// (`ρ` = 1), this is a plain mix.
+/// Takes each cell from `x0` with probability `a`, else from `x1`, by a fixed random threshold
+/// per cell (`salt` picks the thresholds). Averaging pixel noise smooths it and averaging blocks
+/// ghosts them; a dissolve keeps both looking like the rest of the frame.
+fn dissolve(x0: &Planes, x1: &Planes, a: &[f32], salt: u64, cell: (usize, usize)) -> Planes {
+    let (w, (cw, ch)) = (x0.width, (cell.0.max(1), cell.1.max(1)));
+    let cols = w.div_ceil(cw) as u64;
+    let pick: Vec<bool> = (0..a.len())
+        .map(|i| {
+            let id = ((i / w) / ch) as u64 * cols + ((i % w) / cw) as u64;
+            ((seed::derive(salt, id) >> 40) as f32 / (1u64 << 24) as f32) < a[i]
+        })
+        .collect();
+    let choose = |p0: &Vec<f32>, p1: &Vec<f32>| -> Vec<f32> { pick.iter().zip(p0.iter().zip(p1)).map(|(&k, (x, y))| if k { *x } else { *y }).collect() };
+    Planes {
+        color: x0.color.iter().zip(&x1.color).map(|(p0, p1)| choose(p0, p1)).collect(),
+        ..x0.clone()
+    }
+}
+
+/// `a * x0 + (1 - a) * x1` without the contrast loss of mixing unrelated textures (up to
+/// sqrt(2), which would mark moving areas): deviations from the mean are divided by
+/// `sqrt(a² + b² + 2abρ)`, `ρ` the local luminance correlation. Agreeing layers mix plainly.
 fn blend_layers(x0: &Planes, x1: &Planes, a: &[f32]) -> Planes {
     let (w, h) = (x0.width, x0.height);
     let mean = |v: &[f32]| v.iter().sum::<f32>() / v.len().max(1) as f32;
@@ -730,100 +824,249 @@ fn process_spatiotemporal(frames: &mut [YuvFrame], st: &spatiotemporal::Spatiote
     Ok(())
 }
 
-/// Follow-motion processing of one frame, which depends on the previous frame.
-fn process_following(frame: &mut YuvFrame, options: &VideoProcessingOptions, scramble: &ScrambleOptions, base_seed: u64, session: &Mutex<onnx::Session>, state: &mut State) -> Result<()> {
-    let tc = options.temporal_coherence.as_ref().expect("follow-motion processing needs temporal coherence options");
-    let index = frame.index;
-    let original = yuv_to_planes(frame);
-    let image = to_rgba8(&original);
-    let fresh = fresh_scramble(&original, scramble, frame_seed(options, base_seed, index), state.set_target.as_deref())?;
-
-    let flow = match &state.prev_original {
-        Some(prev) => Some(optical_flow::compute_optical_flow(&image, &to_rgba8(prev), session)?),
-        None => None,
-    };
-    if let (Some(flow), true, Some(dir)) = (&flow, tc.export_flow, &tc.flow_output_dir) {
-        std::fs::create_dir_all(dir)?;
-        optical_flow::export_flo_file(flow, &dir.join(format!("frame_{index:06}.flo")))?;
+/// Displacement (x and y planes) of the warp a diffeomorphic scramble applies with `seed`.
+fn displacement(w: usize, h: usize, o: &crate::scramble::DiffeomorphicOptions, seed: u64) -> Planes {
+    let (wx, wy) = crate::scramble::diffeomorphic::warp_field(w, h, o, &mut seed::rng(seed));
+    let mut field = identity_coords(w, h);
+    for (p, absolute) in field.color.iter_mut().zip([wx, wy]) {
+        p.iter_mut().zip(absolute).for_each(|(own, to)| *own = to - *own);
     }
+    field
+}
 
-    let mask = if scramble.face_detection.is_some() {
-        let detected = detect_mask(&image, scramble)?;
-        Some(resolve_mask(detected, flow.as_ref(), &original, state))
-    } else {
-        None
-    };
-
-    // Two layers carry the scramble along the motion. Each keeps, for every pixel, a position in
-    // its scramble that is moved along the flow, and samples the scramble once at that position,
-    // so the texture is not resampled (and blurred) from frame to frame. Moved texture stretches
-    // over time, so each layer is renewed with the current frame's scramble every `period`
-    // frames, half a period after the other, when its weight in the blend is zero. Where a
-    // layer is locally distorted, the other one is weighted up, and where both are (background
-    // uncovered by fast motion), the current frame's scramble in place takes over. What the
-    // scramble keeps of the original (e.g. frequencies outside a Fourier range) always comes from
-    // the current frame; the layers only carry what it changed, so they never show the content
-    // of earlier frames.
-    let period = tc.keyframe_interval.max(2);
-    let (w, h) = (original.width, original.height);
-    let flow = flow.as_ref().map(|f| smooth_flow(f, FLOW_SMOOTHING * w.min(h) as f32));
-    let phases = [index % period, (index + period / 2) % period];
-    let renew = |k: usize| flow.is_none() || state.layers[k].is_none() || phases[k] == 0;
-    if renew(0) || renew(1) || state.kept.is_none() {
-        state.kept = Some(kept_transfer(&original, &fresh));
-    }
-    let kept = kept_part(&original, state.kept.as_ref().expect("transfer is set above"));
-    let changed = combine(&fresh, &kept, -1.0);
-    let renewals = [renew(0), renew(1)];
-    let mut weighted = Vec::with_capacity(2);
-    for (k, layer) in state.layers.iter_mut().enumerate() {
-        let phase = phases[k];
-        match (layer.as_mut(), &flow) {
-            (Some(l), Some(flow)) if !renewals[k] => l.coords = warp(&l.coords, flow),
-            _ => *layer = Some(Layer { reference: changed.clone(), coords: identity_coords(w, h) }),
+/// Weighted mean of displacement fields. Fields pointing different ways would weaken each
+/// other, so the local RMS is restored; the result is smoothed so the warp bends rather than
+/// tears where neighbours move differently.
+fn blend_fields(fields: &[(&Planes, Vec<f32>)], sigma: f32) -> Planes {
+    let (w, h) = (fields[0].0.width, fields[0].0.height);
+    let n = w * h;
+    let total: Vec<f32> = (0..n).map(|i| fields.iter().map(|(_, a)| a[i]).sum::<f32>().max(1e-6)).collect();
+    let mut mean = vec![vec![0.0f32; n]; 2];
+    let mut energy = vec![0.0f32; n];
+    for (field, a) in fields {
+        for i in 0..n {
+            let share = a[i] / total[i];
+            let (dx, dy) = (field.color[0][i], field.color[1][i]);
+            mean[0][i] += share * dx;
+            mean[1][i] += share * dy;
+            energy[i] += share * (dx * dx + dy * dy);
         }
-        let weight = 1.0 - (2.0 * phase as f32 / period as f32 - 1.0).abs();
-        weighted.push((weight, layer.as_ref().expect("layer is set above")));
     }
-    let sigma = FLOW_SMOOTHING * w.min(h) as f32;
-    let fit = |l: &Layer, weight: f32| -> Vec<f32> {
-        let d = crate::scramble::blur::gaussian_blur(&distortion(&l.coords), w, h, sigma);
-        d.iter().map(|d| weight / (1.0 + ((d - 1.0) / (HALF_WEIGHT_DISTORTION - 1.0)).powi(2))).collect()
-    };
-    let (f0, f1) = (fit(weighted[0].1, weighted[0].0), fit(weighted[1].1, weighted[1].0));
-    let layers = blend_layers(
-        &remap(&weighted[0].1.reference, &weighted[0].1.coords),
-        &remap(&weighted[1].1.reference, &weighted[1].1.coords),
-        &f0.iter().zip(&f1).map(|(x, y)| x / (x + y).max(1e-6)).collect::<Vec<f32>>(),
-    );
-    let moving: Vec<f32> = f0.iter().zip(&f1).map(|(x, y)| (x + y) / (x + y + STILL_WEIGHT)).collect();
-    let scrambled = combine(&kept, &blend_layers(&layers, &changed, &moving), 1.0);
+    let blur = |v: &[f32]| crate::scramble::blur::gaussian_blur(v, w, h, sigma);
+    let wanted = blur(&energy);
+    let got = blur(&(0..n).map(|i| mean[0][i] * mean[0][i] + mean[1][i] * mean[1][i]).collect::<Vec<f32>>());
+    let scale: Vec<f32> = wanted.iter().zip(&got).map(|(a, b)| (a / b.max(1e-12)).sqrt().clamp(1.0, 2.0)).collect();
+    let color = mean.iter().map(|p| blur(&p.iter().zip(&scale).map(|(v, s)| v * s).collect::<Vec<f32>>())).collect();
+    Planes { color, ..fields[0].0.clone() }
+}
 
-    let output = composite(&original, scrambled, mask.as_ref(), scramble);
-    let written = with_aperture(output, scramble, mask.as_ref());
-    planes_to_yuv(&written, frame);
-    state.count([out_of_range(&written)]);
-    state.prev_original = Some(original);
-    state.prev_mask = mask;
-    state.frame += 1;
+/// A scramble of `original` made by `scramble` (instead of with a seed), post-processed as in
+/// `fresh_scramble`.
+fn scramble_with(original: &Planes, options: &ScrambleOptions, set_target: Option<&Target>, scramble: impl Fn(&Planes) -> Planes) -> Result<Planes> {
+    let source = if options.linear_light { original.to_linear() } else { original.clone() };
+    let mut result = scramble(&source);
+    postprocess(&mut result, &source, options, set_target)?;
+    if options.linear_light {
+        result = result.to_encoded();
+    }
+    Ok(as_rgb(result))
+}
+
+fn keyframe(original: &Planes, index: usize, options: &VideoProcessingOptions, scramble: &ScrambleOptions, base_seed: u64, state: &State) -> Result<Keyframe> {
+    let seed = frame_seed(options, base_seed, index);
+    let carried = match &scramble.scramble_type {
+        ScrambleType::Diffeomorphic(o) => Carried::Warp(displacement(original.width, original.height, o, seed)),
+        ScrambleType::LocalPhase(o) => Carried::Phase(PhaseOffsets::new(original.width, original.height, o, &mut seed::rng(seed))),
+        _ => {
+            let fresh = fresh_scramble(original, scramble, seed, state.set_target.as_deref())?;
+            let transfer = kept_transfer(original, &fresh);
+            let changed = combine(&fresh, &kept_part(original, &transfer), -1.0);
+            Carried::Texture { changed, transfer }
+        }
+    };
+    Ok(Keyframe { index, carried })
+}
+
+/// Follow motion for one interval: the batch's frames plus the next batch's first frame as
+/// lookahead (none at the end of the video). See docs/methods.md.
+///
+/// Bidirectional advection (Bousseau et al. 2007): a forward layer from the interval's first
+/// frame and a reverse layer from the lookahead, weighted `cos²` / `sin²`. Uncovered background
+/// has no past but has a future, which is why I carry both. Layers store positions and sample
+/// their scramble once, so nothing blurs over time. Distorted or untrusted layers (see
+/// `round_trip`) give way to the other one, and to the frame's own scramble where both fail.
+///
+/// Only what the scramble changed is carried; what it keeps comes from the current frame.
+/// Diffeomorphic and local phase transform the current frame, so for them I carry the warp or
+/// the phase offsets instead of the result.
+fn process_following(frames: &mut [YuvFrame], options: &VideoProcessingOptions, scramble: &ScrambleOptions, base_seed: u64, session: &Mutex<onnx::Session>, state: &mut State) -> Result<()> {
+    let tc = options.temporal_coherence.as_ref().expect("follow-motion processing needs temporal coherence options");
+    let output = frames.iter().position(|f| f.lookahead).unwrap_or(frames.len());
+    if output == 0 {
+        return Ok(());
+    }
+    let end = if output < frames.len() { output } else { output - 1 };
+    let originals: Vec<Planes> = frames[..=end].par_iter().map(yuv_to_planes).collect();
+    let images: Vec<RgbaImage> = originals.par_iter().map(to_rgba8).collect();
+    let (w, h) = (originals[0].width, originals[0].height);
+    let sigma = FLOW_SMOOTHING * w.min(h) as f32;
+
+    let opening = match state.keyframe.take() {
+        Some(k) if k.index == frames[0].index => k,
+        _ => keyframe(&originals[0], frames[0].index, options, scramble, base_seed, state)?,
+    };
+    let closing = if end > 0 { Some(keyframe(&originals[end], frames[end].index, options, scramble, base_seed, state)?) } else { None };
+
+    // Reverse layer for every frame, plus the backward flows the forward pass will need.
+    let mut reverse = vec![(identity_coords(w, h), vec![1.0; w * h])];
+    let mut backward: Vec<Option<(Vec<f32>, optical_flow::FlowField)>> = (0..=end).map(|_| None).collect();
+    for t in (0..end).rev() {
+        let there = optical_flow::compute_optical_flow(&images[t], &images[t + 1], session)?;
+        let back = optical_flow::compute_optical_flow(&images[t + 1], &images[t], session)?;
+        let reliable = round_trip(&there, &back);
+        let (coords, trust) = reverse.last().expect("starts with one layer");
+        let flow = smooth_flow(&there, sigma);
+        let trust = carry(trust, &flow).iter().zip(&reliable).map(|(a, b)| a * b).collect();
+        reverse.push((warp(coords, &flow), trust));
+        backward[t + 1] = Some((round_trip(&back, &there), back));
+    }
+    reverse.reverse();
+
+    let fit = |coords: &Planes, trust: &[f32], weight: f32| -> Vec<f32> {
+        let d = crate::scramble::blur::gaussian_blur(&distortion(coords), w, h, sigma);
+        let trust = crate::scramble::blur::gaussian_blur(trust, w, h, sigma);
+        d.iter().zip(&trust).map(|(d, r)| weight * r / (1.0 + ((d - 1.0) / (HALF_WEIGHT_DISTORTION - 1.0)).powi(2))).collect()
+    };
+    // Pixel and block scrambles move and mix as whole cells (see `remap`, `dissolve`).
+    let cell = match &scramble.scramble_type {
+        ScrambleType::Pixel => Some((1, 1)),
+        ScrambleType::Block(o) => Some((o.block_size.0 as usize, o.block_size.1 as usize)),
+        _ => None,
+    };
+    let combine_layers = |x0: &Planes, x1: &Planes, a: &[f32], salt: u64| match cell { Some(c) => dissolve(x0, x1, a, salt, c), None => blend_layers(x0, x1, a) };
+    let mut forward = identity_coords(w, h);
+    let mut forward_trust = vec![1.0; w * h];
+    for t in 0..output {
+        let index = frames[t].index;
+        let original = &originals[t];
+        let needs_flow = t > 0 || tc.export_flow || scramble.face_detection.is_some();
+        let first;
+        let flow = match (t, &state.prev_original) {
+            (0, Some(prev)) if needs_flow => {
+                first = optical_flow::compute_optical_flow(&images[0], &to_rgba8(prev), session)?;
+                Some(&first)
+            }
+            (0, _) => None,
+            _ => backward[t].as_ref().map(|(_, back)| back),
+        };
+        if let (Some(flow), true, Some(dir)) = (flow, tc.export_flow, &tc.flow_output_dir) {
+            std::fs::create_dir_all(dir)?;
+            optical_flow::export_flo_file(flow, &dir.join(format!("frame_{index:06}.flo")))?;
+        }
+        let mask = if scramble.face_detection.is_some() {
+            let detected = detect_mask(&images[t], scramble)?;
+            Some(resolve_mask(detected, flow, original, state))
+        } else {
+            None
+        };
+        if let Some((reliable, back)) = &backward[t] {
+            let flow = smooth_flow(back, sigma);
+            forward = warp(&forward, &flow);
+            forward_trust = carry(&forward_trust, &flow).iter().zip(reliable).map(|(a, b)| a * b).collect();
+        }
+
+        let s = (std::f32::consts::FRAC_PI_2 * t as f32 / end.max(1) as f32).cos().powi(2);
+        let f0 = fit(&forward, &forward_trust, s);
+        let f1 = match &closing {
+            Some(_) => fit(&reverse[t].0, &reverse[t].1, 1.0 - s),
+            None => vec![0.0; w * h],
+        };
+        let seed = frame_seed(options, base_seed, index);
+        let target = state.set_target.as_deref();
+        let still = vec![STILL_WEIGHT; w * h];
+        let scrambled = match &scramble.scramble_type {
+            ScrambleType::Diffeomorphic(o) => {
+                // The warp moves with the content and is applied to the current frame.
+                let own = match (&closing, t) {
+                    (_, 0) => opening.warp().clone(),
+                    (Some(k), t) if t == end => k.warp().clone(),
+                    _ => displacement(w, h, o, seed),
+                };
+                let carried_forward = remap(opening.warp(), &forward, None);
+                let carried_back = closing.as_ref().map(|k| remap(k.warp(), &reverse[t].0, None));
+                let mut fields = vec![(&carried_forward, f0.clone()), (&own, still)];
+                if let Some(back) = &carried_back {
+                    fields.push((back, f1.clone()));
+                }
+                let field = blend_fields(&fields, sigma);
+                let (wx, wy): (Vec<f32>, Vec<f32>) = (0..w * h).map(|i| ((i % w) as f32 + field.color[0][i], (i / w) as f32 + field.color[1][i])).unzip();
+                scramble_with(original, scramble, target, |p| crate::scramble::diffeomorphic::apply(p, &wx, &wy))?
+            }
+            ScrambleType::LocalPhase(o) => {
+                // The phase offsets move with the content and scramble the current frame.
+                let own = match (&closing, t) {
+                    (_, 0) => opening.phase().clone(),
+                    (Some(k), t) if t == end => k.phase().clone(),
+                    _ => PhaseOffsets::new(w, h, o, &mut seed::rng(seed)),
+                };
+                let carried_forward = opening.phase().carry(&forward);
+                let carried_back = closing.as_ref().map(|k| k.phase().carry(&reverse[t].0));
+                let mut fields = vec![(&carried_forward, f0.as_slice()), (&own, still.as_slice())];
+                if let Some(back) = &carried_back {
+                    fields.push((back, f1.as_slice()));
+                }
+                let offsets = PhaseOffsets::blend(&fields);
+                scramble_with(original, scramble, target, |p| crate::scramble::local_phase::scramble_with(p, o, &offsets))?
+            }
+            _ => {
+                let (opening_changed, opening_transfer) = opening.texture();
+                let (kept, changed) = match (&closing, t) {
+                    (_, 0) => (kept_part(original, opening_transfer), opening_changed.clone()),
+                    (Some(k), t) if t == end => (kept_part(original, k.texture().1), k.texture().0.clone()),
+                    _ => {
+                        let kept = kept_part(original, opening_transfer);
+                        let fresh = fresh_scramble(original, scramble, seed, target)?;
+                        let changed = combine(&fresh, &kept, -1.0);
+                        (kept, changed)
+                    }
+                };
+                let layers = match &closing {
+                    Some(k) => {
+                        let a: Vec<f32> = f0.iter().zip(&f1).map(|(x, y)| x / (x + y).max(1e-6)).collect();
+                        combine_layers(&remap(opening_changed, &forward, cell), &remap(k.texture().0, &reverse[t].0, cell), &a, 1)
+                    }
+                    None => remap(opening_changed, &forward, cell),
+                };
+                let moving: Vec<f32> = f0.iter().zip(&f1).map(|(x, y)| (x + y) / (x + y + STILL_WEIGHT)).collect();
+                combine(&kept, &combine_layers(&layers, &changed, &moving, 2), 1.0)
+            }
+        };
+
+        let output = composite(original, scrambled, mask.as_ref(), scramble);
+        let written = with_aperture(output, scramble, mask.as_ref());
+        planes_to_yuv(&written, &mut frames[t]);
+        state.count([out_of_range(&written)]);
+        state.prev_mask = mask;
+        state.frame += 1;
+    }
+    state.prev_original = Some(originals[output - 1].clone());
+    state.keyframe = closing;
     Ok(())
 }
 
-/// Scrambles every frame of a video.
-///
-/// Frames are read as YUV and converted to RGB in floating point with the video's own matrix
-/// and range, so a frame that is left unchanged is written back unchanged. Each frame is
-/// scrambled as a whole with the frame's seed (`frame_seeds`); with face detection, the result
-/// is shown only inside the faces detected in that frame. Independent frames are processed in
-/// parallel batches. With `temporal_coherence`, frames are processed in order and the scramble
-/// is moved along the optical flow (see `process_following`). The settings, including the base seed,
-/// are written to `<output>.json`.
 /// Loads the optical flow model and returns where it runs, e.g. "CUDA" or "CPU (CUDA not available)".
 pub fn optical_flow_device() -> Result<String> {
     optical_flow::load_optical_flow_model(None)?;
     Ok(onnx::device().unwrap_or_else(|| "CPU".to_string()))
 }
 
+/// Scrambles every frame of a video.
+///
+/// Frames are converted from YUV to float RGB with the video's own matrix and range, so an
+/// unchanged frame is written back unchanged. Each frame is scrambled whole with its seed
+/// (`frame_seeds`); with face detection, the result shows only inside that frame's faces.
+/// Independent frames run in parallel batches; with `temporal_coherence` the scramble follows
+/// the optical flow (see `process_following`). The settings and seed go to `<output>.json`.
 pub fn process_video(options: &VideoProcessingOptions, progress_callback: impl Fn(f32) + Send + Sync + 'static) -> Result<VideoReport> {
     process_video_with(options, None, progress_callback)
 }
@@ -847,12 +1090,11 @@ pub fn process_video_with(
     } else {
         None
     };
-    // Fourier scrambling of a frame needs about 160 bytes per pixel at its peak. A spatiotemporal
-    // volume needs per pixel and frame: YUV (3), input and output RGB planes (24), one channel's
-    // complex volume plus its temporal-transform copy (16) and the phase field (4), plus decoder
-    // and encoder buffers.
-    let batching = if flow_session.is_some() {
-        Batching { max_frames: 1, bytes_per_pixel: 160, memory_budget: 2 << 30, balance: false, overlap: 0 }
+    // Peak bytes per pixel and frame. Independent frames: about 160 (a Fourier scramble).
+    // Spatiotemporal: YUV 3 + RGB in and out 24 + complex volume and copy 16 + phases 4, plus
+    // codec buffers. Follow motion keeps a whole interval: RGB, image, reverse layer and flow.
+    let batching = if let Some(tc) = &options.temporal_coherence {
+        Batching { max_frames: tc.keyframe_interval.max(2), bytes_per_pixel: 64, memory_budget: 2 << 30, balance: false, overlap: 1 }
     } else if options.spatiotemporal.is_some() {
         let gb = options.memory_budget_gb.unwrap_or(4.0).clamp(0.5, 1024.0) as f64;
         Batching { max_frames: usize::MAX, bytes_per_pixel: 80, memory_budget: (gb * (1u64 << 30) as f64) as usize, balance: true, overlap: SPATIOTEMPORAL_OVERLAP }
@@ -863,8 +1105,7 @@ pub fn process_video_with(
     let state = Arc::new(Mutex::new(State {
         frame: 0,
         prev_original: None,
-        layers: [None, None],
-        kept: None,
+        keyframe: None,
         prev_mask: None,
         frames_since_face: 0,
         frames_without_faces: 0,
@@ -886,12 +1127,7 @@ pub fn process_video_with(
         move |frames: &mut [YuvFrame]| {
             let mut state = frame_state.lock().map_err(|e| anyhow::anyhow!("State mutex poisoned: {e}"))?;
             match (flow_session, &frame_options.spatiotemporal) {
-                (Some(session), _) => {
-                    for frame in frames.iter_mut() {
-                        process_following(frame, &frame_options, &scramble, base_seed, session, &mut state)?;
-                    }
-                    Ok(())
-                }
+                (Some(session), _) => process_following(frames, &frame_options, &scramble, base_seed, session, &mut state),
                 (None, Some(st)) => process_spatiotemporal(frames, st, &scramble, base_seed, &mut state),
                 (None, None) => process_independent(frames, &frame_options, &scramble, base_seed, &mut state),
             }
@@ -1032,6 +1268,53 @@ mod tests {
     }
 
     #[test]
+    fn dissolve_takes_each_pixel_from_one_layer_in_proportion_to_its_weight() {
+        let (a, b) = (planes(64, 64, |_, _| 1.0), planes(64, 64, |_, _| 0.0));
+        let mixed = dissolve(&a, &b, &[0.25; 64 * 64], 1, (1, 1));
+        assert!(mixed.color[0].iter().all(|&v| v == 0.0 || v == 1.0));
+        let share = mixed.color[0].iter().sum::<f32>() / (64.0 * 64.0);
+        assert!((share - 0.25).abs() < 0.03, "share {share}");
+    }
+
+    #[test]
+    fn moved_cells_stay_intact_blocks_on_the_grid() {
+        // Blocks of 4 x 4 with distinct values, carried by a rotation about the centre.
+        let reference = planes(32, 32, |x, y| ((x / 4) * 8 + y / 4) as f32);
+        let (c, a) = (16.0f32, 0.3f32);
+        let mut coords = identity_coords(32, 32);
+        for i in 0..32 * 32 {
+            let (x, y) = ((i % 32) as f32 - c, (i / 32) as f32 - c);
+            coords.color[0][i] = c + a.cos() * x - a.sin() * y;
+            coords.color[1][i] = c + a.sin() * x + a.cos() * y;
+        }
+        let moved = remap(&reference, &coords, Some((4, 4)));
+        for i in 0..32 * 32 {
+            let (x, y) = (i % 32, i / 32);
+            let corner = (y - y % 4) * 32 + (x - x % 4);
+            assert_eq!(moved.color[0][i], moved.color[0][corner], "cell at ({x}, {y}) is not one block");
+        }
+    }
+
+    #[test]
+    fn blended_warps_keep_their_strength() {
+        let field = |dx: f32, dy: f32| Planes { color: vec![vec![dx; 32 * 32], vec![dy; 32 * 32]], ..identity_coords(32, 32) };
+        let (a, b) = (field(3.0, 0.0), field(0.0, 3.0));
+        let same = blend_fields(&[(&a, vec![0.5; 32 * 32]), (&a, vec![0.5; 32 * 32])], 1.0);
+        assert!(same.color[0].iter().all(|v| (v - 3.0).abs() < 1e-4) && same.color[1].iter().all(|v| v.abs() < 1e-4));
+        let mixed = blend_fields(&[(&a, vec![0.5; 32 * 32]), (&b, vec![0.5; 32 * 32])], 1.0);
+        let length = mixed.color[0][500].hypot(mixed.color[1][500]);
+        assert!((length - 3.0).abs() < 1e-3, "length {length}");
+    }
+
+    #[test]
+    fn round_trip_marks_flow_that_the_flow_back_does_not_undo() {
+        let (there, back) = (uniform_flow(32, 16, 3.0, 1.0), uniform_flow(32, 16, -3.0, -1.0));
+        assert!(round_trip(&there, &back).iter().all(|&r| r == 1.0));
+        let still = uniform_flow(32, 16, 0.0, 0.0);
+        assert!(round_trip(&there, &still).iter().all(|&r| r == 0.0));
+    }
+
+    #[test]
     fn carried_coordinates_move_the_texture_without_blurring_it() {
         let reference = planes(32, 8, |x, y| ((x * 7 + y * 13) % 5) as f32 / 4.0);
         let flow = uniform_flow(32, 8, 0.5, 0.0);
@@ -1040,7 +1323,7 @@ mod tests {
             coords = warp(&coords, &flow);
         }
         // Eight half-pixel steps move the texture by exactly 4 pixels.
-        let moved = remap(&reference, &coords);
+        let moved = remap(&reference, &coords, None);
         for x in 0..20 {
             assert!((moved.color[0][x] - reference.color[0][x + 4]).abs() < 1e-5);
         }

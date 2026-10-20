@@ -1,31 +1,18 @@
 //! Local phase scrambling with a complex steerable filter bank.
 //!
-//! Each colour plane is split in the frequency domain into `scales` × `orientations` complex
-//! bands and a low-pass residual. Band (s, o) has the filter G(f, θ) = R_s(f) · A_o(θ):
+//! Each plane is split into `scales` x `orientations` analytic bands, G(f, θ) = R_s(f) · A_o(θ),
+//! plus a low-pass residual. R_s is a raised cosine in log2 frequency (scale 0 centred on 1/4
+//! cycle per pixel, one octave per scale); A_o is cos^(M-1)(θ - πo/M) on one half-plane. The
+//! squared filters sum to 1, so an unscrambled synthesis returns the input exactly.
 //!
-//! - R_s is a raised-cosine window in log2 frequency. Scale 0 is centred on 1/4 cycle per
-//!   pixel and also covers all higher frequencies; each further scale is one octave lower.
-//!   Adjacent windows overlap so that the sum of the squared windows plus the squared low-pass
-//!   residual is exactly 1 at every frequency.
-//! - A_o is cos^(M-1)(θ - θ_o) on the half-plane facing θ_o = π o / M and zero elsewhere, so the
-//!   band response is complex. The squared windows of the M orientations sum to a constant.
+//! Scrambling rotates each band coefficient by a random offset (smooth over about one
+//! wavelength, uniform on (-π, π), times the intensity) and keeps its modulus. Local amplitude
+//! and the low-pass residual stay, so contrast stays where it was and only its fine arrangement
+//! changes. All channels share the offsets.
 //!
-//! The band responses are analytic, and their modulus and argument are the local amplitude and
-//! local phase at each position, scale and orientation. Scrambling adds a random phase offset,
-//! scaled by the intensity, to every band coefficient while keeping its modulus, and the image
-//! is resynthesised with the same filters. The offsets of a band vary smoothly over about one
-//! wavelength of the band and are uniformly distributed on (-π, π). Without scrambling the
-//! synthesis returns the input exactly. The low-pass residual, which holds the mean and the
-//! coarsest structure, is kept, so contrast energy stays where it was in the image and only its
-//! fine arrangement is randomised. The same offsets are used for every colour channel.
-//!
-//! Scale s holds only frequencies below 0.5 / 2^s cycles per pixel, so its bands are processed
-//! on a grid 2^s times smaller than the image. This is exact: the band spectrum is moved to the
-//! smaller grid and back without loss.
-//!
-//! With reflect or mean padding the image gets margins of two wavelengths of the coarsest scale
-//! on every side (at most the image size), mirrored or filled with the mean, and the transform
-//! size is rounded up to a product of 2, 3 and 5.
+//! Scale s runs on a grid 2^s times smaller, which is exact since it holds nothing above
+//! 0.5 / 2^s cycles per pixel. Reflect and mean padding add margins of two coarsest wavelengths,
+//! and the transform size is rounded up to a product of 2, 3 and 5.
 
 use num_complex::Complex64;
 use rand::Rng;
@@ -44,8 +31,6 @@ pub const FINEST_FREQUENCY: f64 = 0.25;
 struct Grid {
     width: usize,
     height: usize,
-    /// Downsampling factor relative to the full transform.
-    factor: usize,
     bins: Vec<Option<usize>>,
 }
 
@@ -62,19 +47,134 @@ struct FilterBank {
 }
 
 pub fn scramble(input: &Planes, options: &LocalPhaseOptions, rng: &mut seed::Rng) -> Planes {
+    let offsets = PhaseOffsets::new(input.width, input.height, options, rng);
+    scramble_with(input, options, &offsets)
+}
+
+/// Random phase offsets of a local phase scramble, one field per band on its grid. Kept apart
+/// from the scramble so that follow motion can move them with the content.
+#[derive(Clone)]
+pub struct PhaseOffsets {
+    width: usize,
+    height: usize,
+    layout: Layout,
+    /// Grid width and height and the offsets of each band.
+    bands: Vec<(usize, usize, Vec<f64>)>,
+}
+
+impl PhaseOffsets {
+    /// The offsets `scramble` draws with the same `rng` for a `width` x `height` image.
+    pub fn new(width: usize, height: usize, options: &LocalPhaseOptions, rng: &mut seed::Rng) -> Self {
+        let scales = options.scales.max(1) as usize;
+        let layout = Layout::new(width, height, scales, options.padding_mode);
+        let bands = (0..scales)
+            .flat_map(|s| (0..options.orientations.max(1)).map(move |_| s))
+            .map(|s| {
+                let factor = 1usize << s.min(30);
+                let (gw, gh) = (layout.width.div_ceil(factor).max(1), layout.height.div_ceil(factor).max(1));
+                (gw, gh, offset_field(gw, gh, scale_frequency(s) * factor as f64, rng))
+            })
+            .collect();
+        Self { width, height, layout, bands }
+    }
+
+    /// Position in the image (pixels) of sample (gx, gy) of a `gw` x `gh` band grid.
+    fn image_position(&self, gx: usize, gy: usize, gw: usize, gh: usize) -> (f32, f32) {
+        let x = gx as f64 * self.layout.width as f64 / gw as f64 - self.layout.left as f64;
+        let y = gy as f64 * self.layout.height as f64 / gh as f64 - self.layout.top as f64;
+        (x as f32, y as f32)
+    }
+
+    /// The offsets moved with the content: `coords` gives, per image pixel, where its content
+    /// came from. Offsets are interpolated as unit phasors, since averaging angles breaks at the
+    /// ±π wrap. Margins use the displacement at the nearest edge.
+    pub fn carry(&self, coords: &Planes) -> Self {
+        let (w, h) = (self.width, self.height);
+        let (xs, ys) = (&coords.color[0], &coords.color[1]);
+        let bands = self
+            .bands
+            .par_iter()
+            .map(|(gw, gh, offsets)| {
+                let (gw, gh) = (*gw, *gh);
+                let (sx, sy) = (self.layout.width as f64 / gw as f64, self.layout.height as f64 / gh as f64);
+                let moved = (0..gw * gh)
+                    .map(|j| {
+                        let (x, y) = self.image_position(j % gw, j / gw, gw, gh);
+                        let (cx, cy) = (x.clamp(0.0, (w - 1) as f32), y.clamp(0.0, (h - 1) as f32));
+                        let dx = bilinear(xs, w, h, cx, cy) - cx;
+                        let dy = bilinear(ys, w, h, cx, cy) - cy;
+                        let gx = ((x + dx) as f64 + self.layout.left as f64) / sx;
+                        let gy = ((y + dy) as f64 + self.layout.top as f64) / sy;
+                        let (re, im) = phasor_at(offsets, gw, gh, gx, gy);
+                        im.atan2(re)
+                    })
+                    .collect();
+                (gw, gh, moved)
+            })
+            .collect();
+        Self { bands, ..self.clone() }
+    }
+
+    /// Weighted blend (weights per image pixel) as the angle of the summed phasors. Independent
+    /// uniform phases stay uniform this way, so the scramble keeps its strength.
+    pub fn blend(fields: &[(&PhaseOffsets, &[f32])]) -> Self {
+        let first = fields[0].0;
+        let (w, h) = (first.width, first.height);
+        let bands = (0..first.bands.len())
+            .into_par_iter()
+            .map(|b| {
+                let (gw, gh, _) = first.bands[b];
+                let combined = (0..gw * gh)
+                    .map(|j| {
+                        let (x, y) = first.image_position(j % gw, j / gw, gw, gh);
+                        let i = (y.round().clamp(0.0, (h - 1) as f32) as usize) * w + x.round().clamp(0.0, (w - 1) as f32) as usize;
+                        let (re, im) = fields.iter().fold((0.0, 0.0), |(re, im), (f, a)| {
+                            let t = f.bands[b].2[j];
+                            (re + a[i] as f64 * t.cos(), im + a[i] as f64 * t.sin())
+                        });
+                        im.atan2(re)
+                    })
+                    .collect();
+                (gw, gh, combined)
+            })
+            .collect();
+        Self { bands, ..first.clone() }
+    }
+}
+
+/// Bilinear sample with coordinates clamped to the image.
+fn bilinear(values: &[f32], w: usize, h: usize, x: f32, y: f32) -> f32 {
+    let (x0, y0) = (x.floor() as usize, y.floor() as usize);
+    let (x1, y1) = ((x0 + 1).min(w - 1), (y0 + 1).min(h - 1));
+    let (fx, fy) = (x - x0 as f32, y - y0 as f32);
+    let at = |x: usize, y: usize| values[y * w + x];
+    at(x0, y0) * (1.0 - fx) * (1.0 - fy) + at(x1, y0) * fx * (1.0 - fy) + at(x0, y1) * (1.0 - fx) * fy + at(x1, y1) * fx * fy
+}
+
+/// Unit phasor of the offsets interpolated bilinearly at grid position (x, y); the padded
+/// transform is periodic, so positions wrap around.
+fn phasor_at(offsets: &[f64], gw: usize, gh: usize, x: f64, y: f64) -> (f64, f64) {
+    let (x0, y0) = (x.floor(), y.floor());
+    let (fx, fy) = (x - x0, y - y0);
+    let wrap = |v: f64, n: usize| (v as i64).rem_euclid(n as i64) as usize;
+    let mut sum = (0.0, 0.0);
+    for (dy, wy) in [(0.0, 1.0 - fy), (1.0, fy)] {
+        for (dx, wx) in [(0.0, 1.0 - fx), (1.0, fx)] {
+            let t = offsets[wrap(y0 + dy, gh) * gw + wrap(x0 + dx, gw)];
+            sum = (sum.0 + wx * wy * t.cos(), sum.1 + wx * wy * t.sin());
+        }
+    }
+    sum
+}
+
+/// A local phase scramble of `input` with the given offsets (see `PhaseOffsets`).
+pub fn scramble_with(input: &Planes, options: &LocalPhaseOptions, offsets: &PhaseOffsets) -> Planes {
     let (width, height) = (input.width, input.height);
     let scales = options.scales.max(1) as usize;
-    let layout = Layout::new(width, height, scales, options.padding_mode);
+    let layout = &offsets.layout;
     let (pw, ph) = (layout.width, layout.height);
     let bank = filter_bank(pw, ph, scales, options.orientations.max(1) as usize);
-    let offsets: Vec<Vec<f64>> = bank
-        .bands
-        .iter()
-        .map(|band| {
-            let grid = &bank.grids[band.scale];
-            offset_field(grid.width, grid.height, scale_frequency(band.scale) * grid.factor as f64, rng)
-        })
-        .collect();
+    let offsets: Vec<&Vec<f64>> = offsets.bands.iter().map(|(_, _, o)| o).collect();
     let strength = options.intensity.clamp(0.0, 1.0) as f64;
 
     let color = input
@@ -115,6 +215,7 @@ pub fn scramble(input: &Planes, options: &LocalPhaseOptions, rng: &mut seed::Rng
 }
 
 /// The padded transform: its size and where the image sits in it.
+#[derive(Clone)]
 struct Layout {
     width: usize,
     height: usize,
@@ -289,12 +390,9 @@ fn angular_window(theta: f64, o: usize, m: usize) -> f64 {
     }
 }
 
-/// Angular weight of orientation `o` at bin (kx, ky) of a `pw` x `ph` transform.
-///
-/// A bin and its mirror image are treated as a pair, the mirror at θ + π, where θ is taken from
-/// the lower-indexed bin. On the Nyquist row or column the signed frequencies of the two bins
-/// do not differ by π, so the pairing has to be explicit. A bin that is its own mirror stands
-/// for both angles and gets the root mean square of the two one-sided values.
+/// Angular weight of orientation `o` at bin (kx, ky). A bin and its mirror are paired
+/// explicitly (θ from the lower index, the mirror at θ + π), because on the Nyquist row or
+/// column their signed frequencies do not differ by π. A self-mirrored bin gets the RMS of both.
 fn angular_weight(kx: usize, ky: usize, pw: usize, ph: usize, o: usize, orientations: usize, norm: f64) -> f64 {
     let i = ky * pw + kx;
     let m = mirror_index(kx, ky, pw, ph);
@@ -316,7 +414,7 @@ fn angular_weight(kx: usize, ky: usize, pw: usize, ph: usize, o: usize, orientat
 fn scale_grid(pw: usize, ph: usize, s: usize) -> Grid {
     let factor = 1usize << s.min(30);
     if factor == 1 {
-        return Grid { width: pw, height: ph, factor, bins: (0..pw * ph).map(Some).collect() };
+        return Grid { width: pw, height: ph, bins: (0..pw * ph).map(Some).collect() };
     }
     let (width, height) = (pw.div_ceil(factor).max(1), ph.div_ceil(factor).max(1));
     let signed = |j: usize, n: usize| if j < n.div_ceil(2) { j as isize } else { j as isize - n as isize };
@@ -327,7 +425,7 @@ fn scale_grid(pw: usize, ph: usize, s: usize) -> Grid {
             (inside(sx, pw) && inside(sy, ph)).then(|| sy.rem_euclid(ph as isize) as usize * pw + sx.rem_euclid(pw as isize) as usize)
         })
         .collect();
-    Grid { width, height, factor, bins }
+    Grid { width, height, bins }
 }
 
 fn filter_bank(pw: usize, ph: usize, scales: usize, orientations: usize) -> FilterBank {
@@ -429,6 +527,24 @@ mod tests {
         assert_eq!(padded[row - 2].re, plane[1] as f64);
         assert_eq!(fast_size(1687), 1728);
         assert_eq!(fast_size(1250), 1250);
+    }
+
+    #[test]
+    fn carried_offsets_without_motion_give_the_same_scramble() {
+        let (w, h) = (24, 16);
+        let input = Planes { width: w, height: h, color: vec![(0..w * h).map(|i| ((i * 37) % 11) as f32 / 10.0).collect()], alpha: None, sixteen_bit: false };
+        let options = LocalPhaseOptions { scales: 2, orientations: 3, ..Default::default() };
+        let direct = scramble(&input, &options, &mut seed::rng(5));
+        let offsets = PhaseOffsets::new(w, h, &options, &mut seed::rng(5));
+        let xs = (0..w * h).map(|i| (i % w) as f32).collect();
+        let ys = (0..w * h).map(|i| (i / w) as f32).collect();
+        let still = Planes { color: vec![xs, ys], ..input.clone() };
+        let carried = offsets.carry(&still);
+        let blended = PhaseOffsets::blend(&[(&carried, &vec![0.7; w * h]), (&offsets, &vec![0.3; w * h])]);
+        let again = scramble_with(&input, &options, &blended);
+        for (a, b) in direct.color[0].iter().zip(&again.color[0]) {
+            assert!((a - b).abs() < 1e-4, "{a} vs {b}");
+        }
     }
 
     #[test]

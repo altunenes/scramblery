@@ -67,10 +67,10 @@ Faces are detected in every frame; spatiotemporal scrambling randomises the phas
   <img src="docs/images/video.webp" width="640" alt="A video in four versions: original, faces scrambled within an ellipse, faces block-scrambled, and spatiotemporal phase scrambling">
 </p>
 
-Temporal modes on a fast head movement, phase scrambled at 100%. *Fixed pattern* applies one scramble to every frame; *Spatiotemporal* scrambles space and time together, keeping spatial and temporal frequency content; *Follow motion* uses optical flow (SEA-RAFT) to move the scramble with the content, so the motion of the original is kept while its form is not. Combined with face detection (here with the background removed), only the face is scrambled and the scramble moves with it.
+Here I turn my head very fast, a hard case on purpose. The top row compares the temporal modes with Fourier phase scrambling: *same scramble every frame*, *spatiotemporal* (space and time scrambled together), and *follow motion*, where optical flow (SEA-RAFT) moves the scramble with the content, so you see the motion but not the form. The bottom row is follow motion with other methods. With pixel and block scrambling, a paused frame shows nothing, and the head only appears while it moves. With Fourier, the edge of a fast moving region can still show when paused, because its large soft blobs cannot line up across it. Diffeomorphic carries the warp itself, so the bends stay on the face.
 
 <p align="center">
-  <img src="docs/images/modes.webp" width="640" alt="A fast head movement in four versions: fixed pattern, spatiotemporal, follow motion, and the face alone with follow motion">
+  <img src="docs/images/modes.webp" width="820" alt="A fast head turn in six versions: Fourier with the same scramble every frame, Fourier spatiotemporal, Fourier with follow motion, and follow motion with pixel, block and diffeomorphic scrambling">
 </p>
 
 ---
